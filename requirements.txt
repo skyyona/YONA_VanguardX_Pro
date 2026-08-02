@@ -1,0 +1,11 @@
+# ── Production ──────────────────────────────────────────
+websocket-client==1.9.0     # Binance WebSocket 실시간 Ticker (wss://fstream.binance.com)
+tzdata==2026.2              # zoneinfo KST 타임존 (Windows 필수)
+
+# ── Development / Test ──────────────────────────────────
+pytest==9.1.1
+colorama==0.4.6
+iniconfig==2.3.0
+packaging==26.2
+pluggy==1.6.0
+Pygments==2.20.0

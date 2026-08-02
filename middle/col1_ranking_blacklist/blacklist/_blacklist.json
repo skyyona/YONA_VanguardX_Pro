@@ -1,0 +1,734 @@
+[
+  {
+    "symbol": "1000WHYUSDT",
+    "added_utc": "2026-06-26 13:21 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "1000XUSDT",
+    "added_utc": "2026-06-26 13:21 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "42USDT",
+    "added_utc": "2026-06-26 13:21 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "A2ZUSDT",
+    "added_utc": "2026-06-26 13:21 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "AGIXUSDT",
+    "added_utc": "2026-06-26 13:21 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "AI16ZUSDT",
+    "added_utc": "2026-06-26 13:21 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "AIUSDT",
+    "added_utc": "2026-06-26 13:21 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "ALPACAUSDT",
+    "added_utc": "2026-06-26 13:21 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "ALPHAUSDT",
+    "added_utc": "2026-06-26 13:21 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "AMBUSDT",
+    "added_utc": "2026-06-26 13:21 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "ATAUSDT",
+    "added_utc": "2026-06-26 13:21 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "B3USDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "BADGERUSDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "BAKEUSDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "BALUSDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "BIDUSDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "BLZUSDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "BNXUSDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "BOBUSDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "BONDUSDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "BSWUSDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "CHESSUSDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "COMBOUSDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "COMMONUSDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "COSUSDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "CUDISUSDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "DAMUSDT",
+    "added_utc": "2026-06-26 13:29 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "STRAXUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "SWELLUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "SYSUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "TANSSIUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "TOKENUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "TONUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "TROYUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "TRUUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "UNFIUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "UXLINKUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "VFYUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "VIDTUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "VINEUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "VOXELUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "WAVESUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "XCNUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "XEMUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "YALAUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "ZKJUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "ZRCUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "REIUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "RENUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "RLSUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "RVVUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "SCUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "SKATEUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "SLERFUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "SNTUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "STMXUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "STPTUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "OMUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "ORBSUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "OXTUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "PERPUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "PHBUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "PONKEUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "PORT3USDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "PUFFERUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "QUICKUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "RADUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "RAYUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "RDNTUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "REEFUSDT",
+    "added_utc": "2026-06-28 01:12 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "LINAUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "LOKAUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "LOOMUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "LRCUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "MBOXUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "MDTUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "MEMEFIUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "MILKUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "MKRUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "MLNUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "MYROUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "NEIROETHUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "NKNUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "NTRNUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "NULSUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "OBOLUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "OCEANUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "OLUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "OMGUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "OMNIUSDT",
+    "added_utc": "2026-06-28 01:13 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "DARUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "DEFIUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "DEGENUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "DEGOUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "DENTUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "DFUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "DGBUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "DMCUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "DUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "EPTUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "FIOUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "FISUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "FLMUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "FORTHUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "FTMUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "FTTUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "FUNUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "FXSUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "GHSTUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "GLMRUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "HIFIUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "HIGHUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "HIPPOUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "HOOKUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "IDEXUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "IRUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "KDAUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "KEYUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "KLAYUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "LEVERUSDT",
+    "added_utc": "2026-06-28 01:14 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "IPUSDT",
+    "added_utc": "2026-06-30 14:00 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "NFPUSDT",
+    "added_utc": "2026-07-09 11:58 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  }
+]
