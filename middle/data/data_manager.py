@@ -17,7 +17,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 # ── 배경 갱신 주기 상수 ────────────────────────────────────────
 _TICKER_INTERVAL_SEC = 5   # ticker 갱신 (초) — 5초마다 전체 변동률 갱신
-_STAGE2_INTERVAL = 15    # 경량 갱신: L/S·FR·OI (초)
+_STAGE2_INTERVAL = 60    # 경량 갱신: L/S·FR·OI (초) — Rate Limit 예산 확보 (15→60)
+_STAGE2_TOPN     = 30    # STAGE2 대상 심볼 수 (100→30, weight/분 1,200→90)
 _STAGE3_INTERVAL = 60    # klines 갱신: 4TF OHLCV+지표 (초)
 _LOOP_BASE       = 5     # 루프 기본 단위 (초) — TICKER_INTERVAL과 동기화
 _STAGE2_WORKERS  = 5     # 경량 갱신 병렬 스레드 수 (3→5: 15초 주기 여유 확보)
@@ -246,7 +247,8 @@ class MiddleDataManager:
         # ── 초기 실행 ─────────────────────────────────────────
         self._refresh_tickers()
         self._fetch_onboard_map()
-        threading.Thread(target=self._refresh_topn_scores, args=(100,), daemon=True).start()
+        threading.Thread(target=self._refresh_topn_scores,
+                         args=(_STAGE2_TOPN,), daemon=True).start()
         threading.Thread(target=self._refresh_topn_klines,  args=(100,), daemon=True).start()
 
         # ── 주기 카운터 (5초 단위) ────────────────────────────
@@ -268,7 +270,8 @@ class MiddleDataManager:
 
             # ── STAGE2: 15초마다 경량 갱신 (L/S·FR·OI) ───────
             if _elapsed % _STAGE2_INTERVAL == 0:
-                threading.Thread(target=self._refresh_topn_scores, args=(100,), daemon=True).start()
+                threading.Thread(target=self._refresh_topn_scores,
+                                 args=(_STAGE2_TOPN,), daemon=True).start()
 
             # ── STAGE3: 60초마다 klines 갱신 ─────────────────
             if _elapsed % _STAGE3_INTERVAL == 0:

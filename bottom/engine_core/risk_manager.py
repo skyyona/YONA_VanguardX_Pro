@@ -15,7 +15,9 @@ MAX_PORTFOLIO_LOSS_PCT = 20.0
 # UI를 우회하는 비정상 경로에 대한 최후 백스탑.
 MAX_LEVERAGE = 125
 # 동시 허용 포지션 수 (롱 + 숏 합계)
-MAX_CONCURRENT_POSITIONS = 2
+# 원웨이(One-way) 모드 강제 환경: 반대 방향 주문은 신규가 아니라 기존 포지션 상계(netting).
+# 2로 두면 앱 상태와 Binance 실제 포지션이 영구적으로 어긋난다.
+MAX_CONCURRENT_POSITIONS = 1
 # Binance Futures 테이커 수수료율 — 증거금+수수료 합산이 잔고 초과하는 -2019 방지
 _TAKER_FEE_RATE = 0.0004
 

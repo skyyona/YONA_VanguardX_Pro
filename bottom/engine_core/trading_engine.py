@@ -720,14 +720,28 @@ class TradingEngine:
                                     self._client, _sym, qty, self._params, mark)
                     except Exception:
                         pass
-                elif "-1008" in _err:
+                elif ("-1008" in _err or "timed out" in _err
+                      or "URLError" in _err):
+                    # 결과 불명 — 재주문 전 실제 포지션 확인 (이중 진입 방지)
                     time.sleep(2.0)
-                    result = LongOrder.execute(
-                        self._client, _sym, qty, self._params, mark)
-                elif "timed out" in _err or "URLError" in _err:
-                    time.sleep(2.0)
-                    result = LongOrder.execute(
-                        self._client, _sym, qty, self._params, mark)
+                    try:
+                        _pos = self._client.get_position(_sym)
+                    except Exception:
+                        _pos = None
+                    if _pos is None:
+                        with self._lock:
+                            self._state.error_msg = (
+                                "[경보] 주문 결과 불명 + 포지션 조회 실패 — "
+                                "재주문 중단. Binance에서 수동 확인 필요")
+                    else:
+                        _amt = float(_pos.get("positionAmt", 0.0))
+                        _ep  = float(_pos.get("entryPrice",  0.0))
+                        if _amt > 0.0 and _ep > 0.0:
+                            result = OrderResult(True, fill_price=_ep,
+                                                 quantity=_amt)
+                        elif _amt == 0.0:
+                            result = LongOrder.execute(
+                                self._client, _sym, qty, self._params, mark)
         if result.success:
             _atr_5m  = float((ind or {}).get("atr_pct_5m", 0.0))
             _grade, _ = QualityGrader.grade(ind or {}, "long")
@@ -832,14 +846,28 @@ class TradingEngine:
                                     self._client, _sym, qty, self._params, mark)
                     except Exception:
                         pass
-                elif "-1008" in _err:
+                elif ("-1008" in _err or "timed out" in _err
+                      or "URLError" in _err):
+                    # 결과 불명 — 재주문 전 실제 포지션 확인 (이중 진입 방지)
                     time.sleep(2.0)
-                    result = ShortOrder.execute(
-                        self._client, _sym, qty, self._params, mark)
-                elif "timed out" in _err or "URLError" in _err:
-                    time.sleep(2.0)
-                    result = ShortOrder.execute(
-                        self._client, _sym, qty, self._params, mark)
+                    try:
+                        _pos = self._client.get_position(_sym)
+                    except Exception:
+                        _pos = None
+                    if _pos is None:
+                        with self._lock:
+                            self._state.error_msg = (
+                                "[경보] 주문 결과 불명 + 포지션 조회 실패 — "
+                                "재주문 중단. Binance에서 수동 확인 필요")
+                    else:
+                        _amt = float(_pos.get("positionAmt", 0.0))
+                        _ep  = float(_pos.get("entryPrice",  0.0))
+                        if _amt < 0.0 and _ep > 0.0:
+                            result = OrderResult(True, fill_price=_ep,
+                                                 quantity=abs(_amt))
+                        elif _amt == 0.0:
+                            result = ShortOrder.execute(
+                                self._client, _sym, qty, self._params, mark)
         if result.success:
             _atr_5m  = float((ind or {}).get("atr_pct_5m", 0.0))
             _grade, _ = QualityGrader.grade(ind or {}, "short")
@@ -970,8 +998,12 @@ class TradingEngine:
                 self._client.cancel_order(self._state.symbol, self._sl_order_id_long)
                 self._sl_order_id_long = ""
             self._trailing_placed_long = False
-            # [B] 연속 손실 카운터 갱신
-            if "SL" in reason:
+            # [B] 연속 손실 카운터 갱신 — 문자열이 아니라 실현 손익 기준 판정
+            #     (Phase2 BEP 스탑 청산이 손절로 오분류되는 문제 수정)
+            with self._lock:
+                _closed_l = self._state.long_pos
+            _is_loss = bool(_closed_l and _closed_l.pnl_usdt < 0)
+            if _is_loss:
                 self._beep((220, 220), (165, 220), (110, 460))
                 self._consecutive_losses += 1
             else:
@@ -1024,8 +1056,12 @@ class TradingEngine:
                 self._client.cancel_order(self._state.symbol, self._sl_order_id_short)
                 self._sl_order_id_short = ""
             self._trailing_placed_short = False
-            # [B] 연속 손실 카운터 갱신
-            if "SL" in reason:
+            # [B] 연속 손실 카운터 갱신 — 문자열이 아니라 실현 손익 기준 판정
+            #     (Phase2 BEP 스탑 청산이 손절로 오분류되는 문제 수정)
+            with self._lock:
+                _closed_s = self._state.short_pos
+            _is_loss = bool(_closed_s and _closed_s.pnl_usdt < 0)
+            if _is_loss:
                 self._beep((220, 220), (165, 220), (110, 460))
                 self._consecutive_losses += 1
             else:

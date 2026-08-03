@@ -2,12 +2,13 @@
 middle/api/binance_client.py
 중단 모듈 전용 바이낸스 REST 클라이언트 (시장 데이터 전용)
 
-API 키 설정 상태:
-  키 있음 (middle/.env): X-MBX-APIKEY 헤더 포함 → Rate Limit 6,000 weight/분
-  키 없음 (기본):        헤더 없이 공개 요청    → Rate Limit 2,400 weight/분
+Rate Limit (USDⓈ-M Futures):
+  REQUEST_WEIGHT = 2,400 / 분, IP 기준 적용.
+  API 키를 넣어도 이 한도는 상향되지 않는다.
+  (6,000 weight/분은 Spot API 수치이며 선물에는 해당하지 않는다.)
 
 공개 엔드포인트(ticker, klines, funding, OI, L/S ratio)만 사용하므로
-서명(HMAC)은 불필요 — 키는 Rate Limit 향상 전용
+서명(HMAC)은 불필요. X-MBX-APIKEY 헤더는 사용량 추적 목적으로만 유지한다.
 """
 from __future__ import annotations
 
@@ -42,8 +43,8 @@ class MiddleBinanceClient:
     """중단 모듈 전용 바이낸스 REST 클라이언트.
 
     middle/.env 에 MIDDLE_BINANCE_API_KEY 가 설정되면
-    모든 공개 API 요청에 X-MBX-APIKEY 헤더를 추가하여
-    Rate Limit 한도를 2.5배 향상시킵니다.
+    모든 공개 API 요청에 X-MBX-APIKEY 헤더를 추가합니다.
+    선물 REST 한도는 IP 기준 2,400 weight/분으로 고정이며 키로 상향되지 않습니다.
     """
 
     def __init__(self) -> None:
