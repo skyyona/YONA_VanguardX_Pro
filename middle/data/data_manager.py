@@ -18,7 +18,11 @@ from concurrent.futures import ThreadPoolExecutor
 # ── 배경 갱신 주기 상수 ────────────────────────────────────────
 _TICKER_INTERVAL_SEC = 5   # ticker 갱신 (초) — 5초마다 전체 변동률 갱신
 _STAGE2_INTERVAL = 60    # 경량 갱신: L/S·FR·OI (초) — Rate Limit 예산 확보 (15→60)
-_STAGE2_TOPN     = 30    # STAGE2 대상 심볼 수 (100→30, weight/분 1,200→90)
+# STAGE2 대상 심볼 수는 100 고정.
+# 축소 시 대상 밖 심볼은 갱신이 늦어지는 게 아니라 아예 되지 않으며,
+# long_ratio(50.0)/funding_rate(0.0)/oi_change(0.0) 기본값으로 영구 채점된다.
+# 이 3개 필드는 sharp_rise·sharp_decline·fourtf·newlisted·player 5개 스코어러가 모두 사용한다.
+_STAGE2_TOPN     = 100
 _STAGE3_INTERVAL = 60    # klines 갱신: 4TF OHLCV+지표 (초)
 _LOOP_BASE       = 5     # 루프 기본 단위 (초) — TICKER_INTERVAL과 동기화
 _STAGE2_WORKERS  = 5     # 경량 갱신 병렬 스레드 수 (3→5: 15초 주기 여유 확보)
@@ -240,7 +244,7 @@ class MiddleDataManager:
         """4단계 자동 갱신 루프 (데몬 스레드, 5초 기본 단위).
 
         Ticker: 5초마다  — 전체 24h 변동률 갱신 → 랭킹 순위 반영
-        STAGE2: 15초마다 — L/S·FR·OI 경량 갱신 → Sharp 별점·필터 정확도
+        STAGE2: 60초마다 — L/S·FR·OI 경량 갱신 → Sharp 별점·필터 정확도
         STAGE3: 60초마다 — 4TF klines 갱신 → TF정렬·ATR%·EMA·4TF별점
         STAGE1: 클릭 즉시 — request_selected() 에서 처리
         """
@@ -268,7 +272,7 @@ class MiddleDataManager:
                 if self._ws_ticker is None or not self._ws_ticker.has_received_data:
                     self._refresh_tickers()
 
-            # ── STAGE2: 15초마다 경량 갱신 (L/S·FR·OI) ───────
+            # ── STAGE2: 60초마다 경량 갱신 (L/S·FR·OI) ───────
             if _elapsed % _STAGE2_INTERVAL == 0:
                 threading.Thread(target=self._refresh_topn_scores,
                                  args=(_STAGE2_TOPN,), daemon=True).start()

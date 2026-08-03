@@ -352,7 +352,7 @@ class BottomBinanceClient:
         if self._rate_limited_until > time.time():
             self._last_api_error = f"Rate Limited — {int(self._rate_limited_until - time.time())}초 후 해제"
             return None
-        params = {"timestamp": str(self._ts()), "recvWindow": "5000"}
+        params = {"timestamp": str(self._ts()), "recvWindow": "10000"}
         if extra_params:
             params.update(extra_params)
         qs  = urllib.parse.urlencode(params)
@@ -386,7 +386,7 @@ class BottomBinanceClient:
             return None
 
     def _signed_post(self, path: str, params: dict) -> dict | None:
-        params.setdefault("recvWindow", "5000")
+        params.setdefault("recvWindow", "10000")
         if self._rate_limited_until > time.time():
             self._last_api_error = f"Rate Limited — {int(self._rate_limited_until - time.time())}초 후 해제"
             return None
