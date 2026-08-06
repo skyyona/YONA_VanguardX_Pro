@@ -11,6 +11,8 @@ from bottom.models import (
 
 # 포트폴리오 대비 최대 손실 한도 (%)
 MAX_PORTFOLIO_LOSS_PCT = 20.0
+# 단일 거래 최대 손실 비율 — SL 도달 시 손실이 이 값 초과 시 수량 상한 조정 (%)
+_MAX_R_PCT = 8.0
 # 엔진 레이어 하드 리밋: Binance Futures 절대 상한(125x). UI(AppliedLeverage: 1~20x)와 역할 다름.
 # UI를 우회하는 비정상 경로에 대한 최후 백스탑.
 MAX_LEVERAGE = 125
@@ -97,6 +99,28 @@ class RiskManager:
         fee_divisor  = 1.0 + params.leverage * _TAKER_FEE_RATE
         net_notional = gross_notional / fee_divisor
         return round(net_notional / mark_price, qty_precision)
+
+    @classmethod
+    def apply_r_cap(
+        cls,
+        qty:            float,
+        mark_price:     float,
+        sl_pct:         float,
+        portfolio_usdt: float,
+        max_r_pct:      float = _MAX_R_PCT,
+    ) -> float:
+        """SL 도달 시 손실 ≤ portfolio × max_r_pct% 를 보장하도록 수량 상한 조정.
+
+        sl_pct · mark_price · portfolio_usdt 중 하나라도 0 이하면 qty 원본 반환.
+        수량 단위 반올림은 호출부(floor_qty)가 담당.
+        """
+        if sl_pct <= 0 or mark_price <= 0 or portfolio_usdt <= 0:
+            return qty
+        max_loss = portfolio_usdt * max_r_pct / 100.0
+        sl_loss  = qty * mark_price * sl_pct / 100.0
+        if sl_loss > max_loss:
+            return max_loss / (mark_price * sl_pct / 100.0)
+        return qty
 
     @classmethod
     def should_stop_loss(cls, position: Position, current_price: float) -> bool:

@@ -688,7 +688,14 @@ class TradingEngine:
         min_qty = self._client.get_min_qty(self._state.symbol)
         qty     = RiskManager.calc_position_size(self._params, mark, balance,
                                                  qty_precision=prec)
-        qty     = self._client.floor_qty(self._state.symbol, qty)
+        qty = self._client.floor_qty(self._state.symbol, qty)
+        # R-cap 사전 계산 — SL 도달 손실 ≤ 포트폴리오 × _MAX_R_PCT% 보장
+        _atr_5m       = float((ind or {}).get("atr_pct_5m", 0.0))
+        _grade, _     = QualityGrader.grade(ind or {}, "long")
+        _auto_sl, _auto_trail = SLCalculator.compute(_atr_5m, _grade, self._params.leverage)
+        if _auto_sl > 0:
+            qty = RiskManager.apply_r_cap(qty, mark, _auto_sl, balance)
+            qty = self._client.floor_qty(self._state.symbol, qty)
         if qty <= 0:
             with self._lock:
                 self._state.error_msg = "수량 계산 실패 — exchangeInfo 조회 불가, 진입 차단"
@@ -743,10 +750,6 @@ class TradingEngine:
                             result = LongOrder.execute(
                                 self._client, _sym, qty, self._params, mark)
         if result.success:
-            _atr_5m  = float((ind or {}).get("atr_pct_5m", 0.0))
-            _grade, _ = QualityGrader.grade(ind or {}, "long")
-            _auto_sl, _auto_trail = SLCalculator.compute(
-                _atr_5m, _grade, self._params.leverage)
             pos = LongPosition.open(
                 self._state.symbol, result.fill_price, result.quantity,
                 self._params,
@@ -814,7 +817,14 @@ class TradingEngine:
         min_qty = self._client.get_min_qty(self._state.symbol)
         qty     = RiskManager.calc_position_size(self._params, mark, balance,
                                                  qty_precision=prec)
-        qty     = self._client.floor_qty(self._state.symbol, qty)
+        qty = self._client.floor_qty(self._state.symbol, qty)
+        # R-cap 사전 계산 — SL 도달 손실 ≤ 포트폴리오 × _MAX_R_PCT% 보장
+        _atr_5m       = float((ind or {}).get("atr_pct_5m", 0.0))
+        _grade, _     = QualityGrader.grade(ind or {}, "short")
+        _auto_sl, _auto_trail = SLCalculator.compute(_atr_5m, _grade, self._params.leverage)
+        if _auto_sl > 0:
+            qty = RiskManager.apply_r_cap(qty, mark, _auto_sl, balance)
+            qty = self._client.floor_qty(self._state.symbol, qty)
         if qty <= 0:
             with self._lock:
                 self._state.error_msg = "수량 계산 실패 — exchangeInfo 조회 불가, 진입 차단"
@@ -869,10 +879,6 @@ class TradingEngine:
                             result = ShortOrder.execute(
                                 self._client, _sym, qty, self._params, mark)
         if result.success:
-            _atr_5m  = float((ind or {}).get("atr_pct_5m", 0.0))
-            _grade, _ = QualityGrader.grade(ind or {}, "short")
-            _auto_sl, _auto_trail = SLCalculator.compute(
-                _atr_5m, _grade, self._params.leverage)
             pos = ShortPosition.open(
                 self._state.symbol, result.fill_price, result.quantity,
                 self._params,
@@ -1179,6 +1185,17 @@ class TradingEngine:
                 lp = self._state.long_pos
                 sp = self._state.short_pos
             mark = self._client.get_mark_price(sym) or 0.0
+            # -16% 미실현 손실 백스탑 — R×2 초과 시 즉시 시장가 청산
+            if mark > 0:
+                _unreal = float(actual.get("unRealizedProfit", 0.0))
+                _bal    = self._get_balance()
+                if _bal and _bal > 0 and _unreal / _bal * 100.0 < -16.0:
+                    _unreal_pct = _unreal / _bal * 100.0
+                    if lp and lp.state == PositionState.OPEN:
+                        self._close_long(f"미실현 {_unreal_pct:.1f}% 백스탑", mark)
+                    if sp and sp.state == PositionState.OPEN:
+                        self._close_short(f"미실현 {_unreal_pct:.1f}% 백스탑", mark)
+                    return
             if lp and lp.state == PositionState.OPEN and pos_amt == 0.0:
                 with self._lock:
                     self._state.long_pos    = LongPosition.close(

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 _GRADE_MULT: dict[str, float] = {"A": 2.0, "B": 1.6, "C": 1.2, "D": 1.0}
 _LIQ_SAFETY  = 0.80   # 이론 청산까지 거리의 80% 이내로 SL 상한 제한
+_MMR_APPROX  = 0.004  # 0.4% 유지증거금률 근사값 — Binance USDM 소규모 포지션 기준
 _SL_MIN      = 0.3    # SL 최솟값 (%)
 _TRAIL_RATIO = 0.5    # trail_raw = 5m ATR × 0.5
 _TRAIL_MIN   = 0.5    # trail 최솟값 (%)
@@ -37,7 +38,7 @@ class SLCalculator:
 
         # ── SL 계산: ATR × 등급배수, 레버리지 안전 상한 적용
         sl_raw   = atr_pct_5m * mult
-        liq_safe = (1.0 / max(leverage, 1)) * 100.0 * _LIQ_SAFETY
+        liq_safe = max(0.1, (1.0 / max(leverage, 1)) - _MMR_APPROX) * 100.0 * _LIQ_SAFETY
         sl_pct   = max(_SL_MIN, min(sl_raw, liq_safe))
 
         # ── Trail 계산: ATR × 0.5, SL의 60% 이내

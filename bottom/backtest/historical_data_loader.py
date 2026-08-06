@@ -66,6 +66,38 @@ class HistoricalDataLoader:
             return []
 
     @staticmethod
+    def load_bars(symbol: str, interval: str, total: int) -> list[HistoricalBar]:
+        """N회 페이지네이션으로 total봉을 시간 오름차순으로 로드.
+
+        total ≤ _MAX_LIMIT(1500)이면 1회 요청. 초과하면 최신 배치부터 역방향으로
+        누적 후 시간 오름차순으로 병합한다.
+        """
+        if total <= _MAX_LIMIT:
+            return HistoricalDataLoader.load(symbol, interval, total)
+
+        pages:       list[list[HistoricalBar]] = []
+        need:        int = total
+        end_time_ms: "int | None" = None
+
+        while need > 0:
+            n     = min(need, _MAX_LIMIT)
+            page  = HistoricalDataLoader.load(symbol, interval, n, end_time_ms)
+            if not page:
+                break
+            pages.append(page)
+            need -= len(page)
+            if len(page) < n:       # API가 요청보다 적게 반환 → 더 이전 데이터 없음
+                break
+            end_time_ms = page[0].open_time - 1  # 이전 배치 직전 ms 로 역방향 이동
+
+        # pages[0] = 최신 배치, pages[-1] = 가장 오래된 배치 → 역순 병합
+        pages.reverse()
+        merged: list[HistoricalBar] = []
+        for p in pages:
+            merged.extend(p)
+        return merged
+
+    @staticmethod
     def load_for_period(symbol: str, period: str) -> list[HistoricalBar]:
         """기간 문자열("7일", "14일", "30일", "90일")로 로드.
 

@@ -6,7 +6,7 @@
     "trail_stop": 1.0,
     "prohibition": {
       "common_macro": false,
-      "common_4tf": false,
+      "common_4tf": true,
       "common_liq": false,
       "common_atr": false,
       "common_fr": false,
@@ -26,7 +26,7 @@
     "trail_stop": 1.0,
     "prohibition": {
       "common_macro": false,
-      "common_4tf": false,
+      "common_4tf": true,
       "common_liq": false,
       "common_atr": false,
       "common_fr": false,
@@ -46,7 +46,7 @@
     "trail_stop": 0.6,
     "prohibition": {
       "common_macro": true,
-      "common_4tf": false,
+      "common_4tf": true,
       "common_liq": true,
       "common_atr": false,
       "common_fr": true,
@@ -66,7 +66,7 @@
     "trail_stop": 1.5,
     "prohibition": {
       "common_macro": false,
-      "common_4tf": false,
+      "common_4tf": true,
       "common_liq": true,
       "common_atr": false,
       "common_fr": false,
@@ -86,7 +86,7 @@
     "trail_stop": 2.3,
     "prohibition": {
       "common_macro": true,
-      "common_4tf": false,
+      "common_4tf": true,
       "common_liq": true,
       "common_atr": false,
       "common_fr": false,
@@ -106,7 +106,7 @@
     "trail_stop": 1.0,
     "prohibition": {
       "common_macro": false,
-      "common_4tf": false,
+      "common_4tf": true,
       "common_liq": true,
       "common_atr": true,
       "common_fr": true,
