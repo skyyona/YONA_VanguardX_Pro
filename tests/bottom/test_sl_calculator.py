@@ -39,13 +39,13 @@ class TestSLCalculatorGradeMultiplier:
 
 class TestSLCalculatorLeverageCap:
     def test_high_leverage_caps_sl(self):
-        """lev=100 → liq_safe=(1/100)×100×0.8=0.8 → sl 상한 0.8."""
+        """lev=100 → liq_safe=max(0.001,(1/100-0.004))×100×0.8=0.48 → sl=0.5."""
         sl, _ = SLCalculator.compute(5.0, "D", 100)
-        assert sl == 0.8
+        assert sl == 0.5
 
     def test_high_leverage_trail_floor_applies(self):
         """cap으로 trail이 0.5 아래로 내려갈 때 floor 재보정 → trail=0.5."""
-        # sl=0.8, sl*0.6=0.48 < _TRAIL_MIN(0.5) → floor 재보정 → 0.5
+        # sl=0.5, sl*0.6=0.3 < _TRAIL_MIN(0.5) → floor 재보정 → 0.5
         _, trail = SLCalculator.compute(5.0, "D", 100)
         assert trail == 0.5
 
@@ -60,10 +60,10 @@ class TestSLCalculatorTrailCap:
     def test_trail_capped_at_sl_times_0_6(self):
         """trail_raw > sl×0.6 이면 trail이 sl×60%로 상한 적용."""
         # atr=10.0, grade=A, lev=10:
-        # sl_raw=20→liq_safe=8.0→sl=8.0 / trail_raw=5.0→min(5.0,4.8)=4.8
+        # sl_raw=20→liq_safe=7.68(MMR반영)→sl=7.7 / trail_raw=5.0→min(5.0,4.608)=4.6
         sl, trail = SLCalculator.compute(10.0, "A", 10)
-        assert sl == 8.0
-        assert trail == 4.8
+        assert sl == 7.7
+        assert trail == 4.6
         assert trail <= sl * 0.6 + 1e-9
 
     def test_trail_not_capped_when_below_60pct(self):

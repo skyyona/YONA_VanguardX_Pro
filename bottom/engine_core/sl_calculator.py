@@ -38,7 +38,7 @@ class SLCalculator:
 
         # ── SL 계산: ATR × 등급배수, 레버리지 안전 상한 적용
         sl_raw   = atr_pct_5m * mult
-        liq_safe = max(0.1, (1.0 / max(leverage, 1)) - _MMR_APPROX) * 100.0 * _LIQ_SAFETY
+        liq_safe = max(0.001, (1.0 / max(leverage, 1)) - _MMR_APPROX) * 100.0 * _LIQ_SAFETY
         sl_pct   = max(_SL_MIN, min(sl_raw, liq_safe))
 
         # ── Trail 계산: ATR × 0.5, SL의 60% 이내

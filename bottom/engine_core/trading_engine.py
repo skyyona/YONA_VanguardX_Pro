@@ -1216,8 +1216,9 @@ class TradingEngine:
                     self._client.cancel_order(sym, self._sl_order_id_short)
                     self._sl_order_id_short = ""
                 self._trailing_placed_short = False
-        except Exception:
-            pass
+        except Exception as e:
+            with self._lock:
+                self._state.error_msg = f"[경보] 포지션 동기화 실패 — {e}"
 
     def _invalidate_balance(self) -> None:
         """주문 체결 직후 캐시 무효화 → 다음 진입 시 REST 재조회."""
