@@ -580,6 +580,27 @@ class BottomModuleMockup(tk.Frame):
                            state="disabled")
         bt_btn.pack(side="left", padx=(12, 0), pady=(4, 0))
 
+        # 합의 모드 선택 Combobox — 방안 A
+        _consensus_var = tk.StringVar(value="3/4")
+        _consensus_cb = ttk.Combobox(
+            footer_row1,
+            textvariable=_consensus_var,
+            values=["3/4", "4/4", "anchor3", "anchor2"],
+            state="readonly", width=8,
+            font=("Segoe UI", 7),
+        )
+        _consensus_cb.pack(side="left", padx=(8, 0), pady=(4, 0))
+
+        # 4모드 비교 버튼 — 방안 B
+        cmp_btn = tk.Button(footer_row1, text="  📊  4모드 비교  ",
+                            bg=DARK_PANEL, fg=DIM_TEXT,
+                            activebackground="#252525",
+                            activeforeground=DARK_TEXT,
+                            font=("Segoe UI", 8), relief="flat",
+                            padx=8, pady=4, cursor="hand2",
+                            state="disabled")
+        cmp_btn.pack(side="left", padx=(6, 0), pady=(4, 0))
+
         restart_btn = tk.Button(footer_row1, text="  🔄  재실행  ",
                                 bg=DARK_PANEL, fg=DIM_TEXT,
                                 activebackground="#2A2A2A",
@@ -829,6 +850,7 @@ class BottomModuleMockup(tk.Frame):
             load_btn.configure(state="normal", cursor="hand2",
                                text="  🔄  재로딩  ")
             bt_btn.configure(state="normal", cursor="hand2")
+            cmp_btn.configure(state="normal", cursor="hand2")
 
         def _populate_tab1() -> None:
             for w in tab1_frame.winfo_children():
@@ -1306,6 +1328,7 @@ class BottomModuleMockup(tk.Frame):
         # ── 백테스팅 실행 ─────────────────────────────────────────
         def _do_backtest() -> None:
             bt_btn.configure(state="disabled", cursor="arrow")
+            cmp_btn.configure(state="disabled", cursor="arrow")
             status_lbl.configure(text="  백테스팅 실행 중...  ", fg=YELLOW)
 
             funds, lev, sl, trail = self._current_params()
@@ -1324,9 +1347,12 @@ class BottomModuleMockup(tk.Frame):
             def _run() -> None:
                 try:
                     if _HAS_BACKTEST and BacktestRunner is not None:
+                        from bottom.backtest.param_deriver import derive_params
                         period_key = _get_period_key(avail_days_ref[0])
-                        result_obj = BacktestRunner.run(sym, params, period_key)
+                        mode       = _consensus_var.get()
+                        result_obj = BacktestRunner.run(sym, params, period_key, mode)
                         res = _backtest_result_to_dict(result_obj)
+                        res["derived"] = derive_params(result_obj.trades)
                     else:
                         res = {}
                 except Exception:
@@ -1351,6 +1377,7 @@ class BottomModuleMockup(tk.Frame):
             _show_tab(2)
             bt_btn.configure(state="normal", cursor="hand2",
                              text="  🔄  백테스팅 재실행  ")
+            cmp_btn.configure(state="normal", cursor="hand2")
 
             for row_d in _stat_rows:
                 key = row_d["key"]
@@ -1517,6 +1544,47 @@ class BottomModuleMockup(tk.Frame):
                          width=18, anchor="center").pack(
                              side="left", padx=(4, 0))
 
+            # ── Kelly 리스크 분석 ────────────────────────────────────
+            derived = res.get("derived", {})
+            tk.Frame(inner, bg="#2A2A2A", height=1).pack(
+                fill="x", pady=(12, 0))
+            kelly_hdr = tk.Frame(inner, bg=DARK_HEADER, pady=5)
+            kelly_hdr.pack(fill="x")
+            tk.Label(kelly_hdr, text="  📐  Kelly 리스크 분석  (Fractional Kelly × 0.25)",
+                     bg=DARK_HEADER, fg=ACCENT_BLUE,
+                     font=("Segoe UI", 9, "bold")).pack(side="left", padx=6)
+
+            _note = derived.get("note", "")
+            if not derived or "note" in derived and len(derived) == 1:
+                # 거래 없음 또는 샘플 부족
+                note_row = tk.Frame(inner, bg=DARK_ROW_ODD, pady=8)
+                note_row.pack(fill="x")
+                tk.Label(note_row, text=f"  {_note or '거래 데이터 없음'}",
+                         bg=DARK_ROW_ODD, fg=DIM_TEXT,
+                         font=("Segoe UI", 8)).pack(side="left", padx=10)
+            else:
+                kelly_items = [
+                    ("Wilson 승률 하한",       f"{derived.get('win_rate_wilson', 0)*100:.1f}%",  ACCENT_BLUE),
+                    ("단순 승률",              f"{derived.get('win_rate_raw', 0)*100:.1f}%",      DIM_TEXT),
+                    ("평균 수익 pnl",          f"{derived.get('avg_win_r', 0):+.2f}%",            POSITIVE),
+                    ("평균 손실 pnl",          f"-{derived.get('avg_loss_r', 0):.2f}%",           NEGATIVE),
+                    ("Kelly 권장 위험 비율",   f"{derived.get('r_per_trade_pct', 0):.2f}%",       YELLOW),
+                ]
+                if _note:
+                    kelly_items.append(("비고", _note, DIM_TEXT))
+                for ki, (klabel, kval, kcol) in enumerate(kelly_items):
+                    kbg = DARK_ROW_ODD if ki % 2 == 0 else DARK_ROW_EVN
+                    krw = tk.Frame(inner, bg=kbg, pady=6)
+                    krw.pack(fill="x")
+                    tk.Label(krw, text=f"  {klabel}",
+                             bg=kbg, fg=DIM_TEXT,
+                             font=("Segoe UI", 8),
+                             width=24, anchor="w").pack(side="left", padx=(8, 0))
+                    tk.Label(krw, text=kval,
+                             bg=kbg, fg=kcol,
+                             font=("Consolas", 9, "bold"),
+                             anchor="w").pack(side="left", padx=(16, 0))
+
         def _do_load() -> None:
             load_btn.configure(state="disabled", cursor="arrow")
             bt_btn.configure(state="disabled", cursor="arrow",
@@ -1538,6 +1606,144 @@ class BottomModuleMockup(tk.Frame):
                 _data_fetched_ref[0] = True
 
             _threading.Thread(target=_fetch, daemon=True).start()
+
+        # ── 4모드 비교 실행 ───────────────────────────────────────
+        def _do_comparison() -> None:
+            bt_btn.configure(state="disabled", cursor="arrow")
+            cmp_btn.configure(state="disabled", cursor="arrow")
+            status_lbl.configure(text="  4모드 비교 실행 중...  ", fg=YELLOW)
+
+            funds, lev, sl, trail = self._current_params()
+            from bottom.models import StrategyParams as _SP, ProhibitionFlags as _PF
+            params = _SP(
+                sort_mode   = _selected_sort_ref[0],
+                funds_pct   = int(funds),
+                leverage    = int(lev),
+                stop_loss   = float(sl),
+                trail_stop  = float(trail),
+                prohibition = _PF.from_dict(
+                                {k: v.get() for k, v in self._prohibited_vars.items()}),
+                use_macro   = self._use_macro_var.get(),
+            )
+
+            def _run_cmp() -> None:
+                try:
+                    if _HAS_BACKTEST and BacktestRunner is not None:
+                        period_key = _get_period_key(avail_days_ref[0])
+                        cmp_results = BacktestRunner.run_comparison(
+                            sym, params, period_key)
+                    else:
+                        cmp_results = {}
+                except Exception:
+                    cmp_results = {}
+                win.after(0, lambda r=cmp_results: _comparison_done(r))
+
+            _threading.Thread(target=_run_cmp, daemon=True).start()
+
+        def _comparison_done(cmp_results: dict) -> None:
+            status_lbl.configure(
+                text="  4모드 비교 완료  ✓  ",
+                fg=POSITIVE)
+            for w in tab2_frame.winfo_children():
+                w.destroy()
+            _show_comparison_tab2(cmp_results)
+            tab2_btn.configure(state="normal", cursor="hand2")
+            tab1_btn.configure(**_TAB_UNSEL)
+            _show_tab(2)
+            bt_btn.configure(state="normal", cursor="hand2",
+                             text="  🔄  백테스팅 재실행  ")
+            cmp_btn.configure(state="normal", cursor="hand2")
+
+        def _show_comparison_tab2(cmp_results: dict) -> None:
+            """4모드 비교 결과를 tab2에 렌더링."""
+            canvas_scroll = tk.Canvas(tab2_frame, bg=DARK_BG,
+                                      highlightthickness=0)
+            sb = tk.Scrollbar(tab2_frame, orient="vertical",
+                              command=canvas_scroll.yview)
+            canvas_scroll.configure(yscrollcommand=sb.set)
+            sb.pack(side="right", fill="y")
+            canvas_scroll.pack(side="left", fill="both", expand=True)
+
+            inner = tk.Frame(canvas_scroll, bg=DARK_BG)
+            inner_id = canvas_scroll.create_window(
+                (0, 0), window=inner, anchor="nw")
+
+            def _resize_cmp(e):
+                canvas_scroll.configure(
+                    scrollregion=canvas_scroll.bbox("all"))
+                canvas_scroll.itemconfig(inner_id, width=e.width)
+            canvas_scroll.bind("<Configure>", _resize_cmp)
+
+            # 헤더
+            hdr_f = tk.Frame(inner, bg=DARK_HEADER, pady=5)
+            hdr_f.pack(fill="x", pady=(8, 0))
+            tk.Label(hdr_f, text="  📊  4가지 합의 모드 비교",
+                     bg=DARK_HEADER, fg=ACCENT_BLUE,
+                     font=("Segoe UI", 9, "bold")).pack(side="left", padx=6)
+
+            # 컬럼 헤더
+            col_hdr = tk.Frame(inner, bg="#252525", pady=4)
+            col_hdr.pack(fill="x")
+            for txt, w in [("합의 모드", 10), ("적중도", 8), ("총 수익률", 10),
+                           ("MDD", 8), ("거래 횟수", 8), ("손익비", 8)]:
+                tk.Label(col_hdr, text=txt, bg="#252525", fg=ACCENT_BLUE,
+                         font=("Segoe UI", 7, "bold"),
+                         width=w, anchor="center").pack(side="left", padx=3)
+
+            # 최고 수익률 모드 파악
+            _MODES = ["4/4", "3/4", "anchor3", "anchor2"]
+            best_mode = max(
+                (m for m in _MODES if m in cmp_results),
+                key=lambda m: cmp_results[m].total_return,
+                default=None,
+            )
+
+            for row_i, mode in enumerate(_MODES):
+                if mode not in cmp_results:
+                    continue
+                r   = cmp_results[mode]
+                rbg = DARK_ROW_ODD if row_i % 2 == 0 else DARK_ROW_EVN
+                is_best = (mode == best_mode)
+
+                # 손익비 계산 (전체 trades 기반)
+                all_wins   = [t for t in r.trades if t.pnl_pct > 0]
+                all_losses = [t for t in r.trades if t.pnl_pct <= 0]
+                avg_w  = (sum(t.pnl_pct for t in all_wins)   / len(all_wins)
+                          if all_wins else 0)
+                avg_l  = (sum(t.pnl_pct for t in all_losses) / len(all_losses)
+                          if all_losses else 0)
+                rr_str = (f"{abs(avg_w/avg_l):.1f}:1" if avg_l != 0 else "—")
+
+                mode_label = f"{'★ ' if is_best else '   '}{mode}"
+                mode_fg    = YELLOW if is_best else DIM_TEXT
+
+                rw = tk.Frame(inner, bg=rbg, pady=6)
+                rw.pack(fill="x")
+                tk.Label(rw, text=mode_label, bg=rbg, fg=mode_fg,
+                         font=("Consolas", 8, "bold"),
+                         width=10, anchor="center").pack(side="left", padx=3)
+
+                cells = [
+                    (f"{r.win_rate:.0f}%",            ACCENT_BLUE, 8),
+                    (f"{r.total_return:+.1f}%",
+                     POSITIVE if r.total_return >= 0 else NEGATIVE, 10),
+                    (f"-{r.max_drawdown:.1f}%",        NEGATIVE,    8),
+                    (f"{r.total_trades}회",             DIM_TEXT,    8),
+                    (rr_str,                            ACCENT_BLUE, 8),
+                ]
+                for val, col, w in cells:
+                    tk.Label(rw, text=val, bg=rbg, fg=col,
+                             font=("Consolas", 8, "bold"),
+                             width=w, anchor="center").pack(
+                                 side="left", padx=3)
+
+            if not cmp_results:
+                note_row = tk.Frame(inner, bg=DARK_ROW_ODD, pady=8)
+                note_row.pack(fill="x")
+                tk.Label(note_row,
+                         text="  비교 결과 없음 — 데이터 로딩 후 재시도하세요.",
+                         bg=DARK_ROW_ODD, fg=DIM_TEXT,
+                         font=("Segoe UI", 8)).pack(side="left", padx=10)
 
         def _do_restart() -> None:
             status_lbl.configure(text="  —  ", fg=DIM_TEXT)
@@ -1565,6 +1771,7 @@ class BottomModuleMockup(tk.Frame):
                                text="  📥  데이터 로딩  ")
             bt_btn.configure(state="disabled", cursor="arrow",
                              text="  ▶  백테스팅  ")
+            cmp_btn.configure(state="disabled", cursor="arrow")
             avail_days_ref[0] = 90
             for row_d in _stat_rows:
                 row_d["long"].configure( text="롱 :   —", fg=DIM_TEXT)
@@ -1573,6 +1780,7 @@ class BottomModuleMockup(tk.Frame):
         load_btn.configure(command=_do_load)
         restart_btn.configure(command=_do_restart)
         bt_btn.configure(command=_do_backtest)
+        cmp_btn.configure(command=_do_comparison)
         tab1_btn.configure(command=lambda: _show_tab(1))
         tab_ban_btn.configure(command=lambda: _show_tab(3))
         tab2_btn.configure(command=lambda: _show_tab(2))
