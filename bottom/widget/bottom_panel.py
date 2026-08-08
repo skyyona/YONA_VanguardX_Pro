@@ -501,6 +501,24 @@ class BottomModuleMockup(tk.Frame):
                     text=f"  ⚠ Sort [{new_mode}] 변경 — 전략 재확정 필요  ",
                     fg=ORANGE)
 
+    def _restore_strategy_vars(self, sort_mode: str) -> None:
+        """sort_mode에 저장된 전략 설정을 UI vars에 복원한다."""
+        if StrategyLoader is None:
+            return
+        loaded = StrategyLoader.load(sort_mode)
+        if loaded is None:
+            return
+        self._funds_var.set(int(loaded.funds_pct))
+        self._lev_var.set(int(loaded.leverage))
+        self._sl_var.set(float(loaded.stop_loss))
+        self._trail_var.set(float(loaded.trail_stop))
+        self._use_macro_var.set(bool(loaded.use_macro))
+        for k, v in loaded.prohibition.to_dict().items():
+            if k in self._prohibited_vars:
+                self._prohibited_vars[k].set(bool(v))
+            else:
+                self._prohibited_vars[k] = tk.BooleanVar(value=bool(v))
+
     # ══════════════════════════════════════════════════════════════
     # 전략 설정 & 백테스팅 팝업창 (단일 페이지)
     # ══════════════════════════════════════════════════════════════
@@ -508,23 +526,6 @@ class BottomModuleMockup(tk.Frame):
         sym = self._shared_sym.get()
         if not sym:
             return
-
-        if StrategyLoader is not None:
-            _cur_sort = (self._shared_sort_mode.get()
-                         if self._shared_sort_mode is not None
-                         else self._applied_sort_mode)
-            _loaded = StrategyLoader.load(_cur_sort)
-            if _loaded is not None:
-                self._funds_var.set(int(_loaded.funds_pct))
-                self._lev_var.set(int(_loaded.leverage))
-                self._sl_var.set(float(_loaded.stop_loss))
-                self._trail_var.set(float(_loaded.trail_stop))
-                self._use_macro_var.set(bool(_loaded.use_macro))
-                for _k, _v in _loaded.prohibition.to_dict().items():
-                    if _k in self._prohibited_vars:
-                        self._prohibited_vars[_k].set(bool(_v))
-                    else:
-                        self._prohibited_vars[_k] = tk.BooleanVar(value=bool(_v))
 
         win = tk.Toplevel(self)
         win.title(f"🧠  {sym} — 4TF 완전 정렬 Stoch RSI 전략 설정 및 백테스팅")
@@ -961,6 +962,7 @@ class BottomModuleMockup(tk.Frame):
 
             def _select_sort_item(mode: str) -> None:
                 _selected_sort_ref[0] = mode   # 전략 창 내 선택값 저장 → 백테스팅·확정에 전달
+                self._restore_strategy_vars(mode)
                 for opt, b in sort_btns.items():
                     sel = (opt == mode)
                     b.configure(
