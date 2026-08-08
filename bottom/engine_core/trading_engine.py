@@ -16,7 +16,8 @@ from bottom.api.binance_client import BottomBinanceClient
 from bottom.models import (
     OrderResult, Position, PositionSide, PositionState, StrategyParams
 )
-from bottom.engine_core.risk_manager import RiskManager
+from bottom.engine_core.risk_manager import RiskManager, MAX_PORTFOLIO_LOSS_PCT, MAX_DAILY_LOSS_PCT
+from bottom.engine_core.daily_loss_tracker import DailyLossTracker
 from bottom.engine_core.quality_grader import QualityGrader
 from bottom.engine_core.sl_calculator import SLCalculator
 from bottom.long_engine.long_condition import LongCondition
@@ -668,6 +669,15 @@ class TradingEngine:
             with self._lock:
                 self._state.error_msg = "잔고 조회 실패 — 진입 차단"
             return False
+        # [C] 일일 손실 한도 게이트 (KST 자정 기준, 재시작 내성)
+        DailyLossTracker.ensure_initialized(balance)
+        _daily_loss_pct = DailyLossTracker.loss_pct(balance)
+        if RiskManager.should_daily_stop(_daily_loss_pct):
+            self.stop()
+            with self._lock:
+                self._state.error_msg = (
+                    f"[긴급] 일일 손실 한도(-{MAX_DAILY_LOSS_PCT:.0f}%) 초과 — 엔진 자동 정지")
+            return False
         current_loss_pct = (
             (balance - init_b) / init_b * 100.0 if init_b > 0 else 0.0)
         rr = RiskManager.validate_entry(
@@ -679,7 +689,8 @@ class TradingEngine:
             if RiskManager.should_auto_stop(current_loss_pct):
                 self.stop()
                 with self._lock:
-                    self._state.error_msg = "[긴급] 포트폴리오 손실 한도(-20%) 초과 — 엔진 자동 정지"
+                    self._state.error_msg = (
+                        f"[긴급] 포트폴리오 손실 한도(-{MAX_PORTFOLIO_LOSS_PCT:.0f}%) 초과 — 엔진 자동 정지")
             else:
                 with self._lock:
                     self._state.error_msg = rr.reason
@@ -797,6 +808,15 @@ class TradingEngine:
             with self._lock:
                 self._state.error_msg = "잔고 조회 실패 — 진입 차단"
             return False
+        # [C] 일일 손실 한도 게이트 (KST 자정 기준, 재시작 내성)
+        DailyLossTracker.ensure_initialized(balance)
+        _daily_loss_pct = DailyLossTracker.loss_pct(balance)
+        if RiskManager.should_daily_stop(_daily_loss_pct):
+            self.stop()
+            with self._lock:
+                self._state.error_msg = (
+                    f"[긴급] 일일 손실 한도(-{MAX_DAILY_LOSS_PCT:.0f}%) 초과 — 엔진 자동 정지")
+            return False
         current_loss_pct = (
             (balance - init_b) / init_b * 100.0 if init_b > 0 else 0.0)
         rr = RiskManager.validate_entry(
@@ -808,7 +828,8 @@ class TradingEngine:
             if RiskManager.should_auto_stop(current_loss_pct):
                 self.stop()
                 with self._lock:
-                    self._state.error_msg = "[긴급] 포트폴리오 손실 한도(-20%) 초과 — 엔진 자동 정지"
+                    self._state.error_msg = (
+                        f"[긴급] 포트폴리오 손실 한도(-{MAX_PORTFOLIO_LOSS_PCT:.0f}%) 초과 — 엔진 자동 정지")
             else:
                 with self._lock:
                     self._state.error_msg = rr.reason
@@ -1018,6 +1039,15 @@ class TradingEngine:
             if self._consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
                 self._loss_cooldown_until = time.time() + _LOSS_COOLDOWN_SEC
                 self._consecutive_losses = 0
+            # [B4] 청산 직후 일일 손실 한도 재확인 — _invalidate_balance() 이미 호출됨
+            if _is_loss:
+                _post_b = self._get_balance()
+                if _post_b is not None and RiskManager.should_daily_stop(
+                        DailyLossTracker.loss_pct(_post_b)):
+                    self.stop()
+                    with self._lock:
+                        self._state.error_msg = (
+                            f"[긴급] 일일 손실 한도(-{MAX_DAILY_LOSS_PCT:.0f}%) 초과 — 엔진 자동 정지")
         else:
             # Binance SL이 먼저 발동해 포지션이 이미 없는 경우 확인
             try:
@@ -1076,6 +1106,15 @@ class TradingEngine:
             if self._consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
                 self._loss_cooldown_until = time.time() + _LOSS_COOLDOWN_SEC
                 self._consecutive_losses = 0
+            # [B4] 청산 직후 일일 손실 한도 재확인 — _invalidate_balance() 이미 호출됨
+            if _is_loss:
+                _post_b = self._get_balance()
+                if _post_b is not None and RiskManager.should_daily_stop(
+                        DailyLossTracker.loss_pct(_post_b)):
+                    self.stop()
+                    with self._lock:
+                        self._state.error_msg = (
+                            f"[긴급] 일일 손실 한도(-{MAX_DAILY_LOSS_PCT:.0f}%) 초과 — 엔진 자동 정지")
         else:
             # Binance SL이 먼저 발동해 포지션이 이미 없는 경우 확인
             try:

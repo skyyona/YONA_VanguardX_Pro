@@ -9,8 +9,10 @@ from bottom.models import (
     Position, PositionSide, PositionState, RiskCheckResult, StrategyParams
 )
 
-# 포트폴리오 대비 최대 손실 한도 (%)
-MAX_PORTFOLIO_LOSS_PCT = 20.0
+# 포트폴리오 대비 최대 손실 한도 — 세션 기준, R=8%×3연패=-22.1% 허용 (%)
+MAX_PORTFOLIO_LOSS_PCT = 30.0
+# KST 자정 기준 일일 최대 실현 손실 한도 — 재시작 내성 (DailyLossTracker 연동) (%)
+MAX_DAILY_LOSS_PCT = 20.0
 # 단일 거래 최대 손실 비율 — SL 도달 시 손실이 이 값 초과 시 수량 상한 조정 (%)
 _MAX_R_PCT = 8.0
 # 엔진 레이어 하드 리밋: Binance Futures 절대 상한(125x). UI(AppliedLeverage: 1~20x)와 역할 다름.
@@ -75,9 +77,13 @@ class RiskManager:
 
     @classmethod
     def should_auto_stop(cls, current_loss_pct: float) -> bool:
-        """포트폴리오 손실 한도 초과 시 엔진 자동 정지 여부.
-        current_loss_pct < -MAX_PORTFOLIO_LOSS_PCT 이면 True."""
+        """세션 포트폴리오 손실 한도 초과 시 엔진 자동 정지 여부."""
         return current_loss_pct < -MAX_PORTFOLIO_LOSS_PCT
+
+    @classmethod
+    def should_daily_stop(cls, daily_loss_pct: float) -> bool:
+        """KST 일일 실현 손실 한도 초과 시 엔진 자동 정지 여부."""
+        return daily_loss_pct < -MAX_DAILY_LOSS_PCT
 
     @classmethod
     def calc_position_size(

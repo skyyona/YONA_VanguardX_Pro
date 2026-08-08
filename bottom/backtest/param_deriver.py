@@ -17,6 +17,8 @@ _KELLY_FRACTION = 0.25
 _Z_95 = 1.96
 # 단일 거래 최대 위험 상한 (%)
 _MAX_R_PCT = 8.0
+# Wilson 신뢰 구간 유효 최소 표본 수 — n<100 이면 구간이 너무 넓어 실용성 없음
+_MIN_SAMPLE = 100
 
 
 def _wilson_lower(wins: int, n: int, z: float = _Z_95) -> float:
@@ -77,8 +79,8 @@ def derive_params(trades: list, portfolio_usdt: float = 1000.0) -> dict:
     n      = len(trades)
     n_win  = len(wins)
 
-    if n < 10:
-        return {"note": f"샘플 {n}건 — Wilson 신뢰 구간 최소 10건 필요"}
+    if n < _MIN_SAMPLE:
+        return {"note": f"샘플 {n}건 — Wilson 신뢰 구간 최소 {_MIN_SAMPLE}건 필요"}
 
     win_rate_raw    = n_win / n
     win_rate_wilson = _wilson_lower(n_win, n)

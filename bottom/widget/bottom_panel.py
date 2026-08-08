@@ -581,7 +581,7 @@ class BottomModuleMockup(tk.Frame):
         bt_btn.pack(side="left", padx=(12, 0), pady=(4, 0))
 
         # 합의 모드 선택 Combobox — 방안 A
-        _consensus_var = tk.StringVar(value="3/4")
+        _consensus_var = tk.StringVar(value="4/4")
         _consensus_cb = ttk.Combobox(
             footer_row1,
             textvariable=_consensus_var,

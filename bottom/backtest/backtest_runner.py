@@ -65,16 +65,34 @@ class BacktestRunner:
     """
 
     @classmethod
+    def load_tf_bars(cls, symbol: str, period: str = "7일") -> dict:
+        """4개 TF 봉 데이터를 1회 로드 — run_comparison에서 API 4배 호출 방지."""
+        bars_cfg = _TF_BARS.get(period, _TF_BARS["7일"])
+        return {
+            "1m":  HistoricalDataLoader.load_bars(symbol, "1m",  bars_cfg["1m"]),
+            "3m":  HistoricalDataLoader.load_bars(symbol, "3m",  bars_cfg["3m"]),
+            "5m":  HistoricalDataLoader.load_bars(symbol, "5m",  bars_cfg["5m"]),
+            "15m": HistoricalDataLoader.load_bars(symbol, "15m", bars_cfg["15m"]),
+        }
+
+    @classmethod
     def run(cls, symbol: str, params: StrategyParams, period: str = "7일",
-            consensus_mode: str = _CONSENSUS_3_4) -> BacktestResult:
+            consensus_mode: str = _CONSENSUS_4_4,
+            preloaded: "dict | None" = None) -> BacktestResult:
         period_days = cls._days(period)
         bars_cfg    = _TF_BARS.get(period, _TF_BARS["7일"])
 
-        # ── 4개 TF 봉 로드 (N-page 페이지네이션) ──────────────────
-        bars_1m  = HistoricalDataLoader.load_bars(symbol, "1m",  bars_cfg["1m"])
-        bars_3m  = HistoricalDataLoader.load_bars(symbol, "3m",  bars_cfg["3m"])
-        bars_5m  = HistoricalDataLoader.load_bars(symbol, "5m",  bars_cfg["5m"])
-        bars_15m = HistoricalDataLoader.load_bars(symbol, "15m", bars_cfg["15m"])
+        # ── 4개 TF 봉 로드 (preloaded 제공 시 API 호출 생략) ──────
+        if preloaded is not None:
+            bars_1m  = preloaded["1m"]
+            bars_3m  = preloaded["3m"]
+            bars_5m  = preloaded["5m"]
+            bars_15m = preloaded["15m"]
+        else:
+            bars_1m  = HistoricalDataLoader.load_bars(symbol, "1m",  bars_cfg["1m"])
+            bars_3m  = HistoricalDataLoader.load_bars(symbol, "3m",  bars_cfg["3m"])
+            bars_5m  = HistoricalDataLoader.load_bars(symbol, "5m",  bars_cfg["5m"])
+            bars_15m = HistoricalDataLoader.load_bars(symbol, "15m", bars_cfg["15m"])
 
         if len(bars_1m) < _MIN_BARS or not bars_3m or not bars_5m or not bars_15m:
             return BacktestResult(symbol=symbol, sort_mode=params.sort_mode,
@@ -384,16 +402,18 @@ class BacktestRunner:
         params: StrategyParams,
         period: str = "7일",
     ) -> "dict[str, BacktestResult]":
-        """4가지 합의 모드 동시 비교 실행.
+        """4가지 합의 모드 동시 비교 실행 — 봉 데이터 1회 로드 후 4모드 공유.
 
         Returns
         -------
         dict: 모드별 BacktestResult
             키: '4/4', '3/4', 'anchor3', 'anchor2'
         """
+        preloaded = cls.load_tf_bars(symbol, period)
         results: dict[str, BacktestResult] = {}
         for mode in (_CONSENSUS_A2, _CONSENSUS_A3, _CONSENSUS_3_4, _CONSENSUS_4_4):
-            results[mode] = cls.run(symbol, params, period, consensus_mode=mode)
+            results[mode] = cls.run(symbol, params, period,
+                                    consensus_mode=mode, preloaded=preloaded)
         return results
 
     # ── 거래 비용 계산 ──────────────────────────────────────────
