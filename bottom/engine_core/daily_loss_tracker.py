@@ -31,15 +31,20 @@ class DailyLossTracker:
         try:
             with open(_DATA_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             return {}
 
     @staticmethod
-    def _save(data: dict) -> None:
-        tmp = _DATA_FILE + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f)
-        os.replace(tmp, _DATA_FILE)
+    def _save(data: dict) -> bool:
+        try:
+            os.makedirs(os.path.dirname(_DATA_FILE), exist_ok=True)
+            tmp = _DATA_FILE + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            os.replace(tmp, _DATA_FILE)
+            return True
+        except OSError:
+            return False
 
     @classmethod
     def ensure_initialized(cls, current_balance: float) -> None:

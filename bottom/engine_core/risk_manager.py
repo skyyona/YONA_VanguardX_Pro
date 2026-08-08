@@ -9,10 +9,12 @@ from bottom.models import (
     Position, PositionSide, PositionState, RiskCheckResult, StrategyParams
 )
 
-# 포트폴리오 대비 최대 손실 한도 — 세션 기준, R=8%×3연패=-22.1% 허용 (%)
+# 세션(엔진 start 시점) 기준 누적 손실 한도 (%). initial_balance 기준이므로 앱 재시작 시 리셋된다.
 MAX_PORTFOLIO_LOSS_PCT = 30.0
-# KST 자정 기준 일일 최대 실현 손실 한도 — 재시작 내성 (DailyLossTracker 연동) (%)
-MAX_DAILY_LOSS_PCT = 20.0
+# KST 자정 기준 일일 최대 실현 손실 한도 (%) — 재시작 내성 (DailyLossTracker 연동).
+# R=8% 기준 3연패(-22.1%)를 허용하고 5연패(-34.1%)에서 정지한다.
+# 20.0 이면 3연패에서 발동해 R=8% 정책과 충돌하므로 반드시 30.0을 유지할 것.
+MAX_DAILY_LOSS_PCT = 30.0
 # 단일 거래 최대 손실 비율 — SL 도달 시 손실이 이 값 초과 시 수량 상한 조정 (%)
 _MAX_R_PCT = 8.0
 # 엔진 레이어 하드 리밋: Binance Futures 절대 상한(125x). UI(AppliedLeverage: 1~20x)와 역할 다름.

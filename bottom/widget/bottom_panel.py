@@ -38,11 +38,12 @@ except ImportError:
 try:
     from bottom.engine_core.trading_engine import TradingEngine
     from bottom.strategy_settings.strategy_loader import StrategyLoader
-    from bottom.models import PositionState
+    from bottom.models import PositionState, ProhibitionFlags
     _HAS_ENGINE = True
 except ImportError:
-    TradingEngine  = None   # type: ignore[misc,assignment]
-    StrategyLoader = None   # type: ignore[misc,assignment]
+    TradingEngine    = None   # type: ignore[misc,assignment]
+    StrategyLoader   = None   # type: ignore[misc,assignment]
+    ProhibitionFlags = None   # type: ignore[misc,assignment]
     class PositionState:    # type: ignore[misc]
         OPEN = "open"
     _HAS_ENGINE = False
@@ -507,6 +508,23 @@ class BottomModuleMockup(tk.Frame):
         sym = self._shared_sym.get()
         if not sym:
             return
+
+        if StrategyLoader is not None:
+            _cur_sort = (self._shared_sort_mode.get()
+                         if self._shared_sort_mode is not None
+                         else self._applied_sort_mode)
+            _loaded = StrategyLoader.load(_cur_sort)
+            if _loaded is not None:
+                self._funds_var.set(int(_loaded.funds_pct))
+                self._lev_var.set(int(_loaded.leverage))
+                self._sl_var.set(float(_loaded.stop_loss))
+                self._trail_var.set(float(_loaded.trail_stop))
+                self._use_macro_var.set(bool(_loaded.use_macro))
+                for _k, _v in _loaded.prohibition.to_dict().items():
+                    if _k in self._prohibited_vars:
+                        self._prohibited_vars[_k].set(bool(_v))
+                    else:
+                        self._prohibited_vars[_k] = tk.BooleanVar(value=bool(_v))
 
         win = tk.Toplevel(self)
         win.title(f"🧠  {sym} — 4TF 완전 정렬 Stoch RSI 전략 설정 및 백테스팅")
@@ -1275,8 +1293,10 @@ class BottomModuleMockup(tk.Frame):
             def _ban_row(key: str, desc: str) -> None:
                 rw = tk.Frame(inner, bg=DARK_PANEL, pady=4)
                 rw.pack(fill="x")
+                _default = (getattr(ProhibitionFlags(), key, False)
+                            if ProhibitionFlags is not None else False)
                 var = self._prohibited_vars.setdefault(
-                    key, tk.BooleanVar(value=False))
+                    key, tk.BooleanVar(value=_default))
 
                 icon_lbl = tk.Label(rw, text="—", bg=DARK_PANEL, fg=DIM_TEXT,
                                      font=("Segoe UI", 9), width=2)
