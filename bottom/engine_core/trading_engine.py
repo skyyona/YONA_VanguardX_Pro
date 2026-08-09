@@ -124,6 +124,13 @@ class TradingEngine:
             if self._client.set_leverage(symbol, lev):
                 self._last_leverage_sym = symbol
                 self._last_leverage_val = lev
+        # MMR 캐시 선행 채우기 — _auto_calc() 에서 get_mmr_cached() 가 캐시 히트하도록
+        if symbol:
+            self._client.get_mmr(symbol)
+
+    def get_mmr_cached(self, symbol: str) -> float:
+        """UI 스레드 전용 MMR 조회 — 네트워크 없이 캐시만 참조."""
+        return self._client.get_mmr_cached(symbol)
 
     def update_params(self, params: StrategyParams) -> None:
         """포지션 추적을 유지한 채 파라미터만 교체 (포지션 보유 중 안전 갱신)."""

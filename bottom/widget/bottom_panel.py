@@ -1607,6 +1607,15 @@ class BottomModuleMockup(tk.Frame):
                              font=("Consolas", 9, "bold"),
                              anchor="w").pack(side="left", padx=(16, 0))
 
+            _req_b = _get_mode_cfg(_selected_sort_ref[0]).quality_grade_req
+            if _req_b is not None:
+                _note_frm = tk.Frame(inner, bg=DARK_BG, pady=3)
+                _note_frm.pack(fill="x", pady=(6, 0))
+                tk.Label(_note_frm,
+                         text=f"  ※ 이 모드는 {_req_b}등급 이상 신호만 진입합니다.",
+                         bg=DARK_BG, fg=DIM_TEXT,
+                         font=("Segoe UI", 8)).pack(side="left", padx=8)
+
         def _do_load() -> None:
             load_btn.configure(state="disabled", cursor="arrow")
             bt_btn.configure(state="disabled", cursor="arrow",
@@ -1818,6 +1827,19 @@ class BottomModuleMockup(tk.Frame):
                                      font=("Consolas", 8, "bold"),
                                      width=_w, anchor="center").pack(
                                          side="left", padx=3)
+
+            try:
+                _any_r = next(iter(cmp_results.values()))
+                _req_c = _get_mode_cfg(_any_r.sort_mode).quality_grade_req
+            except Exception:
+                _req_c = None
+            if _req_c is not None:
+                _cnote_frm = tk.Frame(inner, bg=DARK_BG, pady=3)
+                _cnote_frm.pack(fill="x", pady=(6, 0))
+                tk.Label(_cnote_frm,
+                         text=f"  ※ 이 모드는 {_req_c}등급 이상 신호만 진입합니다.",
+                         bg=DARK_BG, fg=DIM_TEXT,
+                         font=("Segoe UI", 8)).pack(side="left", padx=8)
 
         def _do_restart() -> None:
             status_lbl.configure(text="  —  ", fg=DIM_TEXT)
@@ -2042,8 +2064,7 @@ class BottomModuleMockup(tk.Frame):
                 else:
                     _side = "long"
                 grade, _ = QualityGrader.grade(ind or {}, _side)
-                _cli_ui = self._engine._client if self._engine else None
-                _mmr_ui = _cli_ui.get_mmr(sym) if _cli_ui is not None else 0.004
+                _mmr_ui = self._engine.get_mmr_cached(sym) if self._engine else 0.004
                 sl_v, trail_v = SLCalculator.compute(atr_5m, grade, lev, mmr=_mmr_ui)
                 self._sl_var.set(sl_v)
                 self._trail_var.set(trail_v)

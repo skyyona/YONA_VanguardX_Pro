@@ -59,6 +59,24 @@ _GRADE_ORDER  = {"A": 0, "B": 1, "C": 2, "D": 3}
 _MAC_KD_PARAMS = (14, 14, 3, 3)
 
 
+def _fmt_elapsed(minutes: float) -> str | None:
+    """경과 분(minutes)을 한국어 경과 문자열로 변환. 음수면 None 반환."""
+    if minutes < 0:
+        return None
+    if minutes < 1:
+        return "방금"
+    if minutes < 60:
+        return f"{int(minutes)}분 전"
+    return f"{int(minutes // 60)}시간 전"
+
+
+def _grade_ok(computed: str, required: str | None) -> bool:
+    """computed 등급이 required 이상(더 엄격하거나 같음)인지 확인."""
+    if required is None:
+        return True
+    return _GRADE_ORDER.get(computed, 3) <= _GRADE_ORDER.get(required, 3)
+
+
 class BacktestRunner:
     """4TF 실제 시간프레임 StochRSI 합의 전략 과거 데이터 백테스팅.
 
@@ -386,10 +404,7 @@ class BacktestRunner:
                         grade_ok = True
                         if cfg.quality_grade_req is not None:
                             _em_l = (t - _tf5_long_cross_t) / 60_000 if _tf5_long_cross_t > 0 else -1
-                            _el_l = (None if _em_l < 0 else
-                                     "방금" if _em_l < 1 else
-                                     f"{int(_em_l)}분 전" if _em_l < 60 else
-                                     f"{int(_em_l // 60)}시간 전")
+                            _el_l = _fmt_elapsed(_em_l)
                             _ind_l = {
                                 "tf1":  {"k": tf_kd.get("1m",  (50.0, 50.0))[0], "d": tf_kd.get("1m",  (50.0, 50.0))[1]},
                                 "tf3":  {"k": tf_kd.get("3m",  (50.0, 50.0))[0], "d": tf_kd.get("3m",  (50.0, 50.0))[1]},
@@ -397,7 +412,7 @@ class BacktestRunner:
                                 "tf15": {"k": tf_kd.get("15m", (50.0, 50.0))[0], "d": tf_kd.get("15m", (50.0, 50.0))[1]},
                             }
                             _grd_l, _ = QualityGrader.grade(_ind_l, "long")
-                            grade_ok = _GRADE_ORDER.get(_grd_l, 3) <= _GRADE_ORDER.get(cfg.quality_grade_req, 3)
+                            grade_ok = _grade_ok(_grd_l, cfg.quality_grade_req)
                         if grade_ok:
                             in_long     = True
                             entry_price = close
@@ -425,10 +440,7 @@ class BacktestRunner:
                         grade_ok = True
                         if cfg.quality_grade_req is not None:
                             _em_s = (t - _tf5_short_cross_t) / 60_000 if _tf5_short_cross_t > 0 else -1
-                            _el_s = (None if _em_s < 0 else
-                                     "방금" if _em_s < 1 else
-                                     f"{int(_em_s)}분 전" if _em_s < 60 else
-                                     f"{int(_em_s // 60)}시간 전")
+                            _el_s = _fmt_elapsed(_em_s)
                             _ind_s = {
                                 "tf1":  {"k": tf_kd.get("1m",  (50.0, 50.0))[0], "d": tf_kd.get("1m",  (50.0, 50.0))[1]},
                                 "tf3":  {"k": tf_kd.get("3m",  (50.0, 50.0))[0], "d": tf_kd.get("3m",  (50.0, 50.0))[1]},
@@ -436,7 +448,7 @@ class BacktestRunner:
                                 "tf15": {"k": tf_kd.get("15m", (50.0, 50.0))[0], "d": tf_kd.get("15m", (50.0, 50.0))[1]},
                             }
                             _grd_s, _ = QualityGrader.grade(_ind_s, "short")
-                            grade_ok = _GRADE_ORDER.get(_grd_s, 3) <= _GRADE_ORDER.get(cfg.quality_grade_req, 3)
+                            grade_ok = _grade_ok(_grd_s, cfg.quality_grade_req)
                         if grade_ok:
                             in_short    = True
                             entry_price = close

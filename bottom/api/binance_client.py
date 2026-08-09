@@ -17,8 +17,9 @@ from pathlib import Path
 
 from bottom.models import Order, OrderResult, OrderSide, OrderType
 
-_ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
+_ENV_PATH     = Path(__file__).resolve().parents[1] / ".env"
 _FUTURES_BASE = "https://fapi.binance.com"
+_MMR_FALLBACK = 0.004
 
 
 def _load_env(path: Path) -> dict[str, str]:
@@ -313,7 +314,7 @@ class BottomBinanceClient:
             return None
 
     def get_mmr(self, symbol: str) -> float:
-        """심볼의 유지증거금률(MMR) 조회. 실패 시 0.004(0.4%) 폴백.
+        """심볼의 유지증거금률(MMR) 조회. 실패 시 _MMR_FALLBACK 폴백.
 
         brackets[0] = 최저 노셔널 구간 → 최저 MMR.
         R-cap 적용 후 소규모 포지션 전제이므로 대부분 해당.
@@ -322,18 +323,22 @@ class BottomBinanceClient:
         if symbol in self._mmr_cache:
             return self._mmr_cache[symbol]
         if not self._has_keys:
-            return 0.004
+            return _MMR_FALLBACK
         try:
             result = self._signed_get("/fapi/v1/leverageBracket", {"symbol": symbol})
             if isinstance(result, list) and result:
                 brackets = result[0].get("brackets", [])
                 if brackets:
-                    mmr = float(brackets[0].get("maintMarginRatio", 0.004))
+                    mmr = float(brackets[0].get("maintMarginRatio", _MMR_FALLBACK))
                     self._mmr_cache[symbol] = mmr
                     return mmr
         except Exception:
             pass
-        return 0.004
+        return _MMR_FALLBACK
+
+    def get_mmr_cached(self, symbol: str) -> float:
+        """캐시에서만 MMR을 반환. 캐시 미스 시 _MMR_FALLBACK 반환 (네트워크 호출 없음)."""
+        return self._mmr_cache.get(symbol, _MMR_FALLBACK)
 
     # ── 내부 헬퍼 ────────────────────────────────────────────────
     def _live_order(self, order: Order, mark: float = 0.0) -> OrderResult:
