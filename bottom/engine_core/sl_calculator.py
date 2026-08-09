@@ -24,6 +24,7 @@ class SLCalculator:
         atr_pct_5m: float,
         grade:      str,
         leverage:   int,
+        mmr:        float = _MMR_APPROX,
     ) -> tuple[float, float]:
         """SL%와 Trail%를 계산해 반환.
 
@@ -38,7 +39,7 @@ class SLCalculator:
 
         # ── SL 계산: ATR × 등급배수, 레버리지 안전 상한 적용
         sl_raw   = atr_pct_5m * mult
-        liq_safe = max(0.001, (1.0 / max(leverage, 1)) - _MMR_APPROX) * 100.0 * _LIQ_SAFETY
+        liq_safe = max(0.001, (1.0 / max(leverage, 1)) - mmr) * 100.0 * _LIQ_SAFETY
         sl_pct   = max(_SL_MIN, min(sl_raw, liq_safe))
 
         # ── Trail 계산: ATR × 0.5, SL의 60% 이내

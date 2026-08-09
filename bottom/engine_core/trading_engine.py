@@ -703,7 +703,8 @@ class TradingEngine:
         # R-cap 사전 계산 — SL 도달 손실 ≤ 포트폴리오 × _MAX_R_PCT% 보장
         _atr_5m       = float((ind or {}).get("atr_pct_5m", 0.0))
         _grade, _     = QualityGrader.grade(ind or {}, "long")
-        _auto_sl, _auto_trail = SLCalculator.compute(_atr_5m, _grade, self._params.leverage)
+        _mmr          = self._client.get_mmr(self._state.symbol)
+        _auto_sl, _auto_trail = SLCalculator.compute(_atr_5m, _grade, self._params.leverage, mmr=_mmr)
         if _auto_sl > 0:
             qty = RiskManager.apply_r_cap(qty, mark, _auto_sl, balance)
             qty = self._client.floor_qty(self._state.symbol, qty)
@@ -842,7 +843,8 @@ class TradingEngine:
         # R-cap 사전 계산 — SL 도달 손실 ≤ 포트폴리오 × _MAX_R_PCT% 보장
         _atr_5m       = float((ind or {}).get("atr_pct_5m", 0.0))
         _grade, _     = QualityGrader.grade(ind or {}, "short")
-        _auto_sl, _auto_trail = SLCalculator.compute(_atr_5m, _grade, self._params.leverage)
+        _mmr          = self._client.get_mmr(self._state.symbol)
+        _auto_sl, _auto_trail = SLCalculator.compute(_atr_5m, _grade, self._params.leverage, mmr=_mmr)
         if _auto_sl > 0:
             qty = RiskManager.apply_r_cap(qty, mark, _auto_sl, balance)
             qty = self._client.floor_qty(self._state.symbol, qty)

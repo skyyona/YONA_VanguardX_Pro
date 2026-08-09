@@ -4,13 +4,14 @@ bottom/backtest/backtest_runner.py
 기존 _mac_tfs bisect 패턴을 1m/3m/5m/15m에 확장 적용.
 수수료(0.09%) · 슬리피지(0.02%) · 펀딩비(0.01%/8h) 거래별 PnL에 차감.
 Sort by 6개 필터 + Prohibition 필터 적용.
-quality_grade_req 는 백테스팅 특성상 제외됨 (결과 안내에 표시).
+quality_grade_req 는 QualityGrader(Cascade/Zone/Duration 3축 근사)로 반영.
 """
 from __future__ import annotations
 
 import bisect
 
 from bottom.backtest.historical_data_loader import HistoricalDataLoader
+from bottom.engine_core.quality_grader import QualityGrader
 from bottom.engine_core.sort_mode_config import get_mode_config
 from bottom.models import BacktestResult, BacktestTrade, StrategyParams
 
@@ -52,6 +53,8 @@ _VOL_PERIOD = 20
 # Prohibition 임계값
 _ATR_BAN      = 8.0
 _NEW_DAYS_BAN = 14
+# quality_grade_req 등급 서열 — A(0) 가장 엄격, D(3) 최완화
+_GRADE_ORDER  = {"A": 0, "B": 1, "C": 2, "D": 3}
 # common_macro HTF StochRSI 파라미터 (실거래 엔진 동일)
 _MAC_KD_PARAMS = (14, 14, 3, 3)
 
@@ -173,6 +176,11 @@ class BacktestRunner:
         trail_ref   = 0.0
 
         n_1m = len(bars_1m)
+        # tf5 교차 시점 추적 — QualityGrader _duration_score 재현용
+        _tf5_long_cross_t:  float = 0.0   # tf5 K>D 교차 발생 시점 (ms)
+        _tf5_short_cross_t: float = 0.0   # tf5 K<D 교차 발생 시점 (ms)
+        _prev_tf5_long_ok:  bool  = False
+        _prev_tf5_short_ok: bool  = False
         for i in range(_WARMUP_1M, n_1m):
             bar   = bars_1m[i]
             close = bar.close
@@ -305,12 +313,14 @@ class BacktestRunner:
                 short_v = 0
                 tf_dirs: dict[str, int] = {}
                 k_5m    = 50.0   # G2 임계값용 5m K값
+                tf_kd:  dict[str, tuple] = {}  # quality_grade_req 용 전 TF K/D
 
                 for tf_key, (tf_times, tf_off, tf_k, tf_d) in tf_data.items():
                     pos_tf = bisect.bisect_left(tf_times, t) - 1
                     idx    = pos_tf - tf_off
                     if 0 <= idx < len(tf_k):
                         k, d   = tf_k[idx], tf_d[idx]
+                        tf_kd[tf_key] = (k, d)
                         spread = abs(k - d)
                         if k > d and spread >= _MIN_SPREAD:
                             long_v         += 1
@@ -324,6 +334,17 @@ class BacktestRunner:
                             k_5m = k
                     else:
                         tf_dirs[tf_key] = 0
+
+                # tf5 교차 추적 (QualityGrader _duration_score elapsed용)
+                _c5k, _c5d = tf_kd.get("5m", (50.0, 50.0))
+                _lo5 = _c5k > _c5d and abs(_c5k - _c5d) >= _MIN_SPREAD
+                _so5 = _c5k < _c5d and abs(_c5k - _c5d) >= _MIN_SPREAD
+                if _lo5 and not _prev_tf5_long_ok:
+                    _tf5_long_cross_t  = t
+                if _so5 and not _prev_tf5_short_ok:
+                    _tf5_short_cross_t = t
+                _prev_tf5_long_ok  = _lo5
+                _prev_tf5_short_ok = _so5
 
                 # G1: 합의 모드별 진입 가능 여부
                 can_long, can_short = cls._check_consensus(
@@ -362,12 +383,28 @@ class BacktestRunner:
                         swing_ok = cls._swing_bull(bars_1m, i)
 
                     if ema_ok and swing_ok:
-                        in_long     = True
-                        entry_price = close
-                        entry_time  = bar.open_time
-                        entry_bar_i = i
-                        phase       = 1
-                        trail_ref   = close
+                        grade_ok = True
+                        if cfg.quality_grade_req is not None:
+                            _em_l = (t - _tf5_long_cross_t) / 60_000 if _tf5_long_cross_t > 0 else -1
+                            _el_l = (None if _em_l < 0 else
+                                     "방금" if _em_l < 1 else
+                                     f"{int(_em_l)}분 전" if _em_l < 60 else
+                                     f"{int(_em_l // 60)}시간 전")
+                            _ind_l = {
+                                "tf1":  {"k": tf_kd.get("1m",  (50.0, 50.0))[0], "d": tf_kd.get("1m",  (50.0, 50.0))[1]},
+                                "tf3":  {"k": tf_kd.get("3m",  (50.0, 50.0))[0], "d": tf_kd.get("3m",  (50.0, 50.0))[1]},
+                                "tf5":  {"k": tf_kd.get("5m",  (50.0, 50.0))[0], "d": tf_kd.get("5m",  (50.0, 50.0))[1], "elapsed": _el_l},
+                                "tf15": {"k": tf_kd.get("15m", (50.0, 50.0))[0], "d": tf_kd.get("15m", (50.0, 50.0))[1]},
+                            }
+                            _grd_l, _ = QualityGrader.grade(_ind_l, "long")
+                            grade_ok = _GRADE_ORDER.get(_grd_l, 3) <= _GRADE_ORDER.get(cfg.quality_grade_req, 3)
+                        if grade_ok:
+                            in_long     = True
+                            entry_price = close
+                            entry_time  = bar.open_time
+                            entry_bar_i = i
+                            phase       = 1
+                            trail_ref   = close
 
                 # ── 숏 진입 시도 ──────────────────────────────────
                 elif (can_short
@@ -385,12 +422,28 @@ class BacktestRunner:
                         swing_ok = cls._swing_bear(bars_1m, i)
 
                     if ema_ok and swing_ok:
-                        in_short    = True
-                        entry_price = close
-                        entry_time  = bar.open_time
-                        entry_bar_i = i
-                        phase       = 1
-                        trail_ref   = close
+                        grade_ok = True
+                        if cfg.quality_grade_req is not None:
+                            _em_s = (t - _tf5_short_cross_t) / 60_000 if _tf5_short_cross_t > 0 else -1
+                            _el_s = (None if _em_s < 0 else
+                                     "방금" if _em_s < 1 else
+                                     f"{int(_em_s)}분 전" if _em_s < 60 else
+                                     f"{int(_em_s // 60)}시간 전")
+                            _ind_s = {
+                                "tf1":  {"k": tf_kd.get("1m",  (50.0, 50.0))[0], "d": tf_kd.get("1m",  (50.0, 50.0))[1]},
+                                "tf3":  {"k": tf_kd.get("3m",  (50.0, 50.0))[0], "d": tf_kd.get("3m",  (50.0, 50.0))[1]},
+                                "tf5":  {"k": tf_kd.get("5m",  (50.0, 50.0))[0], "d": tf_kd.get("5m",  (50.0, 50.0))[1], "elapsed": _el_s},
+                                "tf15": {"k": tf_kd.get("15m", (50.0, 50.0))[0], "d": tf_kd.get("15m", (50.0, 50.0))[1]},
+                            }
+                            _grd_s, _ = QualityGrader.grade(_ind_s, "short")
+                            grade_ok = _GRADE_ORDER.get(_grd_s, 3) <= _GRADE_ORDER.get(cfg.quality_grade_req, 3)
+                        if grade_ok:
+                            in_short    = True
+                            entry_price = close
+                            entry_time  = bar.open_time
+                            entry_bar_i = i
+                            phase       = 1
+                            trail_ref   = close
 
         from bottom.backtest.result_summary import ResultSummary
         return ResultSummary.build(symbol, params.sort_mode, period_days, trades)

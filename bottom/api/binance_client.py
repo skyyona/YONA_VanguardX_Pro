@@ -46,6 +46,7 @@ class BottomBinanceClient:
         self._min_qty_cache:    dict[str, float] = {}
         self._tick_size_cache:  dict[str, float] = {}
         self._step_size_cache:  dict[str, float] = {}
+        self._mmr_cache:        dict[str, float] = {}
         self._last_api_error:   str              = ""
         self._rate_limited_until: float          = 0.0
         self._time_offset:      float            = 0.0
@@ -310,6 +311,29 @@ class BottomBinanceClient:
             return None
         except Exception:
             return None
+
+    def get_mmr(self, symbol: str) -> float:
+        """심볼의 유지증거금률(MMR) 조회. 실패 시 0.004(0.4%) 폴백.
+
+        brackets[0] = 최저 노셔널 구간 → 최저 MMR.
+        R-cap 적용 후 소규모 포지션 전제이므로 대부분 해당.
+        자본이 대형화 시 상위 브래킷(더 높은 MMR) 적용 가능성 있음.
+        """
+        if symbol in self._mmr_cache:
+            return self._mmr_cache[symbol]
+        if not self._has_keys:
+            return 0.004
+        try:
+            result = self._signed_get("/fapi/v1/leverageBracket", {"symbol": symbol})
+            if isinstance(result, list) and result:
+                brackets = result[0].get("brackets", [])
+                if brackets:
+                    mmr = float(brackets[0].get("maintMarginRatio", 0.004))
+                    self._mmr_cache[symbol] = mmr
+                    return mmr
+        except Exception:
+            pass
+        return 0.004
 
     # ── 내부 헬퍼 ────────────────────────────────────────────────
     def _live_order(self, order: Order, mark: float = 0.0) -> OrderResult:

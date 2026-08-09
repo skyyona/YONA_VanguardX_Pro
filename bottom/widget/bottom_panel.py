@@ -1767,6 +1767,58 @@ class BottomModuleMockup(tk.Frame):
                          bg=DARK_ROW_ODD, fg=DIM_TEXT,
                          font=("Segoe UI", 8)).pack(side="left", padx=10)
 
+            # ── Kelly 리스크 분석 — 모드별 ──────────────────────────
+            if cmp_results:
+                tk.Frame(inner, bg="#2A2A2A", height=1).pack(
+                    fill="x", pady=(12, 0))
+                kelly_hdr = tk.Frame(inner, bg=DARK_HEADER, pady=5)
+                kelly_hdr.pack(fill="x")
+                tk.Label(kelly_hdr,
+                         text="  📐  Kelly 리스크 분석  — 합의 모드별  (Fractional Kelly × 0.25)",
+                         bg=DARK_HEADER, fg=ACCENT_BLUE,
+                         font=("Segoe UI", 9, "bold")).pack(side="left", padx=6)
+
+                k_col_hdr = tk.Frame(inner, bg="#252525", pady=4)
+                k_col_hdr.pack(fill="x")
+                for _txt, _w in [("합의 모드", 10), ("Wilson 승률", 11),
+                                  ("평균 수익", 10), ("평균 손실", 10), ("Kelly R%", 10)]:
+                    tk.Label(k_col_hdr, text=_txt, bg="#252525", fg=ACCENT_BLUE,
+                             font=("Segoe UI", 7, "bold"),
+                             width=_w, anchor="center").pack(side="left", padx=3)
+
+                from bottom.backtest.param_deriver import derive_params as _derive
+                for _ki, _mode in enumerate(_MODES):
+                    if _mode not in cmp_results:
+                        continue
+                    _r   = cmp_results[_mode]
+                    _rbg = DARK_ROW_ODD if _ki % 2 == 0 else DARK_ROW_EVN
+                    _derived = _derive(_r.trades)
+
+                    _krw = tk.Frame(inner, bg=_rbg, pady=6)
+                    _krw.pack(fill="x")
+                    tk.Label(_krw, text=f"  {_mode}", bg=_rbg, fg=DIM_TEXT,
+                             font=("Consolas", 8, "bold"),
+                             width=10, anchor="center").pack(side="left", padx=3)
+
+                    if "win_rate_wilson" not in _derived:
+                        tk.Label(_krw,
+                                 text=_derived.get("note", "데이터 부족"),
+                                 bg=_rbg, fg=DIM_TEXT,
+                                 font=("Segoe UI", 7),
+                                 anchor="w").pack(side="left", padx=8)
+                    else:
+                        _kelly_cells = [
+                            (f"{_derived['win_rate_wilson']*100:.1f}%", ACCENT_BLUE, 11),
+                            (f"+{_derived['avg_win_r']:.2f}%",          POSITIVE,    10),
+                            (f"-{_derived['avg_loss_r']:.2f}%",         NEGATIVE,    10),
+                            (f"{_derived['r_per_trade_pct']:.2f}%",     YELLOW,      10),
+                        ]
+                        for _val, _col, _w in _kelly_cells:
+                            tk.Label(_krw, text=_val, bg=_rbg, fg=_col,
+                                     font=("Consolas", 8, "bold"),
+                                     width=_w, anchor="center").pack(
+                                         side="left", padx=3)
+
         def _do_restart() -> None:
             status_lbl.configure(text="  —  ", fg=DIM_TEXT)
             period_lbl.configure(text="  분석 기간  —", fg=DIM_TEXT)
@@ -1990,7 +2042,9 @@ class BottomModuleMockup(tk.Frame):
                 else:
                     _side = "long"
                 grade, _ = QualityGrader.grade(ind or {}, _side)
-                sl_v, trail_v = SLCalculator.compute(atr_5m, grade, lev)
+                _cli_ui = self._engine._client if self._engine else None
+                _mmr_ui = _cli_ui.get_mmr(sym) if _cli_ui is not None else 0.004
+                sl_v, trail_v = SLCalculator.compute(atr_5m, grade, lev, mmr=_mmr_ui)
                 self._sl_var.set(sl_v)
                 self._trail_var.set(trail_v)
                 auto_info.configure(
