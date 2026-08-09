@@ -90,6 +90,18 @@ def _lerp_hex(c0: str, c1: str, t: float) -> str:
 # ── 거래 내역 영속화 경로 (C: 보완 2) ────────────────────────────
 _TRADE_HISTORY_PATH = Path(__file__).resolve().parents[2] / "trade_history.json"
 
+
+def _dedup_hist(records: list) -> list:
+    """entry_time+exit_time 기준 중복 제거 (첫 등장 우선)."""
+    seen: set[tuple] = set()
+    out: list = []
+    for r in records:
+        key = (r.get("entry_time", 0.0), r.get("exit_time", 0.0))
+        if key not in seen:
+            seen.add(key)
+            out.append(r)
+    return out
+
 TF_KEYS = ["1m", "3m", "5m", "15m"]
 TF_W    = 76   # 각 TF 컬럼 너비(px)
 
@@ -211,6 +223,7 @@ class BottomModuleMockup(tk.Frame):
         self._last_sig_lbl:   tk.Label | None = None  # 엔진 최근 액션 라벨
         self._long_trade_history:  list[dict] = []   # 롱 거래 완료 내역
         self._short_trade_history: list[dict] = []   # 숏 거래 완료 내역
+        self._recorded_trades:     set[tuple]  = set()   # (side, entry_time, exit_time) 중복 방지
         self._load_trade_history()  # [C] 파일에서 이전 거래 내역 복원 (보완 2)
 
         # ── 잔고 UI 상태 ──────────────────────────────────────────
@@ -3392,10 +3405,19 @@ class BottomModuleMockup(tk.Frame):
                 data = json.loads(
                     _TRADE_HISTORY_PATH.read_text(encoding="utf-8")
                 )
-                self._long_trade_history  = data.get("long",  [])
-                self._short_trade_history = data.get("short", [])
+                raw_long  = data.get("long",  [])
+                raw_short = data.get("short", [])
+                self._long_trade_history  = _dedup_hist(raw_long)
+                self._short_trade_history = _dedup_hist(raw_short)
+                if (len(self._long_trade_history) != len(raw_long) or
+                        len(self._short_trade_history) != len(raw_short)):
+                    self._save_trade_history()
         except Exception:
             pass
+        for rec in self._long_trade_history:
+            self._recorded_trades.add(("long",  rec.get("entry_time", 0.0), rec.get("exit_time", 0.0)))
+        for rec in self._short_trade_history:
+            self._recorded_trades.add(("short", rec.get("entry_time", 0.0), rec.get("exit_time", 0.0)))
 
     def _save_trade_history(self) -> None:
         """거래 완료 직후 trade_history.json에 전체 내역을 저장."""
@@ -3985,11 +4007,14 @@ class BottomModuleMockup(tk.Frame):
                                 "reason": er,
                                 "until":  now + 30.0,
                             }
-                            self._record_trade(
-                                side, sym,
-                                pos.entry_price, ep,
-                                pos.pnl_pct, pu,
-                                er, ph, pc, et, xt)
+                            _rec_key = (side, et, xt)
+                            if _rec_key not in self._recorded_trades:
+                                self._recorded_trades.add(_rec_key)
+                                self._record_trade(
+                                    side, sym,
+                                    pos.entry_price, ep,
+                                    pos.pnl_pct, pu,
+                                    er, ph, pc, et, xt)
 
                 # IDLE 또는 PENDING → exit_cache 제거
                 if pos_state not in (PositionState.OPEN, PositionState.CLOSED):
