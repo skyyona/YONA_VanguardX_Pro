@@ -1612,8 +1612,10 @@ class BottomModuleMockup(tk.Frame):
                 _note_frm = tk.Frame(inner, bg=DARK_BG, pady=3)
                 _note_frm.pack(fill="x", pady=(6, 0))
                 tk.Label(_note_frm,
-                         text=f"  ※ 이 모드는 {_req_b}등급 이상 신호만 진입합니다.",
-                         bg=DARK_BG, fg=DIM_TEXT,
+                         text=(f"  ※ 백테스트 등급은 Cascade·Zone·Duration 3축만 반영합니다 (최대 87점).\n"
+                               f"     실거래는 Divergence·Swing 포함 125점이므로 백테스트가 더 엄격하며,\n"
+                               f"     {_req_b}등급 요구 모드는 실거래보다 거래 수가 적게 나옵니다."),
+                         bg=DARK_BG, fg=DIM_TEXT, justify="left",
                          font=("Segoe UI", 8)).pack(side="left", padx=8)
 
         def _do_load() -> None:
@@ -1837,8 +1839,10 @@ class BottomModuleMockup(tk.Frame):
                 _cnote_frm = tk.Frame(inner, bg=DARK_BG, pady=3)
                 _cnote_frm.pack(fill="x", pady=(6, 0))
                 tk.Label(_cnote_frm,
-                         text=f"  ※ 이 모드는 {_req_c}등급 이상 신호만 진입합니다.",
-                         bg=DARK_BG, fg=DIM_TEXT,
+                         text=(f"  ※ 백테스트 등급은 Cascade·Zone·Duration 3축만 반영합니다 (최대 87점).\n"
+                               f"     실거래는 Divergence·Swing 포함 125점이므로 백테스트가 더 엄격하며,\n"
+                               f"     {_req_c}등급 요구 모드는 실거래보다 거래 수가 적게 나옵니다."),
+                         bg=DARK_BG, fg=DIM_TEXT, justify="left",
                          font=("Segoe UI", 8)).pack(side="left", padx=8)
 
         def _do_restart() -> None:
