@@ -2494,7 +2494,7 @@ class BottomModuleMockup(tk.Frame):
         _pred_lbl_w.pack(fill="both", expand=True, padx=6)
 
         # ── 거래 내역 뷰 구성 ────────────────────────────────────
-        # 상단: 뒤로가기 + 요약 바 (한 행)
+        # 상단: 뒤로가기 + 요약 바 + 초기화 버튼 (한 행)
         _hist_top = tk.Frame(hist_f, bg=DARK_HEADER)
         _hist_top.pack(fill="x")
         tk.Button(
@@ -2503,6 +2503,31 @@ class BottomModuleMockup(tk.Frame):
             activebackground=DARK_HEADER, activeforeground=DARK_TEXT,
             bd=0, relief="flat", font=("Segoe UI", 7), cursor="hand2",
             command=_show_chart).pack(side="left", padx=(6, 0), pady=2)
+
+        def _clear_history():
+            target = (self._long_trade_history if side == "long"
+                      else self._short_trade_history)
+            if not target:
+                return
+            from tkinter import messagebox as _mb
+            if not _mb.askyesno(
+                    "초기화 확인",
+                    f"{title.strip()} 거래 내역 {len(target)}건을 모두 삭제합니다.\n"
+                    "이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?"):
+                return
+            target.clear()
+            self._recorded_trades = {
+                k for k in self._recorded_trades if k[0] != side
+            }
+            self._save_trade_history()
+            _redraw_hist()
+
+        tk.Button(
+            _hist_top, text="초기화",
+            bg=DARK_HEADER, fg="#FF6666",
+            activebackground=DARK_HEADER, activeforeground="#FF4444",
+            bd=0, relief="flat", font=("Segoe UI", 7), cursor="hand2",
+            command=_clear_history).pack(side="right", padx=(0, 6), pady=2)
         _hist_sum_lbl = tk.Label(
             _hist_top, text="— 거래 내역 없음 —",
             bg=DARK_HEADER, fg=DIM_TEXT,
