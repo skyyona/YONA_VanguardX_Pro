@@ -301,39 +301,13 @@ class BottomModuleMockup(tk.Frame):
 
         self._strategy_btn = tk.Button(
             inner,
-            text="  Stoch RSI Strategy  /  Backtest  ",
+            text="  Selected Coin Symbol Stoch RSI Strategy  /  Applied Backtest  ",
             bg="#252525", fg="#888888",
             activebackground="#303030", activeforeground=DARK_TEXT,
             font=("Segoe UI", 8, "bold"), relief="flat", padx=8, pady=2,
             cursor="arrow", state="disabled",
             command=self._open_strategy_window)
         self._strategy_btn.pack(side="left")
-
-        tk.Frame(inner, bg="#333333", width=1).pack(
-            side="left", fill="y", pady=4, padx=10)
-
-        self._funds_lev_btn = tk.Button(
-            inner,
-            text="  Designated Funds  &  Applied Leverage",
-            bg="#252525", fg="#555555",
-            activebackground="#303030", activeforeground=DARK_TEXT,
-            font=("Segoe UI", 8, "bold"), relief="flat", padx=8, pady=2,
-            cursor="arrow", state="disabled",
-            command=self._open_funds_lev_window)
-        self._funds_lev_btn.pack(side="left")
-
-        tk.Frame(inner, bg="#333333", width=1).pack(
-            side="left", fill="y", pady=4, padx=10)
-
-        self._sl_trail_btn = tk.Button(
-            inner,
-            text="  Stop Loss  &  Trailing Stop",
-            bg="#252525", fg="#555555",
-            activebackground="#303030", activeforeground=DARK_TEXT,
-            font=("Segoe UI", 8, "bold"), relief="flat", padx=8, pady=2,
-            cursor="arrow", state="disabled",
-            command=self._open_sl_trail_window)
-        self._sl_trail_btn.pack(side="left")
 
         tk.Frame(inner, bg="#333333", width=1).pack(
             side="left", fill="y", pady=4, padx=10)
@@ -429,15 +403,6 @@ class BottomModuleMockup(tk.Frame):
                 state="normal", cursor="hand2",
                 bg=DARK_PANEL, fg=ACCENT_BLUE,
                 activebackground="#252525", activeforeground=ACCENT_BLUE)
-            # [📊 Funds&Lev] / [🛡 SL&Trail] 활성
-            self._funds_lev_btn.configure(
-                state="normal", cursor="hand2",
-                bg=DARK_PANEL, fg=DIM_TEXT,
-                activebackground="#252525", activeforeground=DARK_TEXT)
-            self._sl_trail_btn.configure(
-                state="normal", cursor="hand2",
-                bg=DARK_PANEL, fg=DIM_TEXT,
-                activebackground="#252525", activeforeground=DARK_TEXT)
             # [거래 활성화]: 전략 설정까지 완료된 경우에만 활성
             if self._strategy_ready:
                 self._trade_btn.configure(
@@ -467,17 +432,6 @@ class BottomModuleMockup(tk.Frame):
             self._strategy_btn.configure(
                 state="disabled", cursor="arrow",
                 bg="#252525", fg="#888888",
-                activebackground="#303030", activeforeground=DARK_TEXT)
-            # [📊 Funds&Lev] / [🛡 SL&Trail] 비활성 + 텍스트 초기화
-            self._funds_lev_btn.configure(
-                state="disabled", cursor="arrow",
-                text="  Designated Funds  &  Applied Leverage",
-                bg="#252525", fg="#555555",
-                activebackground="#303030", activeforeground=DARK_TEXT)
-            self._sl_trail_btn.configure(
-                state="disabled", cursor="arrow",
-                text="  Stop Loss  &  Trailing Stop",
-                bg="#252525", fg="#555555",
                 activebackground="#303030", activeforeground=DARK_TEXT)
             # 전략 상태 초기화
             self._strategy_ready = False
@@ -603,6 +557,38 @@ class BottomModuleMockup(tk.Frame):
         footer_row1 = tk.Frame(win, bg=DARK_HEADER, pady=6)
         footer_row1.pack(fill="x", side="bottom")
         tk.Frame(footer_row1, bg="#2A2A2A", height=1).pack(fill="x")
+
+        _ap = self._applied_params
+        if self._strategy_ready and _ap is not None:
+            _fl_text = f"  ✓  Funds {_ap['funds']}%   |   {_ap['leverage']}x  "
+            _sl_text = f"  ✓  SL {_ap['sl']:.1f}%   |   Trail {_ap['trail']:.1f}%  "
+            _btn_kw  = dict(bg="#0D2A1A", fg=POSITIVE,
+                            activebackground="#0A3A18", activeforeground=POSITIVE)
+        else:
+            _fl_text = "  Designated Funds  &  Applied Leverage  "
+            _sl_text = "  Stop Loss  &  Trailing Stop  "
+            _btn_kw  = dict(bg=DARK_PANEL, fg=DIM_TEXT,
+                            activebackground="#252525", activeforeground=DARK_TEXT)
+
+        self._funds_lev_btn = tk.Button(
+            footer_row1, text=_fl_text,
+            font=("Segoe UI", 8, "bold"), relief="flat", padx=8, pady=4,
+            cursor="hand2",
+            command=self._open_funds_lev_window, **_btn_kw)
+        self._funds_lev_btn.pack(side="left", padx=(12, 0), pady=(4, 0))
+
+        tk.Frame(footer_row1, bg="#333333", width=1).pack(
+            side="left", fill="y", pady=6, padx=6)
+
+        self._sl_trail_btn = tk.Button(
+            footer_row1, text=_sl_text,
+            font=("Segoe UI", 8, "bold"), relief="flat", padx=8, pady=4,
+            cursor="hand2",
+            command=self._open_sl_trail_window, **_btn_kw)
+        self._sl_trail_btn.pack(side="left", pady=(4, 0))
+
+        tk.Frame(footer_row1, bg="#333333", width=1).pack(
+            side="left", fill="y", pady=6, padx=6)
 
         bt_btn = tk.Button(footer_row1, text="  ▶  백테스팅  ",
                            bg=DARK_PANEL, fg=ACCENT_BLUE,
