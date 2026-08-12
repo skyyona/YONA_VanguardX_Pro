@@ -1979,31 +1979,25 @@ class BottomModuleMockup(tk.Frame):
         def _apply() -> None:
             funds = self._funds_var.get()
             lev   = self._lev_var.get()
+            # 전략 확정 후에만 엔진 라이브 업데이트
+            if self._strategy_ready and self._applied_params is not None:
+                self._applied_params.update({"funds": funds, "leverage": lev})
+                if self._engine is not None and StrategyLoader is not None:
+                    try:
+                        ap = dict(self._applied_params)
+                        params = StrategyLoader.save_from_applied(
+                            ap, self._applied_sort_mode)
+                        self._engine.update_params(params)
+                    except Exception as e:
+                        import tkinter.messagebox as _mb
+                        _mb.showwarning("저장 실패", f"전략 설정 저장 실패:\n{e}")
+                        return
+                self._update_param_info_lbl()
+            # 버튼 텍스트 갱신 — 확정 여부 무관 (_funds_var에 값 저장됨)
             self._funds_lev_btn.configure(
                 text=f"  ✓  Funds {funds}%   |   {lev}x  ",
                 bg="#0D2A1A", fg=POSITIVE,
                 activebackground="#0A3A18", activeforeground=POSITIVE)
-            if not self._strategy_ready or self._applied_params is None:
-                from tkinter import messagebox as _mb
-                _mb.showwarning(
-                    "전략 미확정",
-                    "전략 설정 창에서 전략을 먼저 확정한 후\n"
-                    "Funds & Leverage를 적용해 주세요.")
-                win.destroy()
-                return
-            if self._engine is not None and StrategyLoader is not None:
-                try:
-                    ap = dict(self._applied_params)
-                    ap["funds"] = funds
-                    ap["leverage"] = lev
-                    self._applied_params.update({"funds": funds, "leverage": lev})
-                    params = StrategyLoader.save_from_applied(
-                        ap, self._applied_sort_mode)
-                    self._engine.update_params(params)
-                except Exception as e:
-                    import tkinter.messagebox as _mb
-                    _mb.showwarning("저장 실패", f"전략 설정 저장 실패:\n{e}")
-            self._update_param_info_lbl()
             win.destroy()
 
         tk.Button(win, text="  ✅  적 용  ",
@@ -2088,31 +2082,25 @@ class BottomModuleMockup(tk.Frame):
 
         def _apply() -> None:
             _, _, sl, trail = self._current_params()
+            # 전략 확정 후에만 엔진 라이브 업데이트
+            if self._strategy_ready and self._applied_params is not None:
+                self._applied_params.update({"sl": sl, "trail": trail})
+                if self._engine is not None and StrategyLoader is not None:
+                    try:
+                        ap = dict(self._applied_params)
+                        params = StrategyLoader.save_from_applied(
+                            ap, self._applied_sort_mode)
+                        self._engine.update_params(params)
+                    except Exception as e:
+                        import tkinter.messagebox as _mb
+                        _mb.showwarning("저장 실패", f"전략 설정 저장 실패:\n{e}")
+                        return
+                self._update_param_info_lbl()
+            # 버튼 텍스트 갱신 — 확정 여부 무관 (_sl_var, _trail_var에 값 저장됨)
             self._sl_trail_btn.configure(
                 text=f"  ✓  SL {sl:.1f}%   |   Trail {trail:.1f}%  ",
                 bg="#0D2A1A", fg=POSITIVE,
                 activebackground="#0A3A18", activeforeground=POSITIVE)
-            if not self._strategy_ready or self._applied_params is None:
-                from tkinter import messagebox as _mb
-                _mb.showwarning(
-                    "전략 미확정",
-                    "전략 설정 창에서 전략을 먼저 확정한 후\n"
-                    "Stop Loss & Trailing Stop을 적용해 주세요.")
-                win.destroy()
-                return
-            if self._engine is not None and StrategyLoader is not None:
-                try:
-                    ap = dict(self._applied_params)
-                    ap["sl"] = sl
-                    ap["trail"] = trail
-                    self._applied_params.update({"sl": sl, "trail": trail})
-                    params = StrategyLoader.save_from_applied(
-                        ap, self._applied_sort_mode)
-                    self._engine.update_params(params)
-                except Exception as e:
-                    import tkinter.messagebox as _mb
-                    _mb.showwarning("저장 실패", f"전략 설정 저장 실패:\n{e}")
-            self._update_param_info_lbl()
             win.destroy()
 
         tk.Button(win, text="  ✅  적 용  ",
