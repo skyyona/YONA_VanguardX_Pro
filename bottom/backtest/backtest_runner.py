@@ -230,7 +230,7 @@ class BacktestRunner:
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="long", entry_price=entry_price, exit_price=close,
                             pnl_pct=round(pnl, 3),
-                            pnl_usdt=round(pnl * entry_price / 100.0, 4),
+                            pnl_usdt=round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4),
                             exit_reason="SL",
                         ))
                         in_long = False; phase = 1; trail_ref = 0.0
@@ -246,7 +246,7 @@ class BacktestRunner:
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="long", entry_price=entry_price, exit_price=close,
                             pnl_pct=round(pnl, 3),
-                            pnl_usdt=round(pnl * entry_price / 100.0, 4),
+                            pnl_usdt=round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4),
                             exit_reason="BEP-SL",
                         ))
                         in_long = False; phase = 1; trail_ref = 0.0
@@ -264,7 +264,7 @@ class BacktestRunner:
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="long", entry_price=entry_price, exit_price=close,
                             pnl_pct=round(pnl, 3),
-                            pnl_usdt=round(pnl * entry_price / 100.0, 4),
+                            pnl_usdt=round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4),
                             exit_reason="TRAIL",
                         ))
                         in_long = False; phase = 1; trail_ref = 0.0
@@ -284,7 +284,7 @@ class BacktestRunner:
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="short", entry_price=entry_price, exit_price=close,
                             pnl_pct=round(pnl, 3),
-                            pnl_usdt=round(pnl * entry_price / 100.0, 4),
+                            pnl_usdt=round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4),
                             exit_reason="SL",
                         ))
                         in_short = False; phase = 1; trail_ref = 0.0
@@ -300,7 +300,7 @@ class BacktestRunner:
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="short", entry_price=entry_price, exit_price=close,
                             pnl_pct=round(pnl, 3),
-                            pnl_usdt=round(pnl * entry_price / 100.0, 4),
+                            pnl_usdt=round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4),
                             exit_reason="BEP-SL",
                         ))
                         in_short = False; phase = 1; trail_ref = 0.0
@@ -318,7 +318,7 @@ class BacktestRunner:
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="short", entry_price=entry_price, exit_price=close,
                             pnl_pct=round(pnl, 3),
-                            pnl_usdt=round(pnl * entry_price / 100.0, 4),
+                            pnl_usdt=round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4),
                             exit_reason="TRAIL",
                         ))
                         in_short = False; phase = 1; trail_ref = 0.0

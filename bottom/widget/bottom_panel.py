@@ -116,16 +116,17 @@ def _backtest_result_to_dict(result: "BacktestResult") -> dict:  # type: ignore[
     def _side_stats(trades: list, period_days: int) -> dict:
         if not trades:
             return {"count": 0, "hit": "0%", "avg": "—", "max": "—",
-                    "total": "—", "rr_ratio": "—", "profit_factor": "—",
-                    "avg_loss": "—", "avg_hold": "—",
+                    "total": "—", "total_usdt": "—", "rr_ratio": "—",
+                    "profit_factor": "—", "avg_loss": "—", "avg_hold": "—",
                     "max_consec_loss": "0회", "daily_freq": "0.00회"}
         wins   = [t for t in trades if t.pnl_pct > 0]
         losses = [t for t in trades if t.pnl_pct <= 0]
         wr      = len(wins) / len(trades) * 100
         avg_w   = sum(t.pnl_pct for t in wins)   / max(len(wins),   1)
         avg_l   = sum(t.pnl_pct for t in losses) / max(len(losses), 1)
-        mx      = max(t.pnl_pct for t in trades)
-        tot     = sum(t.pnl_pct for t in trades)
+        mx       = max(t.pnl_pct  for t in trades)
+        tot      = sum(t.pnl_pct  for t in trades)
+        tot_usdt = sum(t.pnl_usdt for t in trades)
         rr      = abs(avg_w / avg_l) if avg_l != 0 else 0
         pf_num  = sum(t.pnl_pct for t in wins)
         pf_den  = abs(sum(t.pnl_pct for t in losses)) if losses else 0
@@ -146,6 +147,7 @@ def _backtest_result_to_dict(result: "BacktestResult") -> dict:  # type: ignore[
             "avg":             f"{avg_w:+.1f}%" if wins   else "—",
             "max":             f"{mx:+.1f}%",
             "total":           f"{tot:+.1f}%",
+            "total_usdt":      f"{tot_usdt:+.2f} U",
             "rr_ratio":        f"{rr:.1f} : 1"  if losses else "—",
             "profit_factor":   f"{pf:.2f}"       if losses else "—",
             "avg_loss":        f"{avg_l:.1f}%"   if losses else "—",
@@ -530,6 +532,7 @@ class BottomModuleMockup(tk.Frame):
             ("4TF 정렬 적중도",       "hit"),
             ("단일 거래 최대 수익률", "max"),
             ("기간 총 수익률",        "total"),
+            ("예상 USDT 총손익",      "total_usdt"),
         ]
         _stat_rows: list[dict] = []
         for lbl_text, key in _stat_label_items:

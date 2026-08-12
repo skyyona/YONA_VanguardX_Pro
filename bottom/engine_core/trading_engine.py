@@ -124,6 +124,9 @@ class TradingEngine:
             if self._client.set_leverage(symbol, lev):
                 self._last_leverage_sym = symbol
                 self._last_leverage_val = lev
+            else:
+                with self._lock:
+                    self._state.error_msg = "[경고] 레버리지 설정 실패 — Binance 응답 확인 필요"
         # MMR 캐시 선행 채우기 — _auto_calc() 에서 get_mmr_cached() 가 캐시 히트하도록
         if symbol:
             self._client.get_mmr(symbol)
