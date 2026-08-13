@@ -593,15 +593,17 @@ class BottomModuleMockup(tk.Frame):
         tk.Frame(footer_row1, bg="#333333", width=1).pack(
             side="left", fill="y", pady=6, padx=6)
 
-        bt_btn = tk.Button(footer_row1, text="  ▶  백테스팅  ",
-                           bg=DARK_PANEL, fg=ACCENT_BLUE,
-                           activebackground="#252525", activeforeground=ACCENT_BLUE,
-                           font=("Segoe UI", 8, "bold"), relief="flat",
-                           padx=10, pady=4, cursor="hand2",
-                           state="disabled")
-        bt_btn.pack(side="left", padx=(12, 0), pady=(4, 0))
+        # 4모드 비교 버튼 — 방안 B
+        cmp_btn = tk.Button(footer_row1, text="  📊  4모드 비교  ",
+                            bg=DARK_PANEL, fg=DIM_TEXT,
+                            activebackground="#252525",
+                            activeforeground=DARK_TEXT,
+                            font=("Segoe UI", 8), relief="flat",
+                            padx=8, pady=4, cursor="hand2",
+                            state="disabled")
+        cmp_btn.pack(side="left", padx=(12, 0), pady=(4, 0))
 
-        # 합의 모드 선택 Combobox — 방안 A
+        # 합의 모드 선택 Combobox — 4모드 비교 결과 확인 후 모드 선택 → 백테스팅에 전달
         _consensus_var = tk.StringVar(value="4/4")
         _consensus_cb = ttk.Combobox(
             footer_row1,
@@ -612,15 +614,13 @@ class BottomModuleMockup(tk.Frame):
         )
         _consensus_cb.pack(side="left", padx=(8, 0), pady=(4, 0))
 
-        # 4모드 비교 버튼 — 방안 B
-        cmp_btn = tk.Button(footer_row1, text="  📊  4모드 비교  ",
-                            bg=DARK_PANEL, fg=DIM_TEXT,
-                            activebackground="#252525",
-                            activeforeground=DARK_TEXT,
-                            font=("Segoe UI", 8), relief="flat",
-                            padx=8, pady=4, cursor="hand2",
-                            state="disabled")
-        cmp_btn.pack(side="left", padx=(6, 0), pady=(4, 0))
+        bt_btn = tk.Button(footer_row1, text="  ▶  백테스팅  ",
+                           bg=DARK_PANEL, fg=ACCENT_BLUE,
+                           activebackground="#252525", activeforeground=ACCENT_BLUE,
+                           font=("Segoe UI", 8, "bold"), relief="flat",
+                           padx=10, pady=4, cursor="hand2",
+                           state="disabled")
+        bt_btn.pack(side="left", padx=(8, 0), pady=(4, 0))
 
         restart_btn = tk.Button(footer_row1, text="  🔄  재실행  ",
                                 bg=DARK_PANEL, fg=DIM_TEXT,
