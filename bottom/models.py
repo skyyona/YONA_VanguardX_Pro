@@ -35,9 +35,8 @@ class OrderSide(str, Enum):
 # ── 전략 파라미터 ─────────────────────────────────────────────────
 @dataclass
 class ProhibitionFlags:
-    """절대 거래 금지 체크리스트 11개 항목 상태."""
+    """절대 거래 금지 체크리스트 10개 항목 상태."""
     common_macro:     bool = False   # 거시 추세(1H·4H·1D) 반대 방향 거래 금지
-    common_4tf:       bool = False   # 4TF 완전 정렬 미충족 거래 금지
     common_liq:       bool = False   # 청산 근접도 위험 구간
     common_atr:       bool = False   # ATR% 과도 변동성 (8% 초과)
     common_fr:        bool = False   # FR 임계치 초과
@@ -59,24 +58,26 @@ class ProhibitionFlags:
 @dataclass
 class StrategyParams:
     """사용자가 전략 팝업에서 설정하는 전체 파라미터."""
-    sort_mode:   str   = "24h Ticker"
-    funds_pct:   int   = 100         # Designated Funds (% of portfolio)
-    leverage:    int   = 10          # Applied Leverage
-    stop_loss:   float = 2.5         # Stop Loss (%)
-    trail_stop:  float = 1.5         # Trailing Stop (%)
-    prohibition: ProhibitionFlags = field(default_factory=ProhibitionFlags)
-    use_macro:   bool             = True   # 거시적 추세(1H·4H·1D) 연동 여부
+    sort_mode:      str   = "24h Ticker"
+    funds_pct:      int   = 100         # Designated Funds (% of portfolio)
+    leverage:       int   = 10          # Applied Leverage
+    stop_loss:      float = 2.5         # Stop Loss (%)
+    trail_stop:     float = 1.5         # Trailing Stop (%)
+    prohibition:    ProhibitionFlags = field(default_factory=ProhibitionFlags)
+    use_macro:      bool             = True   # 거시적 추세(1H·4H·1D) 연동 여부
+    consensus_mode: str              = "4/4"  # 4TF 합의 모드 ("4/4" | "3/4")
 
     @classmethod
     def from_applied_params(cls, d: dict, sort_mode: str = "24h Ticker") -> "StrategyParams":
         p = cls()
-        p.sort_mode   = sort_mode
-        p.funds_pct   = int(d.get("funds", 100))
-        p.leverage    = int(d.get("leverage", 10))
-        p.stop_loss   = float(d.get("sl", 2.5))
-        p.trail_stop  = float(d.get("trail", 1.5))
-        p.prohibition = ProhibitionFlags.from_dict(d.get("prohibited", {}))
-        p.use_macro   = bool(d.get("use_macro", True))
+        p.sort_mode      = sort_mode
+        p.funds_pct      = int(d.get("funds", 100))
+        p.leverage       = int(d.get("leverage", 10))
+        p.stop_loss      = float(d.get("sl", 2.5))
+        p.trail_stop     = float(d.get("trail", 1.5))
+        p.prohibition    = ProhibitionFlags.from_dict(d.get("prohibited", {}))
+        p.use_macro      = bool(d.get("use_macro", True))
+        p.consensus_mode = str(d.get("consensus_mode", "4/4"))
         return p
 
 

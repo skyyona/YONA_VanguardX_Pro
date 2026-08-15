@@ -520,7 +520,7 @@ class BottomModuleMockup(tk.Frame):
                   activebackground="#0A3A18", activeforeground=POSITIVE,
                   font=("Segoe UI", 9, "bold"), relief="flat", padx=14, pady=4,
                   cursor="hand2",
-                  command=lambda: self._confirm_strategy(win, _selected_sort_ref[0])
+                  command=lambda: self._confirm_strategy(win, _selected_sort_ref[0], _consensus_var.get())
                   ).pack(anchor="center", pady=(4, 0))
 
         # [중간] 백테스팅 결과 요약 (항상 표시 — 백테스팅 전: "—", 후: 실제값)
@@ -593,8 +593,8 @@ class BottomModuleMockup(tk.Frame):
         tk.Frame(footer_row1, bg="#333333", width=1).pack(
             side="left", fill="y", pady=6, padx=6)
 
-        # 4모드 비교 버튼 — 방안 B
-        cmp_btn = tk.Button(footer_row1, text="  📊  4모드 비교  ",
+        # 전략 비교 버튼
+        cmp_btn = tk.Button(footer_row1, text="  📊  전략 비교  ",
                             bg=DARK_PANEL, fg=DIM_TEXT,
                             activebackground="#252525",
                             activeforeground=DARK_TEXT,
@@ -603,12 +603,14 @@ class BottomModuleMockup(tk.Frame):
                             state="disabled")
         cmp_btn.pack(side="left", padx=(12, 0), pady=(4, 0))
 
-        # 합의 모드 선택 Combobox — 4모드 비교 결과 확인 후 모드 선택 → 백테스팅에 전달
-        _consensus_var = tk.StringVar(value="4/4")
+        # 합의 모드 선택 Combobox — 실거래·백테스트 양쪽 동시 제어
+        _init_mode = (self._applied_params.get("consensus_mode", "4/4")
+                      if self._applied_params else "4/4")
+        _consensus_var = tk.StringVar(value=_init_mode)
         _consensus_cb = ttk.Combobox(
             footer_row1,
             textvariable=_consensus_var,
-            values=["3/4", "4/4", "anchor3", "anchor2"],
+            values=["4/4", "3/4"],
             state="readonly", width=8,
             font=("Segoe UI", 7),
         )
@@ -1334,7 +1336,6 @@ class BottomModuleMockup(tk.Frame):
 
             _ban_sec_hdr("공통 조건  (체크 시 롱·숏 양방향 거래 금지)")
             _ban_row("common_macro",  "거시 추세 (1H · 4H · 1D) 반대 방향 거래 금지")
-            _ban_row("common_4tf",    "4TF 완전 정렬 미충족 상태  —  해제 시 3/4 과반 기준 완화")
             _ban_row("common_liq",    "청산 근접도 위험 구간 진입 (강제 청산가 근접)")
             _ban_row("common_atr",    "ATR%  과도 변동성 구간  (8% 초과)")
             _ban_row("common_fr",     "FR(펀딩비)  임계치 초과  —  과열 신호")
@@ -1642,11 +1643,11 @@ class BottomModuleMockup(tk.Frame):
 
             _threading.Thread(target=_fetch, daemon=True).start()
 
-        # ── 4모드 비교 실행 ───────────────────────────────────────
+        # ── 전략 비교 실행 ────────────────────────────────────────
         def _do_comparison() -> None:
             bt_btn.configure(state="disabled", cursor="arrow")
             cmp_btn.configure(state="disabled", cursor="arrow")
-            status_lbl.configure(text="  4모드 비교 실행 중...  ", fg=YELLOW)
+            status_lbl.configure(text="  전략 비교 실행 중...  ", fg=YELLOW)
 
             funds, lev, sl, trail = self._current_params()
             from bottom.models import StrategyParams as _SP, ProhibitionFlags as _PF
@@ -1677,7 +1678,7 @@ class BottomModuleMockup(tk.Frame):
 
         def _comparison_done(cmp_results: dict) -> None:
             status_lbl.configure(
-                text="  4모드 비교 완료  ✓  ",
+                text="  전략 비교 완료  ✓  ",
                 fg=POSITIVE)
             for w in tab2_frame.winfo_children():
                 w.destroy()
@@ -1690,7 +1691,7 @@ class BottomModuleMockup(tk.Frame):
             cmp_btn.configure(state="normal", cursor="hand2")
 
         def _show_comparison_tab2(cmp_results: dict) -> None:
-            """4모드 비교 결과를 tab2에 렌더링."""
+            """전략 비교 결과를 tab2에 렌더링."""
             canvas_scroll = tk.Canvas(tab2_frame, bg=DARK_BG,
                                       highlightthickness=0)
             sb = tk.Scrollbar(tab2_frame, orient="vertical",
@@ -1712,7 +1713,7 @@ class BottomModuleMockup(tk.Frame):
             # 헤더
             hdr_f = tk.Frame(inner, bg=DARK_HEADER, pady=5)
             hdr_f.pack(fill="x", pady=(8, 0))
-            tk.Label(hdr_f, text="  📊  4가지 합의 모드 비교",
+            tk.Label(hdr_f, text="  📊  전략 비교  (4/4 vs 3/4)",
                      bg=DARK_HEADER, fg=ACCENT_BLUE,
                      font=("Segoe UI", 9, "bold")).pack(side="left", padx=6)
 
@@ -1726,7 +1727,7 @@ class BottomModuleMockup(tk.Frame):
                          width=w, anchor="center").pack(side="left", padx=3)
 
             # 최고 수익률 모드 파악
-            _MODES = ["4/4", "3/4", "anchor3", "anchor2"]
+            _MODES = ["4/4", "3/4"]
             best_mode = max(
                 (m for m in _MODES if m in cmp_results),
                 key=lambda m: cmp_results[m].total_return,
@@ -1889,7 +1890,8 @@ class BottomModuleMockup(tk.Frame):
 
     # ─── 전략 확정 ───────────────────────────────────────────────
     def _confirm_strategy(self, win: tk.Toplevel,
-                          sort_mode: str = "24h Ticker") -> None:
+                          sort_mode: str = "24h Ticker",
+                          consensus_mode: str = "4/4") -> None:
         # ── 방안 A: 포지션 보유 중 전략 전체 재설정 차단 ──────────
         if self._engine is not None and self._engine.has_open_positions():
             from tkinter import messagebox as _mb
@@ -1903,11 +1905,12 @@ class BottomModuleMockup(tk.Frame):
         self._applied_params = {"funds": funds, "leverage": lev,
                                 "sl": sl, "trail": trail,
                                 "use_macro": self._use_macro_var.get(),
-                                "prohibited": prohibited}
+                                "prohibited": prohibited,
+                                "consensus_mode": consensus_mode}
         self._applied_sort_mode = sort_mode
         self._strategy_ready = True
         self._strategy_msg.configure(
-            text="  ✓ 전략설정완료   4TF 완전 정렬  ", fg=POSITIVE)
+            text=f"  ✓ 전략설정완료   {consensus_mode} 합의 모드  ", fg=POSITIVE)
         self._trade_btn.configure(
             state="normal", cursor="hand2",
             bg="#0A2A12", fg=POSITIVE,

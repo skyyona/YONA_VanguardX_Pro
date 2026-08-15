@@ -57,9 +57,6 @@ class ProhibitionFilter:
             elif side == PositionSide.SHORT and macro_score >= 1:
                 return FilterResult(True, f"거시 추세 상승 ({macro_score:+d}/3) — 숏 진입 금지")
 
-        # common_4tf: G1(long_condition/short_condition)에서 처리
-        #   → flags.common_4tf=True 시 완전 4TF 합의 필수, False 시 3/4 과반 완화
-
         if flags.common_liq:
             liq_l = ind_data.get("liq_long_pct",  -99.0)
             liq_s = ind_data.get("liq_short_pct", +99.0)

@@ -35,8 +35,6 @@ _TF_BARS: dict[str, dict[str, int]] = {
 # 합의 모드 상수
 _CONSENSUS_4_4 = "4/4"       # 4개 TF 모두 합의 (4/4)
 _CONSENSUS_3_4 = "3/4"       # 3개 이상 TF 합의 (3/4 과반)
-_CONSENSUS_A3  = "anchor3"   # 앵커 TF — 15m + 5m + 3m 3개 필수
-_CONSENSUS_A2  = "anchor2"   # 앵커 TF — 15m + 5m 2개 필수
 
 # 비용 상수 (거래별 레버리지 반영 PnL%에서 차감)
 _COMMISSION   = 0.00045   # 테이커 수수료 0.045% / 편도 (Binance USDT-M)
@@ -183,7 +181,7 @@ class BacktestRunner:
 
         # ── 메인 루프 (1m 봉 기준 스캔, 웜업 이후부터) ──────────────
         trades:     list[BacktestTrade] = []
-        _tf_min   = 4 if params.prohibition.common_4tf else 3
+        _tf_min   = 3
 
         in_long     = False
         in_short    = False
@@ -467,16 +465,16 @@ class BacktestRunner:
         params: StrategyParams,
         period: str = "7일",
     ) -> "dict[str, BacktestResult]":
-        """4가지 합의 모드 동시 비교 실행 — 봉 데이터 1회 로드 후 4모드 공유.
+        """2가지 합의 모드 동시 비교 실행 — 봉 데이터 1회 로드 후 2모드 공유.
 
         Returns
         -------
         dict: 모드별 BacktestResult
-            키: '4/4', '3/4', 'anchor3', 'anchor2'
+            키: '4/4', '3/4'
         """
         preloaded = cls.load_tf_bars(symbol, period)
         results: dict[str, BacktestResult] = {}
-        for mode in (_CONSENSUS_A2, _CONSENSUS_A3, _CONSENSUS_3_4, _CONSENSUS_4_4):
+        for mode in (_CONSENSUS_3_4, _CONSENSUS_4_4):
             results[mode] = cls.run(symbol, params, period,
                                     consensus_mode=mode, preloaded=preloaded)
         return results
@@ -498,18 +496,6 @@ class BacktestRunner:
             return long_v >= 4, short_v >= 4
         if mode == _CONSENSUS_3_4:
             return long_v >= tf_min, short_v >= tf_min
-        if mode == _CONSENSUS_A3:   # 15m + 5m + 3m 앵커
-            can_long  = (tf_dirs.get("15m") == 1
-                         and tf_dirs.get("5m") == 1
-                         and tf_dirs.get("3m") == 1)
-            can_short = (tf_dirs.get("15m") == -1
-                         and tf_dirs.get("5m") == -1
-                         and tf_dirs.get("3m") == -1)
-            return can_long, can_short
-        if mode == _CONSENSUS_A2:   # 15m + 5m 앵커
-            can_long  = tf_dirs.get("15m") == 1  and tf_dirs.get("5m") == 1
-            can_short = tf_dirs.get("15m") == -1 and tf_dirs.get("5m") == -1
-            return can_long, can_short
         return False, False
 
     # ── ATR% 시리즈 계산 ─────────────────────────────────────────

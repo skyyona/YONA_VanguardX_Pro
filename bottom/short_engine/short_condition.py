@@ -48,7 +48,7 @@ class ShortCondition:
 
         # ── G1: 4TF 합의 ──────────────────────────────────────
         signal = FourTFConsensus.evaluate(ind_data)
-        if params.prohibition.common_4tf:
+        if params.consensus_mode == "4/4":
             if not signal.short_consensus:
                 return False, f"4TF 숏 완전 미합의 ({signal.aligned_short}/4 TF)"
         else:
@@ -127,4 +127,4 @@ class ShortCondition:
         if result.blocked:
             return False, result.reason
 
-        return True, f"4TF 완전 합의 [{params.sort_mode}] — 숏 진입 조건 충족"
+        return True, f"{params.consensus_mode} 합의 [{params.sort_mode}] — 숏 진입 조건 충족"
