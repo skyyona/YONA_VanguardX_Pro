@@ -108,6 +108,16 @@ Report the result explicitly. Do not mark a task complete without a passing comp
 "구현 완료", "수정했습니다" 같은 단언만으로는 보고를 마치지 않는다.  
 증거 없는 완료 보고는 완료가 아니다.
 
+### 5-9. No Scope Creep — 요청 범위 초과 구현 금지
+**사용자가 명시적으로 요청한 범위를 초과하는 구현은 절대 하지 않는다.**
+
+- 요청된 기능만 구현한다. 관련 있어 보여도 요청하지 않은 것은 추가하지 않는다.
+- "이왕이면 이것도" 식의 확장은 반드시 사용자에게 먼저 제안하고 승인을 받은 후 구현한다.
+- 구현 전 "이 요청의 정확한 범위는 무엇인가?"를 스스로 확인한다.
+- 실거래와 백테스팅은 동일한 전략 범위 내에서 항상 일치해야 한다. 한쪽에만 기능을 추가하면 불일치가 발생한다.
+
+판단 기준: "사용자가 이 기능을 요청했는가?" — No이면 구현하지 않는다.
+
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
