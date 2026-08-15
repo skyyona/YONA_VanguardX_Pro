@@ -730,5 +730,29 @@
     "added_utc": "2026-07-09 11:58 UTC",
     "status": "SETTLING",
     "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "ACXUSDT",
+    "added_utc": "2026-08-10 11:16 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "HFTUSDT",
+    "added_utc": "2026-08-10 11:16 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "VANRYUSDT",
+    "added_utc": "2026-08-10 11:16 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "VICUSDT",
+    "added_utc": "2026-08-10 11:16 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
   }
 ]
