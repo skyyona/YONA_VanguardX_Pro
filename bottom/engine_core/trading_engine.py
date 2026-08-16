@@ -381,7 +381,11 @@ class TradingEngine:
         while not self._stop_event.is_set():
             try:
                 _now_sync = time.time()
-                if _now_sync - self._last_time_sync >= 900:
+                _need_resync = (
+                    (_now_sync - self._last_time_sync >= 900) or
+                    ("-1021" in self._client._last_api_error)
+                )
+                if _need_resync:
                     self._client._sync_server_time()
                     self._last_time_sync = _now_sync
                 with self._lock:

@@ -393,11 +393,31 @@ class BottomBinanceClient:
             with urllib.request.urlopen(req, timeout=8) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
+            _binance_code = 0
             try:
                 body = json.loads(e.read().decode("utf-8"))
+                _binance_code = body.get("code", 0)
                 self._last_api_error = f"[{body.get('code', e.code)}] {body.get('msg', str(e))}"
             except Exception:
                 self._last_api_error = f"HTTP {e.code}: {e.reason}"
+            if _binance_code == -1021:
+                self._last_api_error = "[-1021] 타임스탬프 불일치 — 서버 시간 재동기화 후 재시도"
+                self._sync_server_time()
+                try:
+                    _p2 = {"timestamp": str(self._ts()), "recvWindow": "10000"}
+                    if extra_params:
+                        _p2.update(extra_params)
+                    _qs2  = urllib.parse.urlencode(_p2)
+                    _sig2 = hmac.new(self._api_secret.encode(), _qs2.encode(),
+                                     hashlib.sha256).hexdigest()
+                    _url2 = f"{_FUTURES_BASE}{path}?{_qs2}&signature={_sig2}"
+                    _req2 = urllib.request.Request(_url2, headers={"X-MBX-APIKEY": self._api_key})
+                    with urllib.request.urlopen(_req2, timeout=8) as _resp2:
+                        self._last_api_error = ""
+                        return json.loads(_resp2.read().decode("utf-8"))
+                except Exception as _e2:
+                    self._last_api_error = f"[-1021 재시도 실패] {_e2}"
+                return None
             if e.code == 429:
                 try:
                     retry_after = int(e.headers.get("Retry-After") or 60)
@@ -433,13 +453,35 @@ class BottomBinanceClient:
             with urllib.request.urlopen(req, timeout=8) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
+            _binance_code = 0
             try:
                 body_err = json.loads(e.read().decode("utf-8"))
+                _binance_code = body_err.get("code", 0)
                 self._last_api_error = f"[{body_err.get('code', e.code)}] {body_err.get('msg', str(e))}"
-                if body_err.get("code") == -1008:
+                if _binance_code == -1008:
                     self._last_api_error = "[경보] Binance 서버 과부하(-1008) — 재시도 가능"
             except Exception:
                 self._last_api_error = f"HTTP {e.code}: {e.reason}"
+            if _binance_code == -1021:
+                self._last_api_error = "[-1021] 타임스탬프 불일치 — 서버 시간 재동기화 후 재시도"
+                self._sync_server_time()
+                params["timestamp"] = str(self._ts())
+                try:
+                    _qs2   = urllib.parse.urlencode(params)
+                    _sig2  = hmac.new(self._api_secret.encode(), _qs2.encode(),
+                                      hashlib.sha256).hexdigest()
+                    _body2 = (_qs2 + f"&signature={_sig2}").encode("utf-8")
+                    _req2  = urllib.request.Request(
+                        url, data=_body2, method="POST",
+                        headers={"X-MBX-APIKEY": self._api_key,
+                                 "Content-Type": "application/x-www-form-urlencoded"},
+                    )
+                    with urllib.request.urlopen(_req2, timeout=8) as _resp2:
+                        self._last_api_error = ""
+                        return json.loads(_resp2.read().decode("utf-8"))
+                except Exception as _e2:
+                    self._last_api_error = f"[-1021 재시도 실패] {_e2}"
+                return None
             if e.code == 429:
                 try:
                     retry_after = int(e.headers.get("Retry-After") or 60)
@@ -463,8 +505,8 @@ class BottomBinanceClient:
                 data = json.loads(resp.read().decode("utf-8"))
             server_time = data["serverTime"]
             self._time_offset = (server_time - int(time.time() * 1000)) / 1000.0
-        except Exception:
-            self._time_offset = 0.0
+        except Exception as e:
+            self._last_api_error = f"[시간동기화 실패] {e} — 기존 offset 유지: {self._time_offset:.3f}s"
 
     def _ts(self) -> int:
         return int((time.time() + self._time_offset) * 1000)
