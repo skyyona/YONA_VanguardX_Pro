@@ -219,6 +219,12 @@ class BacktestRunner:
         if params.prohibition.common_fr or params.prohibition.common_liq:
             _fr_times, _fr_pct_list = HistoricalDataLoader.load_funding_rate(symbol)
 
+        # ── common_liq L/S ratio 이력 로드 ──────────────────────────
+        _lr_times:    list[int]   = []
+        _lr_long_pct: list[float] = []
+        if params.prohibition.common_liq:
+            _lr_times, _lr_long_pct = HistoricalDataLoader.load_long_short_ratio(symbol)
+
         # [P7] G7 Swing 구조 — 15m봉 기준 bisect용 시간 시리즈
         times_15m: list = [b.open_time for b in bars_15m]
 
@@ -300,14 +306,20 @@ class BacktestRunner:
                     _liq_fr_pos = max(0, bisect.bisect_left(_fr_times, t) - 1)
                     _liq_fr_val = _fr_pct_list[_liq_fr_pos] if _liq_fr_pos < len(_fr_pct_list) else 0.0
                 _liq_base      = max(atr_pct * _LIQ_BASE_MULT, 1.0)
+                _lr_long_pct_v = 50.0
+                if _lr_times:
+                    _lr_pos = max(0, bisect.bisect_left(_lr_times, t) - 1)
+                    if _lr_pos < len(_lr_long_pct):
+                        _lr_long_pct_v = _lr_long_pct[_lr_pos]
+                _long_excess  = max(0.0, (_lr_long_pct_v - 50.0) / 50.0)
+                _short_excess = max(0.0, (50.0 - _lr_long_pct_v) / 50.0)
                 liq_long_dist  = max(0.5, min(_LIQ_GAUGE_MAX,
-                                     _liq_base - (abs(_liq_fr_val) * _LIQ_FR_BIAS if _liq_fr_val > 0 else 0.0)))
+                                     _liq_base - (abs(_liq_fr_val) * _LIQ_FR_BIAS if _liq_fr_val > 0 else 0.0)
+                                     - _long_excess * _liq_base * 0.5))
                 liq_short_dist = max(0.5, min(_LIQ_GAUGE_MAX,
-                                     _liq_base - (abs(_liq_fr_val) * _LIQ_FR_BIAS if _liq_fr_val < 0 else 0.0)))
-                liq_safe       = min(
-                    max(0.001, (1.0 / params.leverage - params.mmr)) * 100.0 * 0.80,
-                    _LIQ_GAUGE_MAX * 0.95,
-                )
+                                     _liq_base - (abs(_liq_fr_val) * _LIQ_FR_BIAS if _liq_fr_val < 0 else 0.0)
+                                     - _short_excess * _liq_base * 0.5))
+                liq_safe       = min(sl_used, _LIQ_GAUGE_MAX * 0.95)
                 liq_ok_long    = liq_long_dist  >= liq_safe
                 liq_ok_short   = liq_short_dist >= liq_safe
 
@@ -709,7 +721,11 @@ class BacktestRunner:
                             trail_ref   = close
 
         from bottom.backtest.result_summary import ResultSummary
-        return ResultSummary.build(symbol, params.sort_mode, period_days, trades)
+        result = ResultSummary.build(symbol, params.sort_mode, period_days, trades)
+        if params.prohibition.common_liq and _lr_times:
+            result.long_ratio_coverage = round(
+                len(_lr_times) / max(1, period_days * 288) * 100.0, 1)
+        return result
 
     @classmethod
     def run_comparison(

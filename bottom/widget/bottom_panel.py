@@ -161,6 +161,8 @@ def _backtest_result_to_dict(result: "BacktestResult") -> dict:  # type: ignore[
         "long_align":  len(long_trades),
         "short_align": len(short_trades),
         "next_est":    "—",
+        "sort_mode":            result.sort_mode,
+        "long_ratio_coverage":  result.long_ratio_coverage,
         "long":        _side_stats(long_trades,  pd_),
         "short":       _side_stats(short_trades, pd_),
         "total": {
@@ -1408,8 +1410,11 @@ class BottomModuleMockup(tk.Frame):
             _sl  = res.get("sl_used",    "—")
             _tr  = res.get("trail_used", "—")
             _mmr = res.get("mmr_used",   0.004)
+            _sm  = res.get("sort_mode",  "—")
+            _cov = res.get("long_ratio_coverage", 0.0)
+            _cov_str = f"  L/S {_cov:.0f}%" if _cov > 0 else ""
             status_lbl.configure(
-                text=f"  백테스팅 완료  ✓   적중도 {win_str}  |  SL {_sl}% / Trail {_tr}% / MMR {_mmr:.4f}  ",
+                text=f"  [{_sm}] 백테스팅 완료  ✓   적중도 {win_str}  |  SL {_sl}% / Trail {_tr}% / MMR {_mmr:.4f}{_cov_str}  ",
                 fg=POSITIVE)
 
             for w in tab2_frame.winfo_children():
@@ -1706,6 +1711,7 @@ class BottomModuleMockup(tk.Frame):
                 cmp_results["sl_used"]    = _sl_used    # [C-2] 실제 적용 SL 표시용
                 cmp_results["trail_used"] = _trail_used # [C-2] 실제 적용 Trail 표시용
                 cmp_results["mmr_used"]   = params.mmr  # [C-2] 실제 적용 MMR 표시용
+                cmp_results["sort_mode"]  = params.sort_mode
                 win.after(0, lambda r=cmp_results: _comparison_done(r))
 
             _threading.Thread(target=_run_cmp, daemon=True).start()
@@ -1714,8 +1720,9 @@ class BottomModuleMockup(tk.Frame):
             _sl  = cmp_results.get("sl_used",    "—")
             _tr  = cmp_results.get("trail_used", "—")
             _mmr = cmp_results.get("mmr_used",   0.004)
+            _sm  = cmp_results.get("sort_mode",  "—")
             status_lbl.configure(
-                text=f"  전략 비교 완료  ✓  |  SL {_sl}% / Trail {_tr}% / MMR {_mmr:.4f}  ",
+                text=f"  [{_sm}] 전략 비교 완료  ✓  |  SL {_sl}% / Trail {_tr}% / MMR {_mmr:.4f}  ",
                 fg=POSITIVE)
             for w in tab2_frame.winfo_children():
                 w.destroy()

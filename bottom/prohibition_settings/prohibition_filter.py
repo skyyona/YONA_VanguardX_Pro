@@ -34,8 +34,7 @@ class ProhibitionFilter:
         has_long_open:  bool  = False,
         has_short_open: bool  = False,
         days_listed:    int   = 9999,
-        leverage:       int   = 10,
-        mmr:            float = 0.004,
+        sl_used:        float = 2.5,
     ) -> FilterResult:
         """금지 항목 위반 여부 평가. 첫 번째 위반 항목에서 즉시 반환."""
 
@@ -49,10 +48,7 @@ class ProhibitionFilter:
         if flags.common_liq:
             liq_l    = ind_data.get("liq_long_pct",  -99.0)
             liq_s    = ind_data.get("liq_short_pct", +99.0)
-            liq_safe = min(
-                max(0.001, (1.0 / max(leverage, 1)) - mmr) * 100.0 * 0.80,
-                _LIQ_GAUGE_MAX * 0.95,
-            )
+            liq_safe = min(sl_used, _LIQ_GAUGE_MAX * 0.95)
             if side == PositionSide.LONG and abs(liq_l) < liq_safe:
                 return FilterResult(True, f"롱 청산가 근접도 {abs(liq_l):.2f}% < liq_safe {liq_safe:.2f}% — 롱 진입 금지")
             if side == PositionSide.SHORT and abs(liq_s) < liq_safe:

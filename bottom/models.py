@@ -180,4 +180,5 @@ class BacktestResult:
     avg_profit:   float     = 0.0    # %
     avg_loss:     float     = 0.0    # %
     trades:       list[BacktestTrade] = field(default_factory=list)
+    long_ratio_coverage: float = 0.0
 

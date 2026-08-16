@@ -21,6 +21,7 @@ from bottom.engine_core.fourtf_consensus import FourTFConsensus
 from bottom.engine_core.sort_mode_config import get_mode_config
 from bottom.engine_core.quality_grader import QualityGrader
 from bottom.prohibition_settings.prohibition_filter import ProhibitionFilter
+from bottom.engine_core.sl_calculator import SLCalculator
 
 _GRADE_ORDER = {"A": 4, "B": 3, "C": 2, "D": 1}
 
@@ -120,10 +121,12 @@ class ShortCondition:
                 return False, f"거시 추세 상승 ({_mac_score:+d}/3) — 숏 진입 보류"
 
         # ── G8: 절대 금지 필터 ─────────────────────────────────
+        _sl_used, _ = SLCalculator.clamp(
+            params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr)
         result = ProhibitionFilter.check(
             params.prohibition, PositionSide.SHORT, ind_data,
             has_long_open=has_long_open, days_listed=days_listed,
-            leverage=params.leverage, mmr=params.mmr,
+            sl_used=_sl_used,
         )
         if result.blocked:
             return False, result.reason

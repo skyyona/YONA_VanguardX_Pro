@@ -34,7 +34,7 @@ MODE_CONFIG: dict[str, ModeConfig] = {
         k_short_min       = 60.0,    # 완화: 65.0 → 60.0 (역사 +6.6%p 기회 확대)
         quality_grade_req = None,
         volume_mult       = None,
-        atr_min           = 0.10,    # 완화: 0.3 → 0.10 (ETH·SOL·XRP 등 주요 코인 포함)
+        atr_min           = 1.0,     # sl_used=2.0% 기준 최소 ATR 정합
         atr_max           = 8.0,
         requires_swing    = False,
         macro_ema         = False,
@@ -62,7 +62,7 @@ MODE_CONFIG: dict[str, ModeConfig] = {
         k_short_min       = 65.0,    # 완화: 70.0 → 65.0 (역사 +6.6%p 기회 확대)
         quality_grade_req = "B",
         volume_mult       = None,    # 완화: 1.5 → None (vol_ratio 평균 0.65x 대응)
-        atr_min           = 0.3,     # 완화: 0.5 → 0.3 (bear≥3 통과 심볼 ATR 분포 반영)
+        atr_min           = 1.25,    # sl_used=2.5% 기준 최소 ATR 정합
         atr_max           = 8.0,
         requires_swing    = False,
         macro_ema         = True,
@@ -88,7 +88,7 @@ MODE_CONFIG: dict[str, ModeConfig] = {
         k_short_min       = 65.0,    # 완화: 70.0 → 65.0 (역사 +6.6%p 기회 확대)
         quality_grade_req = "A",
         volume_mult       = None,    # 완화: 1.5 → None (vol_ratio 평균 0.65x 대응)
-        atr_min           = 0.10,    # 완화: 0.5 → 0.10 (ETH·SOL 등 주요 코인 포함)
+        atr_min           = 1.85,    # sl_used=3.7%(4.0% clamp) 기준 최소 ATR 정합
         atr_max           = 6.0,
         requires_swing    = False,
         macro_ema         = False,
@@ -101,7 +101,7 @@ MODE_CONFIG: dict[str, ModeConfig] = {
         k_short_min       = 999.0,   # 숏 불가
         quality_grade_req = None,
         volume_mult       = None,
-        atr_min           = 0.10,    # 완화: 0.3 → 0.10 (주요 코인 포함)
+        atr_min           = 1.25,    # sl_used=2.5% 기준 최소 ATR 정합
         atr_max           = 15.0,
         requires_swing    = False,
         macro_ema         = False,

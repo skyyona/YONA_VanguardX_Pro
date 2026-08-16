@@ -125,6 +125,25 @@ class HistoricalDataLoader:
         return second + first
 
     @staticmethod
+    def load_long_short_ratio(symbol: str, limit: int = 500) -> tuple[list[int], list[float]]:
+        """글로벌 롱/숏 비율 이력 로드. (times_ms, long_pct_list) 튜플 반환.
+
+        limit=500 → 최신 약 41.7시간치 (5m 기준).
+        결손 구간은 호출처에서 50% 중립 처리.
+        공개 API — 인증 불필요.
+        """
+        url = (f"{_FUTURES_BASE}/futures/data/globalLongShortAccountRatio"
+               f"?symbol={symbol}&period=5m&limit={limit}")
+        try:
+            with urllib.request.urlopen(url, timeout=10) as resp:
+                raw = json.loads(resp.read().decode("utf-8"))
+            times    = [int(r["timestamp"])             for r in raw]
+            long_pct = [float(r["longAccount"]) * 100.0 for r in raw]
+            return times, long_pct
+        except Exception:
+            return [], []
+
+    @staticmethod
     def load_funding_rate(symbol: str, limit: int = 360) -> tuple[list[int], list[float]]:
         """과거 펀딩비 이력 로드. (times_ms, fr_pct_list) 튜플 반환.
 
