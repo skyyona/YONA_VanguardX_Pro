@@ -22,6 +22,7 @@ import bisect
 
 from bottom.backtest.historical_data_loader import HistoricalDataLoader
 from bottom.engine_core.quality_grader import QualityGrader
+from bottom.engine_core.risk_manager import RiskManager as _RM
 from bottom.engine_core.sort_mode_config import get_mode_config
 from bottom.models import BacktestResult, BacktestTrade, StrategyParams
 
@@ -230,6 +231,13 @@ class BacktestRunner:
         _daily_pnl_usdt = 0.0   # 당일 누적 PnL (USDT)
         _daily_date_key = -1    # 추적 중인 날짜 (KST 일 단위 정수)
 
+        # [C-1] 유효 레버리지 사전 계산 — R-cap(8%) 반영 (결정2-a / 결정1-a)
+        # P 소거 원리: mark=1.0 사용 가능 (mark 값에 관계없이 L_eff 동일)
+        _alloc   = params.portfolio_usdt * params.funds_pct / 100.0
+        _qty0    = _RM.calc_position_size(params, 1.0, params.portfolio_usdt)
+        _qty_cap = _RM.apply_r_cap(_qty0, 1.0, params.stop_loss, params.portfolio_usdt)
+        _leff    = (_qty_cap / _alloc) if _alloc > 0 else float(params.leverage)
+
         # tf5 교차 시점 추적 — QualityGrader _duration_score 재현용
         _tf5_long_cross_t:  float = 0.0
         _tf5_short_cross_t: float = 0.0
@@ -280,8 +288,8 @@ class BacktestRunner:
                 if phase == 1:
                     # [P1] intrabar: bar.low ≤ sl_phase1 → STOP_MARKET 체결 재현
                     if bar.low <= sl_phase1:
-                        cost = cls._cost(params.leverage, bars_held)
-                        pnl  = (sl_phase1 - entry_price) / entry_price * 100.0 * params.leverage - cost
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (sl_phase1 - entry_price) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
@@ -307,8 +315,8 @@ class BacktestRunner:
                 elif phase == 2:
                     # [P1] intrabar: bar.low ≤ entry_price → BEP STOP_MARKET 체결 재현
                     if bar.low <= entry_price:
-                        cost = cls._cost(params.leverage, bars_held)
-                        pnl  = (entry_price - entry_price) / entry_price * 100.0 * params.leverage - cost
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (entry_price - entry_price) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
@@ -329,8 +337,8 @@ class BacktestRunner:
                         continue
                     # [A-4][P5] Phase2→3 intrabar: bar.high 기준, trail_ref=트리거 가격
                     if bar.high >= entry_price + R * 1.5:
-                        cost_p = cls._cost(params.leverage, bars_held)
-                        pnl_p  = (close - entry_price) / entry_price * 100.0 * params.leverage - cost_p
+                        cost_p = cls._cost(_leff, bars_held)
+                        pnl_p  = (close - entry_price) / entry_price * 100.0 * _leff - cost_p
                         _pnl_usdt_val_p = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl_p / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
@@ -349,8 +357,8 @@ class BacktestRunner:
                     trail_sl  = trail_ref * (1.0 - params.trail_stop / 100.0)
                     # [P1] intrabar + [P5] 잔량 50%: bar.low ≤ trail_sl → trailing stop 체결 재현
                     if bar.low <= trail_sl:
-                        cost = cls._cost(params.leverage, bars_held)
-                        pnl  = (trail_sl - entry_price) / entry_price * 100.0 * params.leverage - cost
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (trail_sl - entry_price) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
@@ -371,8 +379,8 @@ class BacktestRunner:
                         continue
                     # [A-5][P8] TRAIL이 없을 때만 KD 역전 익절 체크
                     if _k1m > 80.0 and _k1m < _d1m and (_d1m - _k1m) >= 2.0:
-                        cost = cls._cost(params.leverage, bars_held)
-                        pnl  = (close - entry_price) / entry_price * 100.0 * params.leverage - cost
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (close - entry_price) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
@@ -395,8 +403,8 @@ class BacktestRunner:
                 if phase == 1:
                     # [P1] intrabar: bar.high ≥ sl_phase1 → STOP_MARKET 체결 재현
                     if bar.high >= sl_phase1:
-                        cost = cls._cost(params.leverage, bars_held)
-                        pnl  = (entry_price - sl_phase1) / entry_price * 100.0 * params.leverage - cost
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (entry_price - sl_phase1) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
@@ -422,8 +430,8 @@ class BacktestRunner:
                 elif phase == 2:
                     # [P1] intrabar: bar.high ≥ entry_price → BEP STOP_MARKET 체결 재현
                     if bar.high >= entry_price:
-                        cost = cls._cost(params.leverage, bars_held)
-                        pnl  = (entry_price - entry_price) / entry_price * 100.0 * params.leverage - cost
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (entry_price - entry_price) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
@@ -444,8 +452,8 @@ class BacktestRunner:
                         continue
                     # [A-4][P5] Phase2→3 intrabar: bar.low 기준, trail_ref=트리거 가격
                     if bar.low <= entry_price - R * 1.5:
-                        cost_p = cls._cost(params.leverage, bars_held)
-                        pnl_p  = (entry_price - close) / entry_price * 100.0 * params.leverage - cost_p
+                        cost_p = cls._cost(_leff, bars_held)
+                        pnl_p  = (entry_price - close) / entry_price * 100.0 * _leff - cost_p
                         _pnl_usdt_val_p = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl_p / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
@@ -464,8 +472,8 @@ class BacktestRunner:
                     trail_sl  = trail_ref * (1.0 + params.trail_stop / 100.0)
                     # [P1] intrabar + [P5] 잔량 50%: bar.high ≥ trail_sl → trailing stop 체결 재현
                     if bar.high >= trail_sl:
-                        cost = cls._cost(params.leverage, bars_held)
-                        pnl  = (entry_price - trail_sl) / entry_price * 100.0 * params.leverage - cost
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (entry_price - trail_sl) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
@@ -486,8 +494,8 @@ class BacktestRunner:
                         continue
                     # [A-5][P8] TRAIL이 없을 때만 KD 역전 익절 체크
                     if _k1m < 20.0 and _k1m > _d1m and (_k1m - _d1m) >= 2.0:
-                        cost = cls._cost(params.leverage, bars_held)
-                        pnl  = (entry_price - close) / entry_price * 100.0 * params.leverage - cost
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (entry_price - close) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
@@ -680,7 +688,7 @@ class BacktestRunner:
 
     # ── 거래 비용 계산 ──────────────────────────────────────────
     @staticmethod
-    def _cost(leverage: int, bars_held: int) -> float:
+    def _cost(leverage: float, bars_held: int) -> float:
         """레버리지 반영 거래 비용 (수수료 + 슬리피지 + 펀딩비) — PnL%에서 차감할 값."""
         round_trip = 2 * leverage * (_COMMISSION + _SLIPPAGE)
         funding    = leverage * _FUNDING_RATE * (bars_held / _FUNDING_BARS)
