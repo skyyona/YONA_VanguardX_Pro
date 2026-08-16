@@ -418,8 +418,9 @@ class TradingEngine:
                         if self._data_provider:
                             try:
                                 _ind_kd = self._data_provider(self._state.symbol)
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                with self._lock:
+                                    self._state.error_msg = f"[경고] 지표 데이터 조회 실패 — {e}  KD 익절 스킵"
                         if has_long:
                             old_phase_l = lp.phase
                             with self._lock:
@@ -563,8 +564,9 @@ class TradingEngine:
                 if sym and self._sel_refresher:
                     try:
                         self._sel_refresher(sym)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        with self._lock:
+                            self._state.error_msg = f"[경고] klines 갱신 요청 실패 — {e}"
 
                 # API 갱신 완료 대기 (_DATA_SETTLE_SEC 초)
                 if self._stop_event.wait(_DATA_SETTLE_SEC):
@@ -751,8 +753,11 @@ class TradingEngine:
                                 time.sleep(1.5)
                                 result = LongOrder.execute(
                                     self._client, _sym, qty, self._params, mark)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        with self._lock:
+                            self._state.error_msg = (
+                                f"[경보] 503 재시도 중 포지션 확인 실패 — {e}  "
+                                "수동 포지션 확인 필요")
                 elif ("-1008" in _err or "timed out" in _err
                       or "URLError" in _err):
                     # 결과 불명 — 재주문 전 실제 포지션 확인 (이중 진입 방지)
@@ -891,8 +896,11 @@ class TradingEngine:
                                 time.sleep(1.5)
                                 result = ShortOrder.execute(
                                     self._client, _sym, qty, self._params, mark)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        with self._lock:
+                            self._state.error_msg = (
+                                f"[경보] 503 재시도 중 포지션 확인 실패 — {e}  "
+                                "수동 포지션 확인 필요")
                 elif ("-1008" in _err or "timed out" in _err
                       or "URLError" in _err):
                     # 결과 불명 — 재주문 전 실제 포지션 확인 (이중 진입 방지)
@@ -1085,8 +1093,12 @@ class TradingEngine:
                         self._loss_cooldown_until = time.time() + _LOSS_COOLDOWN_SEC
                         self._consecutive_losses = 0
                     return
-            except Exception:
-                pass
+            except Exception as e:
+                with self._lock:
+                    self._state.error_msg = (
+                        f"[경보] 롱 청산 실패 + 포지션 상태 조회 불가 — {e}  "
+                        "Binance에서 실제 포지션 수동 확인 필요")
+                return
             with self._lock:
                 self._state.error_msg = f"롱 청산 실패: {result.error}"
 
@@ -1152,8 +1164,12 @@ class TradingEngine:
                         self._loss_cooldown_until = time.time() + _LOSS_COOLDOWN_SEC
                         self._consecutive_losses = 0
                     return
-            except Exception:
-                pass
+            except Exception as e:
+                with self._lock:
+                    self._state.error_msg = (
+                        f"[경보] 숏 청산 실패 + 포지션 상태 조회 불가 — {e}  "
+                        "Binance에서 실제 포지션 수동 확인 필요")
+                return
             with self._lock:
                 self._state.error_msg = f"숏 청산 실패: {result.error}"
 

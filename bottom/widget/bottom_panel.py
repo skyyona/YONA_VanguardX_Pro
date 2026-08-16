@@ -3435,8 +3435,10 @@ class BottomModuleMockup(tk.Frame):
                 json.dumps(data, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
-        except Exception:
-            pass
+        except Exception as e:
+            import logging as _log
+            _log.getLogger(__name__).error(
+                "거래 내역 저장 실패 — %s: %s", _TRADE_HISTORY_PATH.name, e)
 
     # ──────────────────────────────────────────────────────────────
     def _record_trade(
