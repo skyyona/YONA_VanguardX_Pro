@@ -8,8 +8,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from bottom.models import PositionSide, ProhibitionFlags
 
-_FR_THRESHOLD = 0.05   # FR 임계값 (%)
-_NEW_DAYS_MIN = 14     # 신규 상장 최소 거래 가능 일수
+_FR_THRESHOLD     = 0.05   # FR 임계값 (%)
+_NEW_DAYS_MIN     = 14     # 신규 상장 최소 거래 가능 일수
+_LIQ_GAUGE_MAX    = 5.0    # liquidation_proximity.GAUGE_MAX_PCT 동기화 값
 
 
 @dataclass
@@ -48,7 +49,10 @@ class ProhibitionFilter:
         if flags.common_liq:
             liq_l    = ind_data.get("liq_long_pct",  -99.0)
             liq_s    = ind_data.get("liq_short_pct", +99.0)
-            liq_safe = max(0.001, (1.0 / max(leverage, 1)) - mmr) * 100.0 * 0.80
+            liq_safe = min(
+                max(0.001, (1.0 / max(leverage, 1)) - mmr) * 100.0 * 0.80,
+                _LIQ_GAUGE_MAX * 0.95,
+            )
             if side == PositionSide.LONG and abs(liq_l) < liq_safe:
                 return FilterResult(True, f"롱 청산가 근접도 {abs(liq_l):.2f}% < liq_safe {liq_safe:.2f}% — 롱 진입 금지")
             if side == PositionSide.SHORT and abs(liq_s) < liq_safe:

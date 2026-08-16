@@ -64,6 +64,10 @@ _VOL_PERIOD = 20
 # Prohibition 임계값
 _FR_THRESHOLD = 0.05    # FR 임계값 (%) — prohibition_filter.py 동일
 _NEW_DAYS_BAN = 14
+# common_liq — liquidation_proximity.py 동일 상수
+_LIQ_GAUGE_MAX = 5.0    # LiquidationProximityPanel.GAUGE_MAX_PCT
+_LIQ_BASE_MULT = 2.0    # LiquidationProximityPanel.BASE_MULTIPLIER
+_LIQ_FR_BIAS   = 0.3    # LiquidationProximityPanel.FR_BIAS_FACTOR
 # quality_grade_req 등급 서열 — A(0) 가장 엄격, D(3) 최완화
 _GRADE_ORDER  = {"A": 0, "B": 1, "C": 2, "D": 3}
 # common_macro HTF StochRSI 파라미터 (실거래 엔진 동일)
@@ -190,7 +194,7 @@ class BacktestRunner:
 
         # ── common_macro·use_macro HTF StochRSI (기존 bisect 패턴 유지) ─
         _mac_tfs: list = []
-        if params.prohibition.common_macro or params.use_macro:
+        if params.use_macro:
             _mac_limits = (
                 ("1h", min(period_days * 25 + 50, 1500)),
                 ("4h", min(period_days *  7 + 50, 1500)),
@@ -212,7 +216,7 @@ class BacktestRunner:
         # ── common_fr 펀딩비 이력 로드 ───────────────────────────────
         _fr_times:    list[int]   = []
         _fr_pct_list: list[float] = []
-        if params.prohibition.common_fr:
+        if params.prohibition.common_fr or params.prohibition.common_liq:
             _fr_times, _fr_pct_list = HistoricalDataLoader.load_funding_rate(symbol)
 
         # [P7] G7 Swing 구조 — 15m봉 기준 bisect용 시간 시리즈
@@ -286,6 +290,26 @@ class BacktestRunner:
                 _fr_val = _fr_pct_list[_fr_pos] if _fr_pos < len(_fr_pct_list) else 0.0
                 fr_ok_long  = _fr_val <= _FR_THRESHOLD
                 fr_ok_short = _fr_val >= -_FR_THRESHOLD
+
+            # ── [LIQ] common_liq 청산 근접도 판정 ────────────────────
+            liq_ok_long  = True
+            liq_ok_short = True
+            if params.prohibition.common_liq:
+                _liq_fr_val = 0.0
+                if _fr_times:
+                    _liq_fr_pos = max(0, bisect.bisect_left(_fr_times, t) - 1)
+                    _liq_fr_val = _fr_pct_list[_liq_fr_pos] if _liq_fr_pos < len(_fr_pct_list) else 0.0
+                _liq_base      = max(atr_pct * _LIQ_BASE_MULT, 1.0)
+                liq_long_dist  = max(0.5, min(_LIQ_GAUGE_MAX,
+                                     _liq_base - (abs(_liq_fr_val) * _LIQ_FR_BIAS if _liq_fr_val > 0 else 0.0)))
+                liq_short_dist = max(0.5, min(_LIQ_GAUGE_MAX,
+                                     _liq_base - (abs(_liq_fr_val) * _LIQ_FR_BIAS if _liq_fr_val < 0 else 0.0)))
+                liq_safe       = min(
+                    max(0.001, (1.0 / params.leverage - params.mmr)) * 100.0 * 0.80,
+                    _LIQ_GAUGE_MAX * 0.95,
+                )
+                liq_ok_long    = liq_long_dist  >= liq_safe
+                liq_ok_short   = liq_short_dist >= liq_safe
 
             # ── [P8] 1m TF K/D — KD 역전 익절 판정용 ───────────────
             _k1m = _d1m = 50.0
@@ -607,6 +631,7 @@ class BacktestRunner:
                         and atr_ok and vol_ok
                         and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
                         and fr_ok_long
+                        and liq_ok_long
                         and _mac_ok_long):
                     # [P4] G6 EMA — 1h봉 기준 (실거래 data_manager 동일)
                     ema_ok = True
@@ -648,6 +673,7 @@ class BacktestRunner:
                         and atr_ok and vol_ok
                         and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
                         and fr_ok_short
+                        and liq_ok_short
                         and _mac_ok_short):
                     # [P4] G6 EMA — 1h봉 기준 (실거래 data_manager 동일)
                     ema_ok = True

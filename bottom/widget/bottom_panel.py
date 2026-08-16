@@ -1338,20 +1338,16 @@ class BottomModuleMockup(tk.Frame):
                 _refresh()
 
             _ban_sec_hdr("공통 조건  (체크 시 롱·숏 양방향 거래 금지)")
-            _ban_row("common_macro",  "거시 추세 (1H · 4H · 1D) 반대 방향 거래 금지")
             _ban_row("common_liq",    "청산 근접도 위험 구간 진입 (강제 청산가 근접)")
-            _ban_row("common_atr",    "ATR%  과도 변동성 구간  (8% 초과)")
             _ban_row("common_fr",     "FR(펀딩비)  임계치 초과  —  과열 신호")
             _ban_row("common_new",    "신규 상장 심볼  —  가용 데이터 14일 미만")
             _ban_row("common_hunter", "Player Detection  '청산 헌터'  태그 감지")
 
             _ban_sec_hdr("롱 포지션 전용 금지 조건")
             _ban_row("long_fomo",      "Player Detection  'FOMO 극단'  태그 감지 시 롱 진입 금지")
-            _ban_row("long_short_open", "숏 포지션 보유 중  동시 롱 진입 금지")
 
             _ban_sec_hdr("숏 포지션 전용 금지 조건")
             _ban_row("short_accum",    "Player Detection  '세력 매집'  태그 감지 시 숏 진입 금지")
-            _ban_row("short_long_open", "롱 포지션 보유 중  동시 숏 진입 금지")
 
         # ── 백테스팅 실행 ─────────────────────────────────────────
         def _do_backtest() -> None:
@@ -1369,7 +1365,7 @@ class BottomModuleMockup(tk.Frame):
                     _portfolio_usdt = _st.last_balance
             from bottom.models import StrategyParams as _SP, ProhibitionFlags as _PF
             params = _SP(
-                sort_mode      = self._applied_sort_mode,
+                sort_mode      = _selected_sort_ref[0],
                 funds_pct      = funds,
                 leverage       = lev,
                 stop_loss      = sl,
@@ -1681,7 +1677,7 @@ class BottomModuleMockup(tk.Frame):
                     _portfolio_usdt = _st.last_balance
             from bottom.models import StrategyParams as _SP, ProhibitionFlags as _PF
             params = _SP(
-                sort_mode      = self._applied_sort_mode,
+                sort_mode      = _selected_sort_ref[0],
                 funds_pct      = funds,
                 leverage       = lev,
                 stop_loss      = sl,

@@ -36,9 +36,7 @@ class OrderSide(str, Enum):
 @dataclass
 class ProhibitionFlags:
     """절대 거래 금지 체크리스트 10개 항목 상태."""
-    common_macro:     bool = False   # 거시 추세(1H·4H·1D) 반대 방향 거래 금지
     common_liq:       bool = False   # 청산 근접도 위험 구간
-    common_atr:       bool = False   # ATR% 과도 변동성 (8% 초과)
     common_fr:        bool = False   # FR 임계치 초과
     common_new:       bool = False   # 신규 상장 심볼 (14일 미만)
     common_hunter:    bool = False   # Player Detection 청산 헌터
