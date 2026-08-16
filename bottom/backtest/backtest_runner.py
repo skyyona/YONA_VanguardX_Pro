@@ -282,7 +282,7 @@ class BacktestRunner:
                     if bar.low <= sl_phase1:
                         cost = cls._cost(params.leverage, bars_held)
                         pnl  = (sl_phase1 - entry_price) / entry_price * 100.0 * params.leverage - cost
-                        _pnl_usdt_val = round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="long", entry_price=entry_price, exit_price=sl_phase1,
@@ -309,7 +309,7 @@ class BacktestRunner:
                     if bar.low <= entry_price:
                         cost = cls._cost(params.leverage, bars_held)
                         pnl  = (entry_price - entry_price) / entry_price * 100.0 * params.leverage - cost
-                        _pnl_usdt_val = round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="long", entry_price=entry_price, exit_price=entry_price,
@@ -331,7 +331,7 @@ class BacktestRunner:
                     if bar.high >= entry_price + R * 1.5:
                         cost_p = cls._cost(params.leverage, bars_held)
                         pnl_p  = (close - entry_price) / entry_price * 100.0 * params.leverage - cost_p
-                        _pnl_usdt_val_p = round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl_p / 100.0, 4)
+                        _pnl_usdt_val_p = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl_p / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="long", entry_price=entry_price, exit_price=close,
@@ -351,7 +351,7 @@ class BacktestRunner:
                     if bar.low <= trail_sl:
                         cost = cls._cost(params.leverage, bars_held)
                         pnl  = (trail_sl - entry_price) / entry_price * 100.0 * params.leverage - cost
-                        _pnl_usdt_val = round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="long", entry_price=entry_price, exit_price=trail_sl,
@@ -373,7 +373,7 @@ class BacktestRunner:
                     if _k1m > 80.0 and _k1m < _d1m and (_d1m - _k1m) >= 2.0:
                         cost = cls._cost(params.leverage, bars_held)
                         pnl  = (close - entry_price) / entry_price * 100.0 * params.leverage - cost
-                        _pnl_usdt_val = round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="long", entry_price=entry_price, exit_price=close,
@@ -397,7 +397,7 @@ class BacktestRunner:
                     if bar.high >= sl_phase1:
                         cost = cls._cost(params.leverage, bars_held)
                         pnl  = (entry_price - sl_phase1) / entry_price * 100.0 * params.leverage - cost
-                        _pnl_usdt_val = round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="short", entry_price=entry_price, exit_price=sl_phase1,
@@ -424,7 +424,7 @@ class BacktestRunner:
                     if bar.high >= entry_price:
                         cost = cls._cost(params.leverage, bars_held)
                         pnl  = (entry_price - entry_price) / entry_price * 100.0 * params.leverage - cost
-                        _pnl_usdt_val = round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="short", entry_price=entry_price, exit_price=entry_price,
@@ -446,7 +446,7 @@ class BacktestRunner:
                     if bar.low <= entry_price - R * 1.5:
                         cost_p = cls._cost(params.leverage, bars_held)
                         pnl_p  = (entry_price - close) / entry_price * 100.0 * params.leverage - cost_p
-                        _pnl_usdt_val_p = round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl_p / 100.0, 4)
+                        _pnl_usdt_val_p = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl_p / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="short", entry_price=entry_price, exit_price=close,
@@ -466,7 +466,7 @@ class BacktestRunner:
                     if bar.high >= trail_sl:
                         cost = cls._cost(params.leverage, bars_held)
                         pnl  = (entry_price - trail_sl) / entry_price * 100.0 * params.leverage - cost
-                        _pnl_usdt_val = round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="short", entry_price=entry_price, exit_price=trail_sl,
@@ -488,7 +488,7 @@ class BacktestRunner:
                     if _k1m < 20.0 and _k1m > _d1m and (_k1m - _d1m) >= 2.0:
                         cost = cls._cost(params.leverage, bars_held)
                         pnl  = (entry_price - close) / entry_price * 100.0 * params.leverage - cost
-                        _pnl_usdt_val = round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="short", entry_price=entry_price, exit_price=close,
@@ -504,7 +504,7 @@ class BacktestRunner:
             # ── 신규 진입 (포지션 없을 때만) ─────────────────────
             if not in_long and not in_short:
                 # [B-6] 일일 손실 정지 — 당일 누적 PnL이 -30% 이하이면 진입 억제
-                if _daily_pnl_usdt / 1000.0 * 100.0 <= -_MAX_DAILY_LOSS_PCT:
+                if _daily_pnl_usdt / params.portfolio_usdt * 100.0 <= -_MAX_DAILY_LOSS_PCT:
                     continue
                 # [P9] 연패 쿨다운 — _MAX_CONSECUTIVE_LOSSES 연속 손실 시 진입 억제
                 if i < _cooldown_until_bar:

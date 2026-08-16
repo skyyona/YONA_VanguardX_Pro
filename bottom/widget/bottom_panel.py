@@ -1365,15 +1365,22 @@ class BottomModuleMockup(tk.Frame):
             status_lbl.configure(text="  백테스팅 실행 중...  ", fg=YELLOW)
 
             _ap = self._applied_params
+            # [B-1] 실잔고 조회 — last_balance 캐시 우선, 없으면 1000.0 기본값
+            _portfolio_usdt = 1000.0
+            if self._engine is not None:
+                _st = self._engine.get_state()
+                if _st.last_balance and _st.last_balance > 0:
+                    _portfolio_usdt = _st.last_balance
             from bottom.models import StrategyParams as _SP, ProhibitionFlags as _PF
             params = _SP(
-                sort_mode   = self._applied_sort_mode,
-                funds_pct   = int(_ap["funds"]),
-                leverage    = int(_ap["leverage"]),
-                stop_loss   = float(_ap["sl"]),
-                trail_stop  = float(_ap["trail"]),
-                prohibition = _PF.from_dict(_ap["prohibited"]),
-                use_macro   = _ap["use_macro"],
+                sort_mode      = self._applied_sort_mode,
+                funds_pct      = int(_ap["funds"]),
+                leverage       = int(_ap["leverage"]),
+                stop_loss      = float(_ap["sl"]),
+                trail_stop     = float(_ap["trail"]),
+                prohibition    = _PF.from_dict(_ap["prohibited"]),
+                use_macro      = _ap["use_macro"],
+                portfolio_usdt = _portfolio_usdt,   # [B-1]
             )
 
             def _run() -> None:
@@ -1662,15 +1669,22 @@ class BottomModuleMockup(tk.Frame):
             status_lbl.configure(text="  전략 비교 실행 중...  ", fg=YELLOW)
 
             _ap = self._applied_params
+            # [B-1] 실잔고 조회 — last_balance 캐시 우선, 없으면 1000.0 기본값
+            _portfolio_usdt = 1000.0
+            if self._engine is not None:
+                _st = self._engine.get_state()
+                if _st.last_balance and _st.last_balance > 0:
+                    _portfolio_usdt = _st.last_balance
             from bottom.models import StrategyParams as _SP, ProhibitionFlags as _PF
             params = _SP(
-                sort_mode   = self._applied_sort_mode,
-                funds_pct   = int(_ap["funds"]),
-                leverage    = int(_ap["leverage"]),
-                stop_loss   = float(_ap["sl"]),
-                trail_stop  = float(_ap["trail"]),
-                prohibition = _PF.from_dict(_ap["prohibited"]),
-                use_macro   = _ap["use_macro"],
+                sort_mode      = self._applied_sort_mode,
+                funds_pct      = int(_ap["funds"]),
+                leverage       = int(_ap["leverage"]),
+                stop_loss      = float(_ap["sl"]),
+                trail_stop     = float(_ap["trail"]),
+                prohibition    = _PF.from_dict(_ap["prohibited"]),
+                use_macro      = _ap["use_macro"],
+                portfolio_usdt = _portfolio_usdt,   # [B-1]
             )
 
             def _run_cmp() -> None:

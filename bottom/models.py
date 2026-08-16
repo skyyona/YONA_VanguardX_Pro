@@ -66,6 +66,7 @@ class StrategyParams:
     prohibition:    ProhibitionFlags = field(default_factory=ProhibitionFlags)
     use_macro:      bool             = True   # 거시적 추세(1H·4H·1D) 연동 여부
     consensus_mode: str              = "4/4"  # 4TF 합의 모드 ("4/4" | "3/4")
+    portfolio_usdt: float            = 1000.0 # [B-1] 백테스트 기준 자본금 (실잔고 주입)
 
     @classmethod
     def from_applied_params(cls, d: dict, sort_mode: str = "24h Ticker") -> "StrategyParams":
