@@ -22,12 +22,13 @@ class StrategyLoader:
         """현재 전략 설정을 Sort by 모드별로 JSON에 저장."""
         data = _load_raw()
         data[params.sort_mode] = {
-            "funds_pct":   params.funds_pct,
-            "leverage":    params.leverage,
-            "stop_loss":   params.stop_loss,
-            "trail_stop":  params.trail_stop,
-            "prohibition": params.prohibition.to_dict(),
-            "use_macro":   params.use_macro,
+            "funds_pct":      params.funds_pct,
+            "leverage":       params.leverage,
+            "stop_loss":      params.stop_loss,
+            "trail_stop":     params.trail_stop,
+            "prohibition":    params.prohibition.to_dict(),
+            "use_macro":      params.use_macro,
+            "consensus_mode": params.consensus_mode,  # [B-4]
         }
         _save_raw(data)
 
@@ -45,7 +46,8 @@ class StrategyLoader:
         p.trail_stop = float(raw.get("trail_stop", 1.5))
         from bottom.models import ProhibitionFlags
         p.prohibition = ProhibitionFlags.from_dict(raw.get("prohibition", {}))
-        p.use_macro   = bool(raw.get("use_macro", True))
+        p.use_macro      = bool(raw.get("use_macro", True))
+        p.consensus_mode = str(raw.get("consensus_mode", "4/4"))  # [B-4]
         return p
 
     @staticmethod

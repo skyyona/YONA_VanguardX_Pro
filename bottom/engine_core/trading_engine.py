@@ -137,6 +137,9 @@ class TradingEngine:
 
     def update_params(self, params: StrategyParams) -> None:
         """포지션 추적을 유지한 채 파라미터만 교체 (포지션 보유 중 안전 갱신)."""
+        # [C-3] Phase1 SL 재등록 가격 — lock 안에서 계산, lock 밖에서 Binance 호출
+        _reregister_long_sl  = 0.0
+        _reregister_short_sl = 0.0
         with self._lock:
             self._params = params
             sym = self._state.symbol
@@ -145,9 +148,19 @@ class TradingEngine:
             if lp and lp.state == PositionState.OPEN:
                 lp.stop_loss_pct  = params.stop_loss
                 lp.trail_stop_pct = params.trail_stop
+                # [C-3] Phase1만 재등록 (Phase2=BEP, Phase3=Trailing은 불변)
+                if lp.phase == 1:
+                    new_sl = round(lp.entry_price * (1 - params.stop_loss / 100), 8)
+                    lp.current_sl       = new_sl
+                    _reregister_long_sl = new_sl
             if sp and sp.state == PositionState.OPEN:
                 sp.stop_loss_pct  = params.stop_loss
                 sp.trail_stop_pct = params.trail_stop
+                # [C-3] Phase1만 재등록
+                if sp.phase == 1:
+                    new_sl = round(sp.entry_price * (1 + params.stop_loss / 100), 8)
+                    sp.current_sl        = new_sl
+                    _reregister_short_sl = new_sl
         # 레버리지 — 심볼·값 변경 시 Binance에 즉시 반영 (REST는 lock 밖에서 호출)
         lev = params.leverage
         if sym and (sym != self._last_leverage_sym or lev != self._last_leverage_val):
@@ -157,6 +170,11 @@ class TradingEngine:
             else:
                 with self._lock:
                     self._state.error_msg = "[경고] 레버리지 변경 실패 — Binance 연결 확인 필요"
+        # [C-3] Phase1 SL Binance 재등록 — 새 주문 성공 시에만 기존 취소 (안전 교체)
+        if sym and _reregister_long_sl > 0:
+            self._update_binance_sl_long(_reregister_long_sl)
+        if sym and _reregister_short_sl > 0:
+            self._update_binance_sl_short(_reregister_short_sl)
 
     def start(self) -> bool:
         """엔진 시작. 반환: 성공 여부."""

@@ -48,7 +48,7 @@ _CONSENSUS_4_4 = "4/4"       # 4개 TF 모두 합의 (4/4)
 _CONSENSUS_3_4 = "3/4"       # 3개 이상 TF 합의 (3/4 과반)
 
 # 비용 상수 (거래별 레버리지 반영 PnL%에서 차감)
-_COMMISSION   = 0.00045   # 테이커 수수료 0.045% / 편도 (Binance USDT-M)
+_COMMISSION   = 0.0004    # 테이커 수수료 0.040% / 편도 (Binance USDT-M)
 _SLIPPAGE     = 0.00010   # 슬리피지 0.010% / 편도 (시장 충격 추정)
 _FUNDING_RATE = 0.0001    # 펀딩비 0.01% / 8시간 (표준 중립 추정)
 _FUNDING_BARS = 480       # 8시간 = 480개 1m봉
@@ -69,7 +69,11 @@ _MAC_KD_PARAMS = (14, 14, 3, 3)
 
 # [P9] 연패 쿨다운 — 실거래 trading_engine.py 동일 설정
 _MAX_CONSECUTIVE_LOSSES = 3     # N연패 시 쿨다운 진입
-_LOSS_COOLDOWN_BARS     = 300   # 쿨다운 지속 봉 수 (5분 = 300 × 1m봉)
+_LOSS_COOLDOWN_BARS     = 5     # 쿨다운 지속 봉 수 (5분 = 5 × 1m봉)
+
+# [B-6] 일일 손실 정지 — risk_manager.py MAX_DAILY_LOSS_PCT 동일
+_MAX_DAILY_LOSS_PCT = 30.0           # 일일 최대 손실 한도 (%)
+_KST_OFFSET_MS      = 9 * 3600 * 1000  # KST = UTC+9 (ms 단위)
 
 
 def _fmt_elapsed(minutes: float) -> str | None:
@@ -222,6 +226,10 @@ class BacktestRunner:
         _consecutive_losses = 0
         _cooldown_until_bar = 0
 
+        # [B-6] 일일 손실 정지 상태 — KST 일 경계 기준
+        _daily_pnl_usdt = 0.0   # 당일 누적 PnL (USDT)
+        _daily_date_key = -1    # 추적 중인 날짜 (KST 일 단위 정수)
+
         # tf5 교차 시점 추적 — QualityGrader _duration_score 재현용
         _tf5_long_cross_t:  float = 0.0
         _tf5_short_cross_t: float = 0.0
@@ -233,6 +241,12 @@ class BacktestRunner:
             bar   = bars_1m[i]
             close = bar.close
             t     = bar.open_time
+
+            # [B-6] KST 일 경계 감지 → 당일 누적 PnL 리셋
+            _bar_day = (t + _KST_OFFSET_MS) // 86_400_000
+            if _bar_day != _daily_date_key:
+                _daily_pnl_usdt = 0.0
+                _daily_date_key = _bar_day
 
             # ── [P3] 1h 기준 ATR% bisect 조회 ──────────────────────
             pos_1h  = max(0, bisect.bisect_left(times_1h, t) - 1) if times_1h else 0
@@ -268,93 +282,107 @@ class BacktestRunner:
                     if bar.low <= sl_phase1:
                         cost = cls._cost(params.leverage, bars_held)
                         pnl  = (sl_phase1 - entry_price) / entry_price * 100.0 * params.leverage - cost
+                        _pnl_usdt_val = round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="long", entry_price=entry_price, exit_price=sl_phase1,
                             pnl_pct=round(pnl, 3),
-                            pnl_usdt=round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4),
+                            pnl_usdt=_pnl_usdt_val,
                             exit_reason="SL",
                         ))
+                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
                                 _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _consecutive_losses = 0  # [A-2]
                         else:
                             _consecutive_losses = 0
                         in_long = False; phase = 1; trail_ref = 0.0
                         continue
-                    if close >= entry_price + R:
-                        phase = 2; trail_ref = close
+                    # [A-4] Phase1→2 intrabar: bar.high 기준 (실거래 Binance 서버측 체결 재현)
+                    if bar.high >= entry_price + R:
+                        phase = 2
 
                 elif phase == 2:
                     # [P1] intrabar: bar.low ≤ entry_price → BEP STOP_MARKET 체결 재현
                     if bar.low <= entry_price:
                         cost = cls._cost(params.leverage, bars_held)
                         pnl  = (entry_price - entry_price) / entry_price * 100.0 * params.leverage - cost
+                        _pnl_usdt_val = round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="long", entry_price=entry_price, exit_price=entry_price,
                             pnl_pct=round(pnl, 3),
-                            pnl_usdt=round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4),
+                            pnl_usdt=_pnl_usdt_val,
                             exit_reason="BEP-SL",
                         ))
+                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
                                 _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _consecutive_losses = 0  # [A-2]
                         else:
                             _consecutive_losses = 0
                         in_long = False; phase = 1; trail_ref = 0.0
                         continue
-                    # [P5] Phase2→Phase3: 50% 부분 익절 (실거래 _partial_close_long 재현)
-                    if close >= entry_price + R * 1.5:
+                    # [A-4][P5] Phase2→3 intrabar: bar.high 기준, trail_ref=트리거 가격
+                    if bar.high >= entry_price + R * 1.5:
                         cost_p = cls._cost(params.leverage, bars_held)
                         pnl_p  = (close - entry_price) / entry_price * 100.0 * params.leverage - cost_p
+                        _pnl_usdt_val_p = round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl_p / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="long", entry_price=entry_price, exit_price=close,
-                            pnl_pct=round(pnl_p, 3),
-                            pnl_usdt=round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl_p / 100.0, 4),
+                            pnl_pct=round(0.5 * pnl_p, 3),  # [A-3] 50% 물량 가중
+                            pnl_usdt=_pnl_usdt_val_p,
                             exit_reason="PARTIAL",
                         ))
-                        _consecutive_losses = 0  # PARTIAL은 항상 수익
-                        phase = 3; trail_ref = close
+                        _daily_pnl_usdt += _pnl_usdt_val_p  # [B-6]
+                        _consecutive_losses = 0
+                        phase = 3; trail_ref = entry_price + R * 1.5  # [A-4] 트리거 가격 기준
 
                 elif phase == 3:
-                    # [P8] KD 역전 익절 — 실거래 trading_engine.py L473-476 동일 조건
-                    # Phase3 잔량 50% 청산 (PARTIAL 이후이므로 pnl_usdt * 0.5)
-                    if _k1m > 80.0 and _k1m < _d1m and (_d1m - _k1m) >= 2.0:
-                        cost = cls._cost(params.leverage, bars_held)
-                        pnl  = (close - entry_price) / entry_price * 100.0 * params.leverage - cost
-                        trades.append(BacktestTrade(
-                            entry_time=entry_time, exit_time=bar.close_time,
-                            side="long", entry_price=entry_price, exit_price=close,
-                            pnl_pct=round(pnl, 3),
-                            pnl_usdt=round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4),
-                            exit_reason="KD-EXIT",
-                        ))
-                        _consecutive_losses = 0
-                        in_long = False; phase = 1; trail_ref = 0.0
-                        continue
+                    # [A-5] TRAIL 체크 먼저 (실거래: Binance TRAILING_STOP_MARKET 서버측 선행 체결)
                     trail_ref = max(trail_ref, close)
                     trail_sl  = trail_ref * (1.0 - params.trail_stop / 100.0)
                     # [P1] intrabar + [P5] 잔량 50%: bar.low ≤ trail_sl → trailing stop 체결 재현
                     if bar.low <= trail_sl:
                         cost = cls._cost(params.leverage, bars_held)
                         pnl  = (trail_sl - entry_price) / entry_price * 100.0 * params.leverage - cost
+                        _pnl_usdt_val = round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="long", entry_price=entry_price, exit_price=trail_sl,
                             pnl_pct=round(pnl, 3),
-                            pnl_usdt=round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4),
+                            pnl_usdt=_pnl_usdt_val,
                             exit_reason="TRAIL",
                         ))
+                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
                                 _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _consecutive_losses = 0  # [A-2]
                         else:
                             _consecutive_losses = 0
+                        in_long = False; phase = 1; trail_ref = 0.0
+                        continue
+                    # [A-5][P8] TRAIL이 없을 때만 KD 역전 익절 체크
+                    if _k1m > 80.0 and _k1m < _d1m and (_d1m - _k1m) >= 2.0:
+                        cost = cls._cost(params.leverage, bars_held)
+                        pnl  = (close - entry_price) / entry_price * 100.0 * params.leverage - cost
+                        _pnl_usdt_val = round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="long", entry_price=entry_price, exit_price=close,
+                            pnl_pct=round(pnl, 3),
+                            pnl_usdt=_pnl_usdt_val,
+                            exit_reason="KD-EXIT",
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
+                        _consecutive_losses = 0
                         in_long = False; phase = 1; trail_ref = 0.0
                         continue
 
@@ -369,98 +397,115 @@ class BacktestRunner:
                     if bar.high >= sl_phase1:
                         cost = cls._cost(params.leverage, bars_held)
                         pnl  = (entry_price - sl_phase1) / entry_price * 100.0 * params.leverage - cost
+                        _pnl_usdt_val = round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="short", entry_price=entry_price, exit_price=sl_phase1,
                             pnl_pct=round(pnl, 3),
-                            pnl_usdt=round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4),
+                            pnl_usdt=_pnl_usdt_val,
                             exit_reason="SL",
                         ))
+                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
                                 _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _consecutive_losses = 0  # [A-2]
                         else:
                             _consecutive_losses = 0
                         in_short = False; phase = 1; trail_ref = 0.0
                         continue
-                    if close <= entry_price - R:
-                        phase = 2; trail_ref = close
+                    # [A-4] Phase1→2 intrabar: bar.low 기준 (실거래 Binance 서버측 체결 재현)
+                    if bar.low <= entry_price - R:
+                        phase = 2
 
                 elif phase == 2:
                     # [P1] intrabar: bar.high ≥ entry_price → BEP STOP_MARKET 체결 재현
                     if bar.high >= entry_price:
                         cost = cls._cost(params.leverage, bars_held)
                         pnl  = (entry_price - entry_price) / entry_price * 100.0 * params.leverage - cost
+                        _pnl_usdt_val = round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="short", entry_price=entry_price, exit_price=entry_price,
                             pnl_pct=round(pnl, 3),
-                            pnl_usdt=round(1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4),
+                            pnl_usdt=_pnl_usdt_val,
                             exit_reason="BEP-SL",
                         ))
+                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
                                 _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _consecutive_losses = 0  # [A-2]
                         else:
                             _consecutive_losses = 0
                         in_short = False; phase = 1; trail_ref = 0.0
                         continue
-                    # [P5] Phase2→Phase3: 50% 부분 익절 (실거래 _partial_close_short 재현)
-                    if close <= entry_price - R * 1.5:
+                    # [A-4][P5] Phase2→3 intrabar: bar.low 기준, trail_ref=트리거 가격
+                    if bar.low <= entry_price - R * 1.5:
                         cost_p = cls._cost(params.leverage, bars_held)
                         pnl_p  = (entry_price - close) / entry_price * 100.0 * params.leverage - cost_p
+                        _pnl_usdt_val_p = round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl_p / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="short", entry_price=entry_price, exit_price=close,
-                            pnl_pct=round(pnl_p, 3),
-                            pnl_usdt=round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl_p / 100.0, 4),
+                            pnl_pct=round(0.5 * pnl_p, 3),  # [A-3] 50% 물량 가중
+                            pnl_usdt=_pnl_usdt_val_p,
                             exit_reason="PARTIAL",
                         ))
-                        _consecutive_losses = 0  # PARTIAL은 항상 수익
-                        phase = 3; trail_ref = close
+                        _daily_pnl_usdt += _pnl_usdt_val_p  # [B-6]
+                        _consecutive_losses = 0
+                        phase = 3; trail_ref = entry_price - R * 1.5  # [A-4] 트리거 가격 기준
 
                 elif phase == 3:
-                    # [P8] KD 역전 익절 — 숏: K<20 + K>D + spread≥2 (롱 조건의 대칭)
-                    # Phase3 잔량 50% 청산 (PARTIAL 이후이므로 pnl_usdt * 0.5)
-                    if _k1m < 20.0 and _k1m > _d1m and (_k1m - _d1m) >= 2.0:
-                        cost = cls._cost(params.leverage, bars_held)
-                        pnl  = (entry_price - close) / entry_price * 100.0 * params.leverage - cost
-                        trades.append(BacktestTrade(
-                            entry_time=entry_time, exit_time=bar.close_time,
-                            side="short", entry_price=entry_price, exit_price=close,
-                            pnl_pct=round(pnl, 3),
-                            pnl_usdt=round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4),
-                            exit_reason="KD-EXIT",
-                        ))
-                        _consecutive_losses = 0
-                        in_short = False; phase = 1; trail_ref = 0.0
-                        continue
+                    # [A-5] TRAIL 체크 먼저 (실거래: Binance TRAILING_STOP_MARKET 서버측 선행 체결)
                     trail_ref = min(trail_ref, close)
                     trail_sl  = trail_ref * (1.0 + params.trail_stop / 100.0)
                     # [P1] intrabar + [P5] 잔량 50%: bar.high ≥ trail_sl → trailing stop 체결 재현
                     if bar.high >= trail_sl:
                         cost = cls._cost(params.leverage, bars_held)
                         pnl  = (entry_price - trail_sl) / entry_price * 100.0 * params.leverage - cost
+                        _pnl_usdt_val = round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="short", entry_price=entry_price, exit_price=trail_sl,
                             pnl_pct=round(pnl, 3),
-                            pnl_usdt=round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4),
+                            pnl_usdt=_pnl_usdt_val,
                             exit_reason="TRAIL",
                         ))
+                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
                                 _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _consecutive_losses = 0  # [A-2]
                         else:
                             _consecutive_losses = 0
+                        in_short = False; phase = 1; trail_ref = 0.0
+                        continue
+                    # [A-5][P8] TRAIL이 없을 때만 KD 역전 익절 체크
+                    if _k1m < 20.0 and _k1m > _d1m and (_k1m - _d1m) >= 2.0:
+                        cost = cls._cost(params.leverage, bars_held)
+                        pnl  = (entry_price - close) / entry_price * 100.0 * params.leverage - cost
+                        _pnl_usdt_val = round(0.5 * 1000.0 * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="short", entry_price=entry_price, exit_price=close,
+                            pnl_pct=round(pnl, 3),
+                            pnl_usdt=_pnl_usdt_val,
+                            exit_reason="KD-EXIT",
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
+                        _consecutive_losses = 0
                         in_short = False; phase = 1; trail_ref = 0.0
                         continue
 
             # ── 신규 진입 (포지션 없을 때만) ─────────────────────
             if not in_long and not in_short:
+                # [B-6] 일일 손실 정지 — 당일 누적 PnL이 -30% 이하이면 진입 억제
+                if _daily_pnl_usdt / 1000.0 * 100.0 <= -_MAX_DAILY_LOSS_PCT:
+                    continue
                 # [P9] 연패 쿨다운 — _MAX_CONSECUTIVE_LOSSES 연속 손실 시 진입 억제
                 if i < _cooldown_until_bar:
                     continue

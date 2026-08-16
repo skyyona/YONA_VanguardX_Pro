@@ -470,13 +470,13 @@ class BottomModuleMockup(tk.Frame):
                     text=f"  ⚠ Sort [{new_mode}] 변경 — 전략 재확정 필요  ",
                     fg=ORANGE)
 
-    def _restore_strategy_vars(self, sort_mode: str) -> None:
-        """sort_mode에 저장된 전략 설정을 UI vars에 복원한다."""
+    def _restore_strategy_vars(self, sort_mode: str) -> str | None:
+        """sort_mode에 저장된 전략 설정을 UI vars에 복원한다. consensus_mode 반환."""
         if StrategyLoader is None:
-            return
+            return None
         loaded = StrategyLoader.load(sort_mode)
         if loaded is None:
-            return
+            return None
         self._funds_var.set(int(loaded.funds_pct))
         self._lev_var.set(int(loaded.leverage))
         self._sl_var.set(float(loaded.stop_loss))
@@ -487,6 +487,7 @@ class BottomModuleMockup(tk.Frame):
                 self._prohibited_vars[k].set(bool(v))
             else:
                 self._prohibited_vars[k] = tk.BooleanVar(value=bool(v))
+        return loaded.consensus_mode  # [B-4] 호출부에서 _consensus_var 갱신용
 
     # ══════════════════════════════════════════════════════════════
     # 전략 설정 & 백테스팅 팝업창 (단일 페이지)
@@ -966,7 +967,9 @@ class BottomModuleMockup(tk.Frame):
 
             def _select_sort_item(mode: str) -> None:
                 _selected_sort_ref[0] = mode   # 전략 창 내 선택값 저장 → 백테스팅·확정에 전달
-                self._restore_strategy_vars(mode)
+                _cm = self._restore_strategy_vars(mode)
+                if _cm:                        # [B-4] 저장된 consensus_mode 복원
+                    _consensus_var.set(_cm)
                 for opt, b in sort_btns.items():
                     sel = (opt == mode)
                     b.configure(
@@ -1352,21 +1355,25 @@ class BottomModuleMockup(tk.Frame):
 
         # ── 백테스팅 실행 ─────────────────────────────────────────
         def _do_backtest() -> None:
+            # [B-2] 미확정 파라미터 방어: _applied_params가 None이면 실행 불가
+            if self._applied_params is None:
+                status_lbl.configure(
+                    text="  전략 미확정 — '전략 확정 및 적용' 후 실행하세요  ", fg=RED)
+                return
             bt_btn.configure(state="disabled", cursor="arrow")
             cmp_btn.configure(state="disabled", cursor="arrow")
             status_lbl.configure(text="  백테스팅 실행 중...  ", fg=YELLOW)
 
-            funds, lev, sl, trail = self._current_params()
+            _ap = self._applied_params
             from bottom.models import StrategyParams as _SP, ProhibitionFlags as _PF
             params = _SP(
-                sort_mode   = _selected_sort_ref[0],   # 전략 창 내 선택된 Sort by 모드
-                funds_pct   = int(funds),
-                leverage    = int(lev),
-                stop_loss   = float(sl),
-                trail_stop  = float(trail),
-                prohibition = _PF.from_dict(
-                                {k: v.get() for k, v in self._prohibited_vars.items()}),
-                use_macro   = self._use_macro_var.get(),
+                sort_mode   = self._applied_sort_mode,
+                funds_pct   = int(_ap["funds"]),
+                leverage    = int(_ap["leverage"]),
+                stop_loss   = float(_ap["sl"]),
+                trail_stop  = float(_ap["trail"]),
+                prohibition = _PF.from_dict(_ap["prohibited"]),
+                use_macro   = _ap["use_macro"],
             )
 
             def _run() -> None:
@@ -1374,7 +1381,7 @@ class BottomModuleMockup(tk.Frame):
                     if _HAS_BACKTEST and BacktestRunner is not None:
                         from bottom.backtest.param_deriver import derive_params
                         period_key = _get_period_key(avail_days_ref[0])
-                        mode       = _consensus_var.get()
+                        mode       = _ap.get("consensus_mode", "4/4")
                         result_obj = BacktestRunner.run(sym, params, period_key, mode)
                         res = _backtest_result_to_dict(result_obj)
                         res["derived"] = derive_params(result_obj.trades)
@@ -1645,21 +1652,25 @@ class BottomModuleMockup(tk.Frame):
 
         # ── 전략 비교 실행 ────────────────────────────────────────
         def _do_comparison() -> None:
+            # [B-2] 미확정 파라미터 방어: _applied_params가 None이면 실행 불가
+            if self._applied_params is None:
+                status_lbl.configure(
+                    text="  전략 미확정 — '전략 확정 및 적용' 후 실행하세요  ", fg=RED)
+                return
             bt_btn.configure(state="disabled", cursor="arrow")
             cmp_btn.configure(state="disabled", cursor="arrow")
             status_lbl.configure(text="  전략 비교 실행 중...  ", fg=YELLOW)
 
-            funds, lev, sl, trail = self._current_params()
+            _ap = self._applied_params
             from bottom.models import StrategyParams as _SP, ProhibitionFlags as _PF
             params = _SP(
-                sort_mode   = _selected_sort_ref[0],
-                funds_pct   = int(funds),
-                leverage    = int(lev),
-                stop_loss   = float(sl),
-                trail_stop  = float(trail),
-                prohibition = _PF.from_dict(
-                                {k: v.get() for k, v in self._prohibited_vars.items()}),
-                use_macro   = self._use_macro_var.get(),
+                sort_mode   = self._applied_sort_mode,
+                funds_pct   = int(_ap["funds"]),
+                leverage    = int(_ap["leverage"]),
+                stop_loss   = float(_ap["sl"]),
+                trail_stop  = float(_ap["trail"]),
+                prohibition = _PF.from_dict(_ap["prohibited"]),
+                use_macro   = _ap["use_macro"],
             )
 
             def _run_cmp() -> None:
