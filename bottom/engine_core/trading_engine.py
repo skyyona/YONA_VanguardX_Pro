@@ -18,7 +18,6 @@ from bottom.models import (
 )
 from bottom.engine_core.risk_manager import RiskManager, MAX_PORTFOLIO_LOSS_PCT, MAX_DAILY_LOSS_PCT
 from bottom.engine_core.daily_loss_tracker import DailyLossTracker
-from bottom.engine_core.quality_grader import QualityGrader
 from bottom.engine_core.sl_calculator import SLCalculator
 from bottom.long_engine.long_condition import LongCondition
 from bottom.long_engine.long_order import LongOrder
@@ -131,6 +130,10 @@ class TradingEngine:
         if symbol:
             self._client.get_mmr(symbol)
 
+    def get_mmr(self, symbol: str) -> float:
+        """워커 스레드 전용 MMR 조회 — 네트워크 호출 발생. UI 스레드에서는 get_mmr_cached() 사용."""
+        return self._client.get_mmr(symbol)
+
     def get_mmr_cached(self, symbol: str) -> float:
         """UI 스레드 전용 MMR 조회 — 네트워크 없이 캐시만 참조."""
         return self._client.get_mmr_cached(symbol)
@@ -145,20 +148,24 @@ class TradingEngine:
             sym = self._state.symbol
             lp  = self._state.long_pos
             sp  = self._state.short_pos
+            # [C-2] liq_safe 상한 클램프 — get_mmr_cached()는 캐시 조회이므로 lock 안에서 안전
+            _mmr = self._client.get_mmr_cached(sym) if sym else params.mmr
+            _sl_up, _trail_up = SLCalculator.clamp(
+                params.stop_loss, params.trail_stop, params.leverage, mmr=_mmr)
             if lp and lp.state == PositionState.OPEN:
-                lp.stop_loss_pct  = params.stop_loss
-                lp.trail_stop_pct = params.trail_stop
+                lp.stop_loss_pct  = _sl_up
+                lp.trail_stop_pct = _trail_up
                 # [C-3] Phase1만 재등록 (Phase2=BEP, Phase3=Trailing은 불변)
                 if lp.phase == 1:
-                    new_sl = round(lp.entry_price * (1 - params.stop_loss / 100), 8)
+                    new_sl = round(lp.entry_price * (1 - _sl_up / 100), 8)
                     lp.current_sl       = new_sl
                     _reregister_long_sl = new_sl
             if sp and sp.state == PositionState.OPEN:
-                sp.stop_loss_pct  = params.stop_loss
-                sp.trail_stop_pct = params.trail_stop
+                sp.stop_loss_pct  = _sl_up
+                sp.trail_stop_pct = _trail_up
                 # [C-3] Phase1만 재등록
                 if sp.phase == 1:
-                    new_sl = round(sp.entry_price * (1 + params.stop_loss / 100), 8)
+                    new_sl = round(sp.entry_price * (1 + _sl_up / 100), 8)
                     sp.current_sl        = new_sl
                     _reregister_short_sl = new_sl
         # 레버리지 — 심볼·값 변경 시 Binance에 즉시 반영 (REST는 lock 밖에서 호출)
@@ -279,12 +286,18 @@ class TradingEngine:
                 if pos_data:
                     pos_amt     = float(pos_data.get("positionAmt", 0.0))
                     entry_price = float(pos_data.get("entryPrice", 0.0))
+                    # [C-2] 복구 포지션 SL에도 liq_safe 클램프 적용 — REST는 lock 밖에서 안전
+                    _rec_mmr = self._client.get_mmr(sym)
+                    _rec_sl, _rec_trail = SLCalculator.clamp(
+                        self._params.stop_loss, self._params.trail_stop,
+                        self._params.leverage, mmr=_rec_mmr)
                     if pos_amt > 0.0 and entry_price > 0.0:
                         with self._lock:
                             lp = self._state.long_pos
                             if lp is None or lp.state != PositionState.OPEN:
                                 recovered = LongPosition.open(
-                                    sym, entry_price, pos_amt, self._params)
+                                    sym, entry_price, pos_amt, self._params,
+                                    sl_pct=_rec_sl, trail_pct=_rec_trail)
                                 recovered.phase = 1
                                 self._state.long_pos = recovered
                         if not self._sl_order_id_long:
@@ -302,7 +315,8 @@ class TradingEngine:
                             sp = self._state.short_pos
                             if sp is None or sp.state != PositionState.OPEN:
                                 recovered = ShortPosition.open(
-                                    sym, entry_price, abs(pos_amt), self._params)
+                                    sym, entry_price, abs(pos_amt), self._params,
+                                    sl_pct=_rec_sl, trail_pct=_rec_trail)
                                 recovered.phase = 1
                                 self._state.short_pos = recovered
                         if not self._sl_order_id_short:
@@ -734,14 +748,13 @@ class TradingEngine:
         qty     = RiskManager.calc_position_size(self._params, mark, balance,
                                                  qty_precision=prec)
         qty = self._client.floor_qty(self._state.symbol, qty)
-        # R-cap 사전 계산 — SL 도달 손실 ≤ 포트폴리오 × _MAX_R_PCT% 보장
-        _atr_5m       = float((ind or {}).get("atr_pct_5m", 0.0))
-        _grade, _     = QualityGrader.grade(ind or {}, "long")
+        # [C-2] R-cap 사전 계산 — 사용자 설정 SL에 liq_safe 상한 적용 후 무조건 적용
         _mmr          = self._client.get_mmr(self._state.symbol)
-        _auto_sl, _auto_trail = SLCalculator.compute(_atr_5m, _grade, self._params.leverage, mmr=_mmr)
-        if _auto_sl > 0:
-            qty = RiskManager.apply_r_cap(qty, mark, _auto_sl, balance)
-            qty = self._client.floor_qty(self._state.symbol, qty)
+        _sl_used, _trail_used = SLCalculator.clamp(
+            self._params.stop_loss, self._params.trail_stop,
+            self._params.leverage, mmr=_mmr)
+        qty = RiskManager.apply_r_cap(qty, mark, _sl_used, balance)
+        qty = self._client.floor_qty(self._state.symbol, qty)
         if qty <= 0:
             with self._lock:
                 self._state.error_msg = "수량 계산 실패 — exchangeInfo 조회 불가, 진입 차단"
@@ -802,8 +815,8 @@ class TradingEngine:
             pos = LongPosition.open(
                 self._state.symbol, result.fill_price, result.quantity,
                 self._params,
-                sl_pct=_auto_sl    if _auto_sl    > 0 else None,
-                trail_pct=_auto_trail if _auto_trail > 0 else None,
+                sl_pct=_sl_used,
+                trail_pct=_trail_used,
             )
             with self._lock:
                 self._state.long_pos = pos
@@ -877,14 +890,13 @@ class TradingEngine:
         qty     = RiskManager.calc_position_size(self._params, mark, balance,
                                                  qty_precision=prec)
         qty = self._client.floor_qty(self._state.symbol, qty)
-        # R-cap 사전 계산 — SL 도달 손실 ≤ 포트폴리오 × _MAX_R_PCT% 보장
-        _atr_5m       = float((ind or {}).get("atr_pct_5m", 0.0))
-        _grade, _     = QualityGrader.grade(ind or {}, "short")
+        # [C-2] R-cap 사전 계산 — 사용자 설정 SL에 liq_safe 상한 적용 후 무조건 적용
         _mmr          = self._client.get_mmr(self._state.symbol)
-        _auto_sl, _auto_trail = SLCalculator.compute(_atr_5m, _grade, self._params.leverage, mmr=_mmr)
-        if _auto_sl > 0:
-            qty = RiskManager.apply_r_cap(qty, mark, _auto_sl, balance)
-            qty = self._client.floor_qty(self._state.symbol, qty)
+        _sl_used, _trail_used = SLCalculator.clamp(
+            self._params.stop_loss, self._params.trail_stop,
+            self._params.leverage, mmr=_mmr)
+        qty = RiskManager.apply_r_cap(qty, mark, _sl_used, balance)
+        qty = self._client.floor_qty(self._state.symbol, qty)
         if qty <= 0:
             with self._lock:
                 self._state.error_msg = "수량 계산 실패 — exchangeInfo 조회 불가, 진입 차단"
@@ -945,8 +957,8 @@ class TradingEngine:
             pos = ShortPosition.open(
                 self._state.symbol, result.fill_price, result.quantity,
                 self._params,
-                sl_pct=_auto_sl    if _auto_sl    > 0 else None,
-                trail_pct=_auto_trail if _auto_trail > 0 else None,
+                sl_pct=_sl_used,
+                trail_pct=_trail_used,
             )
             with self._lock:
                 self._state.short_pos = pos

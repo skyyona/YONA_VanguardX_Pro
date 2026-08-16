@@ -124,3 +124,22 @@ class HistoricalDataLoader:
         # 시간 오름차순 병합: 오래된 봉(second) + 최신 봉(first)
         return second + first
 
+    @staticmethod
+    def load_funding_rate(symbol: str, limit: int = 360) -> tuple[list[int], list[float]]:
+        """과거 펀딩비 이력 로드. (times_ms, fr_pct_list) 튜플 반환.
+
+        limit=360 → 90일 기준 약 360건 (8시간마다 1건).
+        fundingRate raw float에 100.0을 곱해 % 단위로 변환.
+        공개 API — 인증 불필요.
+        """
+        url = (f"{_FUTURES_BASE}/fapi/v1/fundingRate"
+               f"?symbol={symbol}&limit={limit}")
+        try:
+            with urllib.request.urlopen(url, timeout=10) as resp:
+                raw = json.loads(resp.read().decode("utf-8"))
+            times  = [int(r["fundingTime"])         for r in raw]
+            fr_pct = [float(r["fundingRate"]) * 100.0 for r in raw]
+            return times, fr_pct
+        except Exception:
+            return [], []
+

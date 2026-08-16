@@ -49,3 +49,20 @@ class SLCalculator:
         trail_pct = max(_TRAIL_MIN, trail_pct)   # cap 결과가 min보다 작을 경우 재보정
 
         return round(sl_pct, 1), round(trail_pct, 1)
+
+    @staticmethod
+    def clamp(
+        stop_loss:  float,
+        trail_stop: float,
+        leverage:   int,
+        mmr:        float = _MMR_APPROX,
+    ) -> tuple[float, float]:
+        """사용자 설정값에 liq_safe 상한을 적용해 (sl_used, trail_used) 반환.
+
+        compute() 와 동일한 clamp → round 순서를 따른다.
+        atr/grade 미사용 — leverage·mmr 만으로 상수 계산 가능.
+        """
+        liq_safe   = max(0.001, (1.0 / max(leverage, 1)) - mmr) * 100.0 * _LIQ_SAFETY
+        sl_used    = max(_SL_MIN,   min(stop_loss,  liq_safe))
+        trail_used = max(_TRAIL_MIN, min(trail_stop, sl_used * _TRAIL_CAP))
+        return round(sl_used, 1), round(trail_used, 1)

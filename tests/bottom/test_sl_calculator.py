@@ -92,3 +92,88 @@ class TestSLCalculatorFloors:
         sl, trail = SLCalculator.compute(1.23, "B", 10)
         assert sl == round(sl, 1)
         assert trail == round(trail, 1)
+
+
+# ── [C-2] SLCalculator.clamp() — T-1~T-3 ─────────────────────────────────────
+
+class TestClampLiqSafePath:
+    """T-1: stop_loss > liq_safe 시 clamp()와 compute() liq_safe 경로가 동일한 sl 반환."""
+
+    def test_clamp_matches_compute_when_liq_safe_triggers(self):
+        # lev=10, mmr=0.004 → liq_safe=7.68 → round → 7.7
+        # compute: atr=10×grade_A(2.0)=20 > liq_safe → sl=7.7
+        # clamp:   stop_loss=10.0 > liq_safe → sl=7.7
+        sl_clamp, _ = SLCalculator.clamp(10.0, 1.0, 10, mmr=0.004)
+        sl_compute, _ = SLCalculator.compute(10.0, "A", 10, mmr=0.004)
+        assert sl_clamp == sl_compute
+
+    def test_clamp_matches_compute_high_leverage(self):
+        # lev=25, mmr=0.004 → liq_safe=2.88 → round → 2.9
+        # compute: atr=5×grade_A(2.0)=10 > 2.9 → sl=2.9
+        # clamp:   stop_loss=5.0 > 2.9 → sl=2.9
+        sl_clamp, _ = SLCalculator.clamp(5.0, 1.0, 25, mmr=0.004)
+        sl_compute, _ = SLCalculator.compute(5.0, "A", 25, mmr=0.004)
+        assert sl_clamp == sl_compute
+
+
+class TestClampRoundDecimal:
+    """T-2: clamp() 반환값이 소수점 1자리임을 확인 (compute()와 동일한 round 적용)."""
+
+    def test_sl_is_1_decimal(self):
+        sl, _ = SLCalculator.clamp(3.68, 1.6, 20)
+        assert sl == round(sl, 1)
+
+    def test_trail_is_1_decimal(self):
+        _, trail = SLCalculator.clamp(1.6, 1.0, 25)
+        assert trail == round(trail, 1)
+
+    def test_sharp_decline_trail_rounds_correctly(self):
+        # stop_loss=1.6, lev=25 → sl_used=1.6, trail_raw=1.0×0.6=0.96 → round → 1.0
+        _, trail = SLCalculator.clamp(1.6, 1.0, 25)
+        assert trail == 1.0
+
+
+class TestClampUserValuePassthrough:
+    """T-3: stop_loss < liq_safe 시 사용자 설정값이 클램프 없이 반환."""
+
+    def test_user_sl_preserved_when_safe(self):
+        # lev=10, liq_safe=7.68 → stop_loss=2.5 통과
+        sl, _ = SLCalculator.clamp(2.5, 1.5, 10)
+        assert sl == 2.5
+
+    def test_user_trail_preserved_when_safe(self):
+        # lev=10, sl_used=2.5, sl×0.6=1.5 → trail=1.5 통과
+        _, trail = SLCalculator.clamp(2.5, 1.5, 10)
+        assert trail == 1.5
+
+    def test_sl_min_floor_still_applies(self):
+        # stop_loss=0.1 < _SL_MIN=0.3 → floor
+        sl, _ = SLCalculator.clamp(0.1, 1.0, 10)
+        assert sl == 0.3
+
+
+# ── [C-2] T-4: clamp() sl이 liq_safe 상한을 절대 초과하지 않음 ──────────────
+
+class TestClampNeverExceedsLiqSafe:
+    """T-4: stop_loss가 liq_safe보다 크더라도 반환 sl은 liq_safe 이내."""
+
+    def test_sl_capped_at_liq_safe_lev10(self):
+        # lev=10, mmr=0.004 → liq_safe=(0.1-0.004)*100*0.8=7.68
+        sl, _ = SLCalculator.clamp(10.0, 5.0, 10, mmr=0.004)
+        liq_safe = max(0.001, (1.0 / 10 - 0.004)) * 100.0 * 0.80
+        assert sl <= round(liq_safe, 1) + 1e-9
+
+    def test_sl_capped_at_liq_safe_lev25(self):
+        # lev=25, mmr=0.004 → liq_safe=(0.04-0.004)*100*0.8=2.88 → round=2.9
+        sl, _ = SLCalculator.clamp(5.0, 2.0, 25, mmr=0.004)
+        liq_safe = max(0.001, (1.0 / 25 - 0.004)) * 100.0 * 0.80
+        assert sl <= round(liq_safe, 1) + 1e-9
+
+    def test_update_params_sl_price_within_liq_safe(self):
+        """clamp된 sl_up을 entry_price에 적용했을 때 SL가격의 이탈률이 liq_safe 이내."""
+        sl_up, _ = SLCalculator.clamp(10.0, 5.0, 10, mmr=0.004)
+        entry = 100.0
+        sl_price = round(entry * (1 - sl_up / 100), 8)
+        implied_pct = (entry - sl_price) / entry * 100
+        liq_safe = max(0.001, (1.0 / 10 - 0.004)) * 100.0 * 0.80
+        assert implied_pct <= round(liq_safe, 1) + 1e-9

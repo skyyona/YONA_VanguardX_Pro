@@ -123,6 +123,7 @@ class LongCondition:
         result = ProhibitionFilter.check(
             params.prohibition, PositionSide.LONG, ind_data,
             has_short_open=has_short_open, days_listed=days_listed,
+            leverage=params.leverage, mmr=params.mmr,
         )
         if result.blocked:
             return False, result.reason

@@ -8,7 +8,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from bottom.models import PositionSide, ProhibitionFlags
 
-_ATR_DANGER   = 8.0    # ATR% 과변동 임계값 (%)
 _FR_THRESHOLD = 0.05   # FR 임계값 (%)
 _NEW_DAYS_MIN = 14     # 신규 상장 최소 거래 가능 일수
 
@@ -31,42 +30,31 @@ class ProhibitionFilter:
         flags:    ProhibitionFlags,
         side:     PositionSide,
         ind_data: dict,
-        has_long_open:  bool = False,
-        has_short_open: bool = False,
-        days_listed:    int  = 9999,
+        has_long_open:  bool  = False,
+        has_short_open: bool  = False,
+        days_listed:    int   = 9999,
+        leverage:       int   = 10,
+        mmr:            float = 0.004,
     ) -> FilterResult:
         """금지 항목 위반 여부 평가. 첫 번째 위반 항목에서 즉시 반환."""
 
-        atr_pct    = ind_data.get("atr_pct", 0.0)
         fr_pct     = ind_data.get("funding_rate", 0.0)
         player_tags = ind_data.get("_player_tags", [])
         tag_keys   = {t[0] if isinstance(t, (list, tuple)) else t for t in player_tags}
 
         # ── 공통 조건 ────────────────────────────────────────────
-        if flags.common_macro:
-            macro_score = 0
-            for key in ("tf1h", "tf4h", "tf1d"):
-                td = ind_data.get(key, {})
-                k, d = td.get("k", 50.0), td.get("d", 50.0)
-                if k > d and abs(k - d) >= 2.0:
-                    macro_score += 1
-                elif k < d and abs(k - d) >= 2.0:
-                    macro_score -= 1
-            if side == PositionSide.LONG and macro_score <= -1:
-                return FilterResult(True, f"거시 추세 하락 ({macro_score:+d}/3) — 롱 진입 금지")
-            elif side == PositionSide.SHORT and macro_score >= 1:
-                return FilterResult(True, f"거시 추세 상승 ({macro_score:+d}/3) — 숏 진입 금지")
+        # common_macro 제거: G7.5(use_macro)와 동일 로직이므로 중복 — use_macro가 단일 게이트
 
         if flags.common_liq:
-            liq_l = ind_data.get("liq_long_pct",  -99.0)
-            liq_s = ind_data.get("liq_short_pct", +99.0)
-            if side == PositionSide.LONG and abs(liq_l) < 1.5:
-                return FilterResult(True, f"롱 청산가 근접도 {abs(liq_l):.2f}% — 롱 진입 금지")
-            if side == PositionSide.SHORT and abs(liq_s) < 1.5:
-                return FilterResult(True, f"숏 청산가 근접도 {abs(liq_s):.2f}% — 숏 진입 금지")
+            liq_l    = ind_data.get("liq_long_pct",  -99.0)
+            liq_s    = ind_data.get("liq_short_pct", +99.0)
+            liq_safe = max(0.001, (1.0 / max(leverage, 1)) - mmr) * 100.0 * 0.80
+            if side == PositionSide.LONG and abs(liq_l) < liq_safe:
+                return FilterResult(True, f"롱 청산가 근접도 {abs(liq_l):.2f}% < liq_safe {liq_safe:.2f}% — 롱 진입 금지")
+            if side == PositionSide.SHORT and abs(liq_s) < liq_safe:
+                return FilterResult(True, f"숏 청산가 근접도 {abs(liq_s):.2f}% < liq_safe {liq_safe:.2f}% — 숏 진입 금지")
 
-        if flags.common_atr and atr_pct > _ATR_DANGER:
-            return FilterResult(True, f"ATR% {atr_pct:.1f}% 과변동 구간 — 거래 금지")
+        # common_atr 제거: G4(long/short_condition ATR 범위 체크)와 동일 임계값으로 중복 — G4가 단일 게이트
 
         if flags.common_fr:
             if side == PositionSide.LONG and fr_pct > _FR_THRESHOLD:

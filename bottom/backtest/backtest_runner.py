@@ -23,6 +23,7 @@ import bisect
 from bottom.backtest.historical_data_loader import HistoricalDataLoader
 from bottom.engine_core.quality_grader import QualityGrader
 from bottom.engine_core.risk_manager import RiskManager as _RM
+from bottom.engine_core.sl_calculator import SLCalculator
 from bottom.engine_core.sort_mode_config import get_mode_config
 from bottom.models import BacktestResult, BacktestTrade, StrategyParams
 
@@ -61,7 +62,7 @@ _ATR_PERIOD = 14
 _VOL_PERIOD = 20
 
 # Prohibition 임계값
-_ATR_BAN      = 8.0
+_FR_THRESHOLD = 0.05    # FR 임계값 (%) — prohibition_filter.py 동일
 _NEW_DAYS_BAN = 14
 # quality_grade_req 등급 서열 — A(0) 가장 엄격, D(3) 최완화
 _GRADE_ORDER  = {"A": 0, "B": 1, "C": 2, "D": 3}
@@ -208,6 +209,12 @@ class BacktestRunner:
                             _tf_d,
                         ))
 
+        # ── common_fr 펀딩비 이력 로드 ───────────────────────────────
+        _fr_times:    list[int]   = []
+        _fr_pct_list: list[float] = []
+        if params.prohibition.common_fr:
+            _fr_times, _fr_pct_list = HistoricalDataLoader.load_funding_rate(symbol)
+
         # [P7] G7 Swing 구조 — 15m봉 기준 bisect용 시간 시리즈
         times_15m: list = [b.open_time for b in bars_15m]
 
@@ -231,11 +238,15 @@ class BacktestRunner:
         _daily_pnl_usdt = 0.0   # 당일 누적 PnL (USDT)
         _daily_date_key = -1    # 추적 중인 날짜 (KST 일 단위 정수)
 
+        # [C-2] SL/Trail 사전 계산 — liq_safe 상한 적용. leverage·mmr 불변 → 루프 전 1회 계산
+        sl_used, trail_used = SLCalculator.clamp(
+            params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr)
+
         # [C-1] 유효 레버리지 사전 계산 — R-cap(8%) 반영 (결정2-a / 결정1-a)
         # P 소거 원리: mark=1.0 사용 가능 (mark 값에 관계없이 L_eff 동일)
         _alloc   = params.portfolio_usdt * params.funds_pct / 100.0
         _qty0    = _RM.calc_position_size(params, 1.0, params.portfolio_usdt)
-        _qty_cap = _RM.apply_r_cap(_qty0, 1.0, params.stop_loss, params.portfolio_usdt)
+        _qty_cap = _RM.apply_r_cap(_qty0, 1.0, sl_used, params.portfolio_usdt)
         _leff    = (_qty_cap / _alloc) if _alloc > 0 else float(params.leverage)
 
         # tf5 교차 시점 추적 — QualityGrader _duration_score 재현용
@@ -260,14 +271,21 @@ class BacktestRunner:
             pos_1h  = max(0, bisect.bisect_left(times_1h, t) - 1) if times_1h else 0
             atr_pct = atr_pct_1h[pos_1h] if (times_1h and pos_1h < len(atr_pct_1h)) else 0.0
             atr_ok  = cfg.atr_min <= atr_pct <= cfg.atr_max
-            if params.prohibition.common_atr and atr_pct > _ATR_BAN:
-                atr_ok = False
 
             # ── [P6] 1m 기준 volume_ratio 직접 조회 ─────────────────
             vol_ok = True
             if cfg.volume_mult is not None and vol_ratio_1m:
                 vr     = vol_ratio_1m[i] if i < len(vol_ratio_1m) else 1.0
                 vol_ok = vr >= cfg.volume_mult
+
+            # ── [FR] common_fr 펀딩비 진입 차단 판정 ─────────────────
+            fr_ok_long  = True
+            fr_ok_short = True
+            if params.prohibition.common_fr and _fr_times:
+                _fr_pos = max(0, bisect.bisect_left(_fr_times, t) - 1)
+                _fr_val = _fr_pct_list[_fr_pos] if _fr_pos < len(_fr_pct_list) else 0.0
+                fr_ok_long  = _fr_val <= _FR_THRESHOLD
+                fr_ok_short = _fr_val >= -_FR_THRESHOLD
 
             # ── [P8] 1m TF K/D — KD 역전 익절 판정용 ───────────────
             _k1m = _d1m = 50.0
@@ -282,8 +300,8 @@ class BacktestRunner:
             # ── 롱 포지션 관리 ────────────────────────────────────
             if in_long:
                 bars_held = i - entry_bar_i
-                R         = entry_price * params.stop_loss / 100.0
-                sl_phase1 = entry_price * (1.0 - params.stop_loss / 100.0)
+                R         = entry_price * sl_used / 100.0
+                sl_phase1 = entry_price * (1.0 - sl_used / 100.0)
 
                 if phase == 1:
                     # [P1] intrabar: bar.low ≤ sl_phase1 → STOP_MARKET 체결 재현
@@ -354,7 +372,7 @@ class BacktestRunner:
                 elif phase == 3:
                     # [A-5] TRAIL 체크 먼저 (실거래: Binance TRAILING_STOP_MARKET 서버측 선행 체결)
                     trail_ref = max(trail_ref, close)
-                    trail_sl  = trail_ref * (1.0 - params.trail_stop / 100.0)
+                    trail_sl  = trail_ref * (1.0 - trail_used / 100.0)
                     # [P1] intrabar + [P5] 잔량 50%: bar.low ≤ trail_sl → trailing stop 체결 재현
                     if bar.low <= trail_sl:
                         cost = cls._cost(_leff, bars_held)
@@ -397,8 +415,8 @@ class BacktestRunner:
             # ── 숏 포지션 관리 ────────────────────────────────────
             elif in_short:
                 bars_held = i - entry_bar_i
-                R         = entry_price * params.stop_loss / 100.0
-                sl_phase1 = entry_price * (1.0 + params.stop_loss / 100.0)
+                R         = entry_price * sl_used / 100.0
+                sl_phase1 = entry_price * (1.0 + sl_used / 100.0)
 
                 if phase == 1:
                     # [P1] intrabar: bar.high ≥ sl_phase1 → STOP_MARKET 체결 재현
@@ -469,7 +487,7 @@ class BacktestRunner:
                 elif phase == 3:
                     # [A-5] TRAIL 체크 먼저 (실거래: Binance TRAILING_STOP_MARKET 서버측 선행 체결)
                     trail_ref = min(trail_ref, close)
-                    trail_sl  = trail_ref * (1.0 + params.trail_stop / 100.0)
+                    trail_sl  = trail_ref * (1.0 + trail_used / 100.0)
                     # [P1] intrabar + [P5] 잔량 50%: bar.high ≥ trail_sl → trailing stop 체결 재현
                     if bar.high >= trail_sl:
                         cost = cls._cost(_leff, bars_held)
@@ -588,6 +606,7 @@ class BacktestRunner:
                         and cfg.direction_bias != "short_only"
                         and atr_ok and vol_ok
                         and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
+                        and fr_ok_long
                         and _mac_ok_long):
                     # [P4] G6 EMA — 1h봉 기준 (실거래 data_manager 동일)
                     ema_ok = True
@@ -628,6 +647,7 @@ class BacktestRunner:
                         and cfg.direction_bias != "long_only"
                         and atr_ok and vol_ok
                         and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
+                        and fr_ok_short
                         and _mac_ok_short):
                     # [P4] G6 EMA — 1h봉 기준 (실거래 data_manager 동일)
                     ema_ok = True

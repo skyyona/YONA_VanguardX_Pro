@@ -1355,16 +1355,12 @@ class BottomModuleMockup(tk.Frame):
 
         # ── 백테스팅 실행 ─────────────────────────────────────────
         def _do_backtest() -> None:
-            # [B-2] 미확정 파라미터 방어: _applied_params가 None이면 실행 불가
-            if self._applied_params is None:
-                status_lbl.configure(
-                    text="  전략 미확정 — '전략 확정 및 적용' 후 실행하세요  ", fg=RED)
-                return
             bt_btn.configure(state="disabled", cursor="arrow")
             cmp_btn.configure(state="disabled", cursor="arrow")
             status_lbl.configure(text="  백테스팅 실행 중...  ", fg=YELLOW)
 
-            _ap = self._applied_params
+            # UI 변수에서 현재 설정 파라미터 직접 읽기
+            funds, lev, sl, trail = self._current_params()
             # [B-1] 실잔고 조회 — last_balance 캐시 우선, 없으면 1000.0 기본값
             _portfolio_usdt = 1000.0
             if self._engine is not None:
@@ -1374,21 +1370,27 @@ class BottomModuleMockup(tk.Frame):
             from bottom.models import StrategyParams as _SP, ProhibitionFlags as _PF
             params = _SP(
                 sort_mode      = self._applied_sort_mode,
-                funds_pct      = int(_ap["funds"]),
-                leverage       = int(_ap["leverage"]),
-                stop_loss      = float(_ap["sl"]),
-                trail_stop     = float(_ap["trail"]),
-                prohibition    = _PF.from_dict(_ap["prohibited"]),
-                use_macro      = _ap["use_macro"],
+                funds_pct      = funds,
+                leverage       = lev,
+                stop_loss      = sl,
+                trail_stop     = trail,
+                prohibition    = _PF.from_dict({k: v.get() for k, v in self._prohibited_vars.items()}),
+                use_macro      = self._use_macro_var.get(),
                 portfolio_usdt = _portfolio_usdt,   # [B-1]
             )
 
             def _run() -> None:
+                # [C-2] MMR 조회 — 캐시 미스 시 REST 호출. 워커 스레드 전용
+                if self._engine is not None:
+                    params.mmr = self._engine.get_mmr(sym)
+                from bottom.engine_core.sl_calculator import SLCalculator as _SLC
+                _sl_used, _trail_used = _SLC.clamp(
+                    params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr)
                 try:
                     if _HAS_BACKTEST and BacktestRunner is not None:
                         from bottom.backtest.param_deriver import derive_params
                         period_key = _get_period_key(avail_days_ref[0])
-                        mode       = _ap.get("consensus_mode", "4/4")
+                        mode       = _consensus_var.get()
                         result_obj = BacktestRunner.run(sym, params, period_key, mode)
                         res = _backtest_result_to_dict(result_obj)
                         res["derived"] = derive_params(result_obj.trades)
@@ -1396,6 +1398,9 @@ class BottomModuleMockup(tk.Frame):
                         res = {}
                 except Exception:
                     res = {}
+                res["sl_used"]    = _sl_used    # [C-2] 실제 적용 SL 표시용
+                res["trail_used"] = _trail_used # [C-2] 실제 적용 Trail 표시용
+                res["mmr_used"]   = params.mmr  # [C-2] 실제 적용 MMR 표시용
                 win.after(0, lambda r=res: _backtest_done(r))
 
             _threading.Thread(target=_run, daemon=True).start()
@@ -1404,8 +1409,11 @@ class BottomModuleMockup(tk.Frame):
             long_r  = res.get("long",  {})
             short_r = res.get("short", {})
             win_str = res.get("total", {}).get("win", "—")
+            _sl  = res.get("sl_used",    "—")
+            _tr  = res.get("trail_used", "—")
+            _mmr = res.get("mmr_used",   0.004)
             status_lbl.configure(
-                text=f"  4TF 정렬 백테스팅 완료  ✓   적중도 {win_str}  ",
+                text=f"  백테스팅 완료  ✓   적중도 {win_str}  |  SL {_sl}% / Trail {_tr}% / MMR {_mmr:.4f}  ",
                 fg=POSITIVE)
 
             for w in tab2_frame.winfo_children():
@@ -1659,16 +1667,12 @@ class BottomModuleMockup(tk.Frame):
 
         # ── 전략 비교 실행 ────────────────────────────────────────
         def _do_comparison() -> None:
-            # [B-2] 미확정 파라미터 방어: _applied_params가 None이면 실행 불가
-            if self._applied_params is None:
-                status_lbl.configure(
-                    text="  전략 미확정 — '전략 확정 및 적용' 후 실행하세요  ", fg=RED)
-                return
             bt_btn.configure(state="disabled", cursor="arrow")
             cmp_btn.configure(state="disabled", cursor="arrow")
             status_lbl.configure(text="  전략 비교 실행 중...  ", fg=YELLOW)
 
-            _ap = self._applied_params
+            # UI 변수에서 현재 설정 파라미터 직접 읽기
+            funds, lev, sl, trail = self._current_params()
             # [B-1] 실잔고 조회 — last_balance 캐시 우선, 없으면 1000.0 기본값
             _portfolio_usdt = 1000.0
             if self._engine is not None:
@@ -1678,16 +1682,22 @@ class BottomModuleMockup(tk.Frame):
             from bottom.models import StrategyParams as _SP, ProhibitionFlags as _PF
             params = _SP(
                 sort_mode      = self._applied_sort_mode,
-                funds_pct      = int(_ap["funds"]),
-                leverage       = int(_ap["leverage"]),
-                stop_loss      = float(_ap["sl"]),
-                trail_stop     = float(_ap["trail"]),
-                prohibition    = _PF.from_dict(_ap["prohibited"]),
-                use_macro      = _ap["use_macro"],
+                funds_pct      = funds,
+                leverage       = lev,
+                stop_loss      = sl,
+                trail_stop     = trail,
+                prohibition    = _PF.from_dict({k: v.get() for k, v in self._prohibited_vars.items()}),
+                use_macro      = self._use_macro_var.get(),
                 portfolio_usdt = _portfolio_usdt,   # [B-1]
             )
 
             def _run_cmp() -> None:
+                # [C-2] MMR 조회 — 캐시 미스 시 REST 호출. 워커 스레드 전용
+                if self._engine is not None:
+                    params.mmr = self._engine.get_mmr(sym)
+                from bottom.engine_core.sl_calculator import SLCalculator as _SLC
+                _sl_used, _trail_used = _SLC.clamp(
+                    params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr)
                 try:
                     if _HAS_BACKTEST and BacktestRunner is not None:
                         period_key = _get_period_key(avail_days_ref[0])
@@ -1697,13 +1707,19 @@ class BottomModuleMockup(tk.Frame):
                         cmp_results = {}
                 except Exception:
                     cmp_results = {}
+                cmp_results["sl_used"]    = _sl_used    # [C-2] 실제 적용 SL 표시용
+                cmp_results["trail_used"] = _trail_used # [C-2] 실제 적용 Trail 표시용
+                cmp_results["mmr_used"]   = params.mmr  # [C-2] 실제 적용 MMR 표시용
                 win.after(0, lambda r=cmp_results: _comparison_done(r))
 
             _threading.Thread(target=_run_cmp, daemon=True).start()
 
         def _comparison_done(cmp_results: dict) -> None:
+            _sl  = cmp_results.get("sl_used",    "—")
+            _tr  = cmp_results.get("trail_used", "—")
+            _mmr = cmp_results.get("mmr_used",   0.004)
             status_lbl.configure(
-                text="  전략 비교 완료  ✓  ",
+                text=f"  전략 비교 완료  ✓  |  SL {_sl}% / Trail {_tr}% / MMR {_mmr:.4f}  ",
                 fg=POSITIVE)
             for w in tab2_frame.winfo_children():
                 w.destroy()
