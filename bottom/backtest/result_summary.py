@@ -23,10 +23,13 @@ class ResultSummary:
         wins   = [t for t in trades if t.pnl_pct > 0]
         losses = [t for t in trades if t.pnl_pct <= 0]
 
-        result.total_trades = len(trades)
-        result.win_trades   = len(wins)
-        result.loss_trades  = len(losses)
-        result.win_rate     = round(len(wins) / len(trades) * 100, 2)
+        _tot_w = sum(t.qty_ratio for t in trades)
+        _win_w = sum(t.qty_ratio for t in wins)
+        _los_w = sum(t.qty_ratio for t in losses)
+        result.total_trades = _tot_w
+        result.win_trades   = _win_w
+        result.loss_trades  = _los_w
+        result.win_rate     = round(_win_w / max(_tot_w, 1e-9) * 100, 2)
         result.total_return = round(sum(t.pnl_pct for t in trades), 3)
         result.max_profit   = round(max(t.pnl_pct for t in trades), 3)
         _equity = 0.0
@@ -40,8 +43,8 @@ class ResultSummary:
             if _dd > _mdd:
                 _mdd = _dd
         result.max_drawdown = round(_mdd, 3)
-        result.avg_profit   = round(sum(t.pnl_pct for t in wins)   / max(len(wins),   1), 3)
-        result.avg_loss     = round(sum(t.pnl_pct for t in losses) / max(len(losses), 1), 3)
+        result.avg_profit   = round(sum(t.pnl_pct for t in wins)   / max(_win_w, 1e-9), 3)
+        result.avg_loss     = round(sum(t.pnl_pct for t in losses) / max(_los_w, 1e-9), 3)
 
         return result
 

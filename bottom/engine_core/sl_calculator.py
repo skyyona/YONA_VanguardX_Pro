@@ -10,6 +10,7 @@ _MMR_APPROX  = 0.004  # 0.4% 유지증거금률 근사값 — Binance USDM 소�
 _SL_MIN      = 0.3    # SL 최솟값 (%)
 _TRAIL_RATIO = 0.5    # trail_raw = 5m ATR × 0.5
 _TRAIL_MIN   = 0.2    # trail 최솟값 (%) — sl_min 이하 역전 방지
+                      # ⚠ 실거래 callbackRate에 직접 반영. 고레버리지+좁은SL 설정 시 trail 축소됨
 _TRAIL_CAP   = 0.6    # trail ≤ sl × 60%
 
 

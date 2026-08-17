@@ -162,6 +162,7 @@ class BacktestTrade:
     pnl_pct:     float
     pnl_usdt:    float
     exit_reason: str    # "SL" | "BEP-SL" | "PARTIAL" | "TRAIL" | "KD-EXIT"
+    qty_ratio:   float = 1.0  # 포지션 수량 비율 — 건수·승률 가중용 (pnl_pct에 재적용 금지)
 
 
 @dataclass
@@ -170,9 +171,9 @@ class BacktestResult:
     symbol:       str
     sort_mode:    str
     period_days:  int
-    total_trades: int       = 0
-    win_trades:   int       = 0
-    loss_trades:  int       = 0
+    total_trades: float     = 0.0   # qty_ratio 가중 합계 (정수 포지션 수와 일치하지 않을 수 있음)
+    win_trades:   float     = 0.0
+    loss_trades:  float     = 0.0
     win_rate:     float     = 0.0    # %
     total_return: float     = 0.0    # %
     max_profit:   float     = 0.0    # %

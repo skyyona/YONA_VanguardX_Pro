@@ -292,8 +292,8 @@ class BacktestRunner:
             fr_ok_long  = True
             fr_ok_short = True
             if params.prohibition.common_fr and _fr_times:
-                _fr_pos = max(0, bisect.bisect_left(_fr_times, t) - 1)
-                _fr_val = _fr_pct_list[_fr_pos] if _fr_pos < len(_fr_pct_list) else 0.0
+                _fr_pos = bisect.bisect_right(_fr_times, t) - 1
+                _fr_val = _fr_pct_list[_fr_pos] if _fr_pos >= 0 else 0.0
                 fr_ok_long  = _fr_val <= _FR_THRESHOLD
                 fr_ok_short = _fr_val >= -_FR_THRESHOLD
 
@@ -303,13 +303,13 @@ class BacktestRunner:
             if params.prohibition.common_liq:
                 _liq_fr_val = 0.0
                 if _fr_times:
-                    _liq_fr_pos = max(0, bisect.bisect_left(_fr_times, t) - 1)
-                    _liq_fr_val = _fr_pct_list[_liq_fr_pos] if _liq_fr_pos < len(_fr_pct_list) else 0.0
+                    _liq_fr_pos = bisect.bisect_right(_fr_times, t) - 1
+                    _liq_fr_val = _fr_pct_list[_liq_fr_pos] if _liq_fr_pos >= 0 else 0.0
                 _liq_base      = max(atr_pct * _LIQ_BASE_MULT, 1.0)
                 _lr_long_pct_v = 50.0
                 if _lr_times:
-                    _lr_pos = max(0, bisect.bisect_left(_lr_times, t) - 1)
-                    if _lr_pos < len(_lr_long_pct):
+                    _lr_pos = bisect.bisect_right(_lr_times, t) - 1
+                    if _lr_pos >= 0:
                         _lr_long_pct_v = _lr_long_pct[_lr_pos]
                 _long_excess  = max(0.0, (_lr_long_pct_v - 50.0) / 50.0)
                 _short_excess = max(0.0, (50.0 - _lr_long_pct_v) / 50.0)
@@ -399,7 +399,7 @@ class BacktestRunner:
                             side="long", entry_price=entry_price, exit_price=entry_price + R * 1.5,
                             pnl_pct=round(0.5 * pnl_p, 3),  # [A-3] 50% 물량 가중
                             pnl_usdt=_pnl_usdt_val_p,
-                            exit_reason="PARTIAL",
+                            exit_reason="PARTIAL", qty_ratio=0.5,
                         ))
                         _daily_pnl_usdt += _pnl_usdt_val_p  # [B-6]
                         _consecutive_losses = 0
@@ -419,7 +419,7 @@ class BacktestRunner:
                             side="long", entry_price=entry_price, exit_price=trail_sl,
                             pnl_pct=round(0.5 * pnl, 3),  # [P5] 잔량 50% 가중
                             pnl_usdt=_pnl_usdt_val,
-                            exit_reason="TRAIL",
+                            exit_reason="TRAIL", qty_ratio=0.5,
                         ))
                         _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
                         if pnl < 0:
@@ -441,7 +441,7 @@ class BacktestRunner:
                             side="long", entry_price=entry_price, exit_price=close,
                             pnl_pct=round(0.5 * pnl, 3),  # [P5] 잔량 50% 가중
                             pnl_usdt=_pnl_usdt_val,
-                            exit_reason="KD-EXIT",
+                            exit_reason="KD-EXIT", qty_ratio=0.5,
                         ))
                         _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
                         _consecutive_losses = 0
@@ -514,7 +514,7 @@ class BacktestRunner:
                             side="short", entry_price=entry_price, exit_price=entry_price - R * 1.5,
                             pnl_pct=round(0.5 * pnl_p, 3),  # [A-3] 50% 물량 가중
                             pnl_usdt=_pnl_usdt_val_p,
-                            exit_reason="PARTIAL",
+                            exit_reason="PARTIAL", qty_ratio=0.5,
                         ))
                         _daily_pnl_usdt += _pnl_usdt_val_p  # [B-6]
                         _consecutive_losses = 0
@@ -534,7 +534,7 @@ class BacktestRunner:
                             side="short", entry_price=entry_price, exit_price=trail_sl,
                             pnl_pct=round(0.5 * pnl, 3),  # [P5] 잔량 50% 가중
                             pnl_usdt=_pnl_usdt_val,
-                            exit_reason="TRAIL",
+                            exit_reason="TRAIL", qty_ratio=0.5,
                         ))
                         _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
                         if pnl < 0:
@@ -556,7 +556,7 @@ class BacktestRunner:
                             side="short", entry_price=entry_price, exit_price=close,
                             pnl_pct=round(0.5 * pnl, 3),  # [P5] 잔량 50% 가중
                             pnl_usdt=_pnl_usdt_val,
-                            exit_reason="KD-EXIT",
+                            exit_reason="KD-EXIT", qty_ratio=0.5,
                         ))
                         _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
                         _consecutive_losses = 0

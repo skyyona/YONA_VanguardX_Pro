@@ -125,23 +125,52 @@ class HistoricalDataLoader:
         return second + first
 
     @staticmethod
-    def load_long_short_ratio(symbol: str, limit: int = 500) -> tuple[list[int], list[float]]:
+    def load_long_short_ratio(symbol: str) -> tuple[list[int], list[float]]:
         """글로벌 롱/숏 비율 이력 로드. (times_ms, long_pct_list) 튜플 반환.
 
-        limit=500 → 최신 약 41.7시간치 (5m 기준).
-        결손 구간은 호출처에서 50% 중립 처리.
+        5m 페이지네이션으로 최대 30일치 로드 (Binance API 제공 상한).
+        결손 구간은 호출처에서 50% 중립 처리 (bisect_right 경계 기준).
+        부분 실패 시 지금까지 수집분을 반환한다.
         공개 API — 인증 불필요.
+        ⚠ 90일 백테스트 시 최대 커버리지 33.3% (30일 / 90일).
         """
-        url = (f"{_FUTURES_BASE}/futures/data/globalLongShortAccountRatio"
-               f"?symbol={symbol}&period=5m&limit={limit}")
-        try:
-            with urllib.request.urlopen(url, timeout=10) as resp:
-                raw = json.loads(resp.read().decode("utf-8"))
-            times    = [int(r["timestamp"])             for r in raw]
-            long_pct = [float(r["longAccount"]) * 100.0 for r in raw]
-            return times, long_pct
-        except Exception:
-            return [], []
+        _LIMIT    = 500                              # API 1회 최대 반환 수
+        _MAX_BARS = 30 * 24 * 12                     # 30일 × 5m 봉 수 = 8,640
+        _MAX_PAGES = (_MAX_BARS + _LIMIT - 1) // _LIMIT  # = 18
+
+        pages_times: list[list[int]]   = []
+        pages_pct:   list[list[float]] = []
+        end_time_ms: int | None        = None
+
+        for _ in range(_MAX_PAGES):
+            qs = f"symbol={symbol}&period=5m&limit={_LIMIT}"
+            if end_time_ms is not None:
+                qs += f"&endTime={end_time_ms}"
+            url = f"{_FUTURES_BASE}/futures/data/globalLongShortAccountRatio?{qs}"
+            try:
+                with urllib.request.urlopen(url, timeout=10) as resp:
+                    raw = json.loads(resp.read().decode("utf-8"))
+                if not raw:
+                    break
+                t_list   = [int(r["timestamp"])              for r in raw]
+                pct_list = [float(r["longAccount"]) * 100.0  for r in raw]
+                pages_times.append(t_list)
+                pages_pct.append(pct_list)
+                if len(raw) < _LIMIT:   # 더 이전 데이터 없음
+                    break
+                end_time_ms = t_list[0] - 1  # 이전 배치 직전 ms 로 역방향 이동
+            except Exception:
+                break  # 부분 실패 시 수집분 반환
+
+        # pages[0] = 최신 배치, pages[-1] = 가장 오래된 배치 → 역순 병합
+        pages_times.reverse()
+        pages_pct.reverse()
+        times:    list[int]   = []
+        long_pct: list[float] = []
+        for t, p in zip(pages_times, pages_pct):
+            times.extend(t)
+            long_pct.extend(p)
+        return times, long_pct
 
     @staticmethod
     def load_funding_rate(symbol: str, limit: int = 360) -> tuple[list[int], list[float]]:

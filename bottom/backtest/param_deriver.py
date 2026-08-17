@@ -74,13 +74,15 @@ def derive_params(trades: list, portfolio_usdt: float = 1000.0) -> dict:
     if not trades:
         return {"note": "거래 없음 — 데이터 부족"}
 
-    wins   = [t.pnl_pct for t in trades if t.pnl_pct > 0]
-    losses = [t.pnl_pct for t in trades if t.pnl_pct <= 0]
-    n      = len(trades)
-    n_win  = len(wins)
+    win_trades  = [t for t in trades if t.pnl_pct > 0]
+    loss_trades = [t for t in trades if t.pnl_pct <= 0]
+    wins        = [t.pnl_pct for t in win_trades]
+    losses      = [t.pnl_pct for t in loss_trades]
+    n           = sum(t.qty_ratio for t in trades)
+    n_win       = sum(t.qty_ratio for t in win_trades)
 
     if n < _MIN_SAMPLE:
-        return {"note": f"샘플 {n}건 — Wilson 신뢰 구간 최소 {_MIN_SAMPLE}건 필요"}
+        return {"note": f"샘플 {round(n)}건 — Wilson 신뢰 구간 최소 {_MIN_SAMPLE}건 필요"}
 
     win_rate_raw    = n_win / n
     win_rate_wilson = _wilson_lower(n_win, n)
@@ -100,7 +102,7 @@ def derive_params(trades: list, portfolio_usdt: float = 1000.0) -> dict:
         "r_per_trade_pct":      round(r_pct,  2),
         "max_r_per_trade_usdt": round(portfolio_usdt * r_pct / 100.0, 2),
         "note": (
-            f"샘플 {n}건 | Wilson승률 {win_rate_wilson:.1%} "
+            f"샘플 {round(n)}건 | Wilson승률 {win_rate_wilson:.1%} "
             f"| Kelly×{_KELLY_FRACTION}={kelly:.1%} → R{r_pct:.2f}%"
         ),
     }
