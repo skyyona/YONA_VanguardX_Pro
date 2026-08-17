@@ -223,7 +223,7 @@ class BacktestRunner:
         _lr_times:    list[int]   = []
         _lr_long_pct: list[float] = []
         if params.prohibition.common_liq:
-            _lr_times, _lr_long_pct = HistoricalDataLoader.load_long_short_ratio(symbol)
+            _lr_times, _lr_long_pct = HistoricalDataLoader.load_long_short_ratio(symbol, period_days)
 
         # [P7] G7 Swing 구조 — 15m봉 기준 bisect용 시간 시리즈
         times_15m: list = [b.open_time for b in bars_15m]
@@ -723,8 +723,12 @@ class BacktestRunner:
         from bottom.backtest.result_summary import ResultSummary
         result = ResultSummary.build(symbol, params.sort_mode, period_days, trades)
         if params.prohibition.common_liq and _lr_times:
-            result.long_ratio_coverage = round(
-                len(_lr_times) / max(1, period_days * 288) * 100.0, 1)
+            _bt_start    = bars_1m[_WARMUP_1M].open_time
+            _bt_end      = bars_1m[-1].open_time
+            _lr_in_range = (bisect.bisect_right(_lr_times, _bt_end)
+                            - bisect.bisect_left(_lr_times, _bt_start))
+            result.long_ratio_coverage = min(100.0, round(
+                _lr_in_range / max(1, period_days * 288) * 100.0, 1))
         return result
 
     @classmethod

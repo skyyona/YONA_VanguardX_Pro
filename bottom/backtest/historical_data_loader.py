@@ -125,18 +125,18 @@ class HistoricalDataLoader:
         return second + first
 
     @staticmethod
-    def load_long_short_ratio(symbol: str) -> tuple[list[int], list[float]]:
+    def load_long_short_ratio(symbol: str, period_days: int = 30) -> tuple[list[int], list[float]]:
         """글로벌 롱/숏 비율 이력 로드. (times_ms, long_pct_list) 튜플 반환.
 
-        5m 페이지네이션으로 최대 30일치 로드 (Binance API 제공 상한).
+        5m 페이지네이션으로 백테스트 기간에 맞춰 로드 (최대 30일, Binance API 상한).
         결손 구간은 호출처에서 50% 중립 처리 (bisect_right 경계 기준).
         부분 실패 시 지금까지 수집분을 반환한다.
         공개 API — 인증 불필요.
         ⚠ 90일 백테스트 시 최대 커버리지 33.3% (30일 / 90일).
         """
-        _LIMIT    = 500                              # API 1회 최대 반환 수
-        _MAX_BARS = 30 * 24 * 12                     # 30일 × 5m 봉 수 = 8,640
-        _MAX_PAGES = (_MAX_BARS + _LIMIT - 1) // _LIMIT  # = 18
+        _LIMIT     = 500                                      # API 1회 최대 반환 수
+        _MAX_BARS  = min(period_days, 30) * 24 * 12           # 기간 상한 30일 클램프
+        _MAX_PAGES = (_MAX_BARS + _LIMIT - 1) // _LIMIT       # 7일→5, 14일→9, 30일→18
 
         pages_times: list[list[int]]   = []
         pages_pct:   list[list[float]] = []
