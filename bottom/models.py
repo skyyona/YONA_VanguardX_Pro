@@ -161,7 +161,7 @@ class BacktestTrade:
     exit_price:  float
     pnl_pct:     float
     pnl_usdt:    float
-    exit_reason: str    # "SL" | "TP" | "TRAIL" | "SIGNAL"
+    exit_reason: str    # "SL" | "BEP-SL" | "PARTIAL" | "TRAIL" | "KD-EXIT"
 
 
 @dataclass

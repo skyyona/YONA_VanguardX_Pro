@@ -9,7 +9,7 @@ _LIQ_SAFETY  = 0.80   # 이론 청산까지 거리의 80% 이내로 SL 상한 �
 _MMR_APPROX  = 0.004  # 0.4% 유지증거금률 근사값 — Binance USDM 소규모 포지션 기준
 _SL_MIN      = 0.3    # SL 최솟값 (%)
 _TRAIL_RATIO = 0.5    # trail_raw = 5m ATR × 0.5
-_TRAIL_MIN   = 0.5    # trail 최솟값 (%)
+_TRAIL_MIN   = 0.2    # trail 최솟값 (%) — sl_min 이하 역전 방지
 _TRAIL_CAP   = 0.6    # trail ≤ sl × 60%
 
 

@@ -14,7 +14,7 @@ quality_grade_req 는 QualityGrader(Cascade/Zone/Duration/Swing 4축)로 반영.
 [P6] G5 volume_ratio TF: 실거래 data_manager 동일 — 1m봉 기준
 [P7] G7 Swing 구조 TF: 실거래 data_manager 동일 — 15m봉 6개 기준
 [P8] KD 역전 익절: Phase3에서 1m K>80+K<D(롱) / K<20+K>D(숏) 조기 청산
-[P9] 3연패 쿨다운: _MAX_CONSECUTIVE_LOSSES 연속 손실 시 300봉 진입 억제
+[P9] 3연패 쿨다운: _MAX_CONSECUTIVE_LOSSES 연속 손실 시 5봉 진입 억제
 """
 from __future__ import annotations
 
@@ -392,11 +392,11 @@ class BacktestRunner:
                     # [A-4][P5] Phase2→3 intrabar: bar.high 기준, trail_ref=트리거 가격
                     if bar.high >= entry_price + R * 1.5:
                         cost_p = cls._cost(_leff, bars_held)
-                        pnl_p  = (close - entry_price) / entry_price * 100.0 * _leff - cost_p
+                        pnl_p  = R * 1.5 / entry_price * 100.0 * _leff - cost_p  # 트리거 가격 기준 (SL/TRAIL 패턴 통일)
                         _pnl_usdt_val_p = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl_p / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
-                            side="long", entry_price=entry_price, exit_price=close,
+                            side="long", entry_price=entry_price, exit_price=entry_price + R * 1.5,
                             pnl_pct=round(0.5 * pnl_p, 3),  # [A-3] 50% 물량 가중
                             pnl_usdt=_pnl_usdt_val_p,
                             exit_reason="PARTIAL",
@@ -417,7 +417,7 @@ class BacktestRunner:
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="long", entry_price=entry_price, exit_price=trail_sl,
-                            pnl_pct=round(pnl, 3),
+                            pnl_pct=round(0.5 * pnl, 3),  # [P5] 잔량 50% 가중
                             pnl_usdt=_pnl_usdt_val,
                             exit_reason="TRAIL",
                         ))
@@ -439,7 +439,7 @@ class BacktestRunner:
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="long", entry_price=entry_price, exit_price=close,
-                            pnl_pct=round(pnl, 3),
+                            pnl_pct=round(0.5 * pnl, 3),  # [P5] 잔량 50% 가중
                             pnl_usdt=_pnl_usdt_val,
                             exit_reason="KD-EXIT",
                         ))
@@ -507,11 +507,11 @@ class BacktestRunner:
                     # [A-4][P5] Phase2→3 intrabar: bar.low 기준, trail_ref=트리거 가격
                     if bar.low <= entry_price - R * 1.5:
                         cost_p = cls._cost(_leff, bars_held)
-                        pnl_p  = (entry_price - close) / entry_price * 100.0 * _leff - cost_p
+                        pnl_p  = R * 1.5 / entry_price * 100.0 * _leff - cost_p  # 트리거 가격 기준 (SL/TRAIL 패턴 통일)
                         _pnl_usdt_val_p = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl_p / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
-                            side="short", entry_price=entry_price, exit_price=close,
+                            side="short", entry_price=entry_price, exit_price=entry_price - R * 1.5,
                             pnl_pct=round(0.5 * pnl_p, 3),  # [A-3] 50% 물량 가중
                             pnl_usdt=_pnl_usdt_val_p,
                             exit_reason="PARTIAL",
@@ -532,7 +532,7 @@ class BacktestRunner:
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="short", entry_price=entry_price, exit_price=trail_sl,
-                            pnl_pct=round(pnl, 3),
+                            pnl_pct=round(0.5 * pnl, 3),  # [P5] 잔량 50% 가중
                             pnl_usdt=_pnl_usdt_val,
                             exit_reason="TRAIL",
                         ))
@@ -554,7 +554,7 @@ class BacktestRunner:
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
                             side="short", entry_price=entry_price, exit_price=close,
-                            pnl_pct=round(pnl, 3),
+                            pnl_pct=round(0.5 * pnl, 3),  # [P5] 잔량 50% 가중
                             pnl_usdt=_pnl_usdt_val,
                             exit_reason="KD-EXIT",
                         ))
@@ -774,7 +774,7 @@ class BacktestRunner:
         """전체 봉 ATR% 시리즈 사전 계산 (True Range 기반)."""
         n = len(bars)
         result = [0.0] * n
-        if n < 2:
+        if n < period + 1:
             return result
         tr_list = [0.0] * n
         for k in range(1, n):
@@ -782,12 +782,12 @@ class BacktestRunner:
             l  = bars[k].low
             pc = bars[k - 1].close
             tr_list[k] = max(h - l, abs(h - pc), abs(l - pc))
-        for k in range(1, n):
-            start  = max(1, k - period + 1)
-            count  = k - start + 1
-            avg_tr = sum(tr_list[start: k + 1]) / count
-            result[k] = (avg_tr / bars[k].close * 100.0
-                         if bars[k].close > 0 else 0.0)
+        # Wilder smoothing — 실거래 AtrPercent.calculate()와 동일 알고리즘
+        atr = sum(tr_list[1: period + 1]) / period
+        result[period] = atr / bars[period].close * 100.0 if bars[period].close > 0 else 0.0
+        for k in range(period + 1, n):
+            atr = (atr * (period - 1) + tr_list[k]) / period
+            result[k] = atr / bars[k].close * 100.0 if bars[k].close > 0 else 0.0
         return result
 
     # ── 거래량 배수 시리즈 계산 ──────────────────────────────────

@@ -44,10 +44,10 @@ class TestSLCalculatorLeverageCap:
         assert sl == 0.5
 
     def test_high_leverage_trail_floor_applies(self):
-        """cap으로 trail이 0.5 아래로 내려갈 때 floor 재보정 → trail=0.5."""
-        # sl=0.5, sl*0.6=0.3 < _TRAIL_MIN(0.5) → floor 재보정 → 0.5
+        """cap으로 trail이 0.2 아래로 내려가지 않음: sl=0.5, sl*0.6=0.3 → trail=0.3."""
+        # sl=0.5, trail_raw=2.5, cap=sl*0.6=0.3, _TRAIL_MIN=0.2 → max(0.2,0.3)=0.3
         _, trail = SLCalculator.compute(5.0, "D", 100)
-        assert trail == 0.5
+        assert trail == 0.3
 
     def test_liq_safe_80pct_of_theoretical(self):
         """청산 이론가의 80%가 상한: lev=5 → liq_safe=16.0."""
@@ -83,9 +83,10 @@ class TestSLCalculatorFloors:
         assert sl == 0.3
 
     def test_trail_min_floor(self):
-        """trail은 최소 0.5."""
+        """trail은 최소 0.2."""
+        # atr=0.1, D → sl=0.3, trail_raw=0.05, cap=0.18, floor=0.2 → trail=0.2
         _, trail = SLCalculator.compute(0.1, "D", 10)
-        assert trail == 0.5
+        assert trail == 0.2
 
     def test_output_rounded_to_1_decimal(self):
         """반환값은 소수점 1자리."""
