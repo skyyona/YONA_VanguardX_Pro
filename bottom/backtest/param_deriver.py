@@ -87,8 +87,10 @@ def derive_params(trades: list, portfolio_usdt: float = 1000.0) -> dict:
     win_rate_raw    = n_win / n
     win_rate_wilson = _wilson_lower(n_win, n)
 
-    avg_win_r  = sum(wins)    / len(wins)   if wins   else 0.0
-    avg_loss_r = -sum(losses) / len(losses) if losses else 0.0
+    avg_win_r  = (sum(wins)    / max(sum(t.qty_ratio for t in win_trades),  1e-9)
+                  if win_trades else 0.0)
+    avg_loss_r = (-sum(losses) / max(sum(t.qty_ratio for t in loss_trades), 1e-9)
+                  if loss_trades else 0.0)
 
     kelly  = _kelly(win_rate_wilson, avg_win_r, avg_loss_r)
     r_pct  = min(kelly * 100.0, _MAX_R_PCT)
