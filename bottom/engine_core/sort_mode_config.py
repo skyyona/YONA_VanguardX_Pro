@@ -34,7 +34,7 @@ MODE_CONFIG: dict[str, ModeConfig] = {
         k_short_min       = 60.0,    # 완화: 65.0 → 60.0 (역사 +6.6%p 기회 확대)
         quality_grade_req = None,
         volume_mult       = None,
-        atr_min           = 1.0,     # sl_used=2.0% 기준 최소 ATR 정합
+        atr_min           = 2.0,     # sl_used=4.0% 기준 최소 ATR 정합 (sl_used 변경 시 재정합 필요)
         atr_max           = 8.0,
         requires_swing    = False,
         macro_ema         = False,
