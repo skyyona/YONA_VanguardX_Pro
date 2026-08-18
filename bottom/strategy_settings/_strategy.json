@@ -3,7 +3,7 @@
     "funds_pct": 100,
     "leverage": 10,
     "stop_loss": 0.5,
-    "trail_stop": 1.0,
+    "trail_stop": 0.3,
     "prohibition": {
       "common_liq": false,
       "common_fr": false,
@@ -14,7 +14,8 @@
       "short_accum": false,
       "short_long_open": true
     },
-    "use_macro": true
+    "use_macro": true,
+    "consensus_mode": "3/4"
   },
   "Sharp decline": {
     "funds_pct": 100,
