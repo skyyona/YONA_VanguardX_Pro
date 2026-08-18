@@ -27,7 +27,7 @@ from bottom.short_engine.short_order import ShortOrder
 from bottom.short_engine.short_position import ShortPosition
 
 SL_INTERVAL_SEC  = 1   # SL/Trailing 체크 주기 — 포지션 보유 중
-_DATA_SETTLE_SEC = 5   # 봉 마감 후 API 갱신 완료 대기 (초)
+_DATA_SETTLE_SEC = 2   # 봉 마감 후 API 갱신 완료 대기 (초) — 7TF 병렬화 후 실측 1초 내외
 _BALANCE_TTL_SEC    = 30  # 잔고 캐시 유효 시간 (초)
 _MAX_CONSECUTIVE_LOSSES = 3    # N연패 시 쿨다운 진입
 _LOSS_COOLDOWN_SEC      = 300  # 쿨다운 지속 시간 (초) — 5분

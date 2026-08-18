@@ -22,7 +22,7 @@ _DEFAULT_LIMITS: dict[str, int] = {
 
 def _parse_klines(raw: list[list]) -> list[OHLCVBar]:
     result: list[OHLCVBar] = []
-    current_ms = int(time.time() * 1000)
+    current_ms = int(time.time() * 1000) - 500  # 500ms 여유: 서버 클록 드리프트로 인한 마감 봉 누락 방지
     for k in raw:
         try:
             close_time = int(k[6])

@@ -543,11 +543,12 @@ class MiddleDataManager:
     def _refresh_detail(self, symbol: str) -> None:
         """선택 심볼 전체 지표 갱신."""
         try:
-            # OHLCV 7 TF 수집
-            bars: dict[str, list[OHLCVBar]] = {}
-            for tf in _DETAIL_TFS:
-                n = 80 if tf in ("1m", "3m", "5m", "15m") else 60
-                bars[tf] = self._ohlcv_svc.fetch(symbol, tf, n)
+            # OHLCV 7 TF 병렬 수집
+            with ThreadPoolExecutor(max_workers=len(_DETAIL_TFS)) as ex:
+                futs = {tf: ex.submit(self._ohlcv_svc.fetch, symbol, tf,
+                                      80 if tf in ("1m", "3m", "5m", "15m") else 60)
+                        for tf in _DETAIL_TFS}
+                bars: dict[str, list[OHLCVBar]] = {tf: fut.result() for tf, fut in futs.items()}
 
             # 파생 데이터
             fr  = self._fr_svc.fetch(symbol)
