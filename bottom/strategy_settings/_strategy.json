@@ -18,9 +18,9 @@
   },
   "Sharp decline": {
     "funds_pct": 100,
-    "leverage": 25,
-    "stop_loss": 2.5,
-    "trail_stop": 1.1,
+    "leverage": 20,
+    "stop_loss": 2.0,
+    "trail_stop": 1.2,
     "prohibition": {
       "common_liq": false,
       "common_fr": false,
@@ -37,8 +37,8 @@
   "24h Ticker": {
     "funds_pct": 100,
     "leverage": 20,
-    "stop_loss": 2.4,
-    "trail_stop": 1.0,
+    "stop_loss": 2.0,
+    "trail_stop": 1.2,
     "prohibition": {
       "common_liq": true,
       "common_fr": true,
