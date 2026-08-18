@@ -979,6 +979,11 @@ class BottomModuleMockup(tk.Frame):
                         fg=POSITIVE if sel else DARK_TEXT,
                         font=("Segoe UI", 8, "bold" if sel else "normal"))
                 cfg = _get_mode_cfg(mode)
+                from bottom.engine_core.sl_calculator import SLCalculator as _SLC
+                _sl_used_s, _ = _SLC.clamp(
+                    self._sl_var.get(), self._trail_var.get(),
+                    self._lev_var.get(), mmr=0.004)
+                _atr_min_eff_s = max(cfg.atr_min, _sl_used_s / 2.0)
                 _bias_map = {
                     "both":       "롱·숏 양방향",
                     "long_only":  "롱 전용",
@@ -997,7 +1002,7 @@ class BottomModuleMockup(tk.Frame):
                 info_lbl.configure(
                     text=(f"ℹ️   [{mode}]  {_bias_str}"
                           f"  |  K롱<{cfg.k_long_max:.0f} · K숏>{cfg.k_short_min:.0f}"
-                          f"  |  ATR {cfg.atr_min:.1f}~{cfg.atr_max:.1f}%{_extra}"))
+                          f"  |  ATR {_atr_min_eff_s:.1f}~{cfg.atr_max:.1f}%{_extra}"))
                 _render_strategy_cols(mode)
                 if _auto_filter_refresh_ref[0] is not None:
                     _auto_filter_refresh_ref[0]()
@@ -1022,6 +1027,11 @@ class BottomModuleMockup(tk.Frame):
                     w.destroy()
 
                 cfg = _get_mode_cfg(mode)
+                from bottom.engine_core.sl_calculator import SLCalculator as _SLC
+                _sl_used_c, _ = _SLC.clamp(
+                    self._sl_var.get(), self._trail_var.get(),
+                    self._lev_var.get(), mmr=0.004)
+                _atr_min_eff_c = max(cfg.atr_min, _sl_used_c / 2.0)
 
                 def _extra_filter_row(parent: tk.Frame, label: str,
                                       value: str, col: str) -> None:
@@ -1078,7 +1088,7 @@ class BottomModuleMockup(tk.Frame):
 
                     _sec_hdr(long_col, "모드별 추가 필터")
                     _extra_filter_row(long_col, "ATR% 범위",
-                                      f"{cfg.atr_min:.1f}% ~ {cfg.atr_max:.1f}%", ACCENT_BLUE)
+                                      f"{_atr_min_eff_c:.1f}% ~ {cfg.atr_max:.1f}%", ACCENT_BLUE)
                     if cfg.quality_grade_req is not None:
                         _extra_filter_row(long_col, "품질 등급",
                                           f"{cfg.quality_grade_req} 등급 이상", YELLOW)
@@ -1147,7 +1157,7 @@ class BottomModuleMockup(tk.Frame):
 
                     _sec_hdr(short_col, "모드별 추가 필터")
                     _extra_filter_row(short_col, "ATR% 범위",
-                                      f"{cfg.atr_min:.1f}% ~ {cfg.atr_max:.1f}%", ACCENT_BLUE)
+                                      f"{_atr_min_eff_c:.1f}% ~ {cfg.atr_max:.1f}%", ACCENT_BLUE)
                     if cfg.quality_grade_req is not None:
                         _extra_filter_row(short_col, "품질 등급",
                                           f"{cfg.quality_grade_req} 등급 이상", YELLOW)
@@ -1235,6 +1245,11 @@ class BottomModuleMockup(tk.Frame):
 
                 cur_mode = _selected_sort_ref[0]   # 팝업 내 선택된 Sort by 모드
                 cfg_ban  = _get_mode_cfg(cur_mode)
+                from bottom.engine_core.sl_calculator import SLCalculator as _SLC
+                _sl_used_b, _ = _SLC.clamp(
+                    self._sl_var.get(), self._trail_var.get(),
+                    self._lev_var.get(), mmr=0.004)
+                _atr_min_eff_b = max(cfg_ban.atr_min, _sl_used_b / 2.0)
 
                 auto_hdr = tk.Frame(auto_filter_outer, bg="#0A1A10", pady=4)
                 auto_hdr.pack(fill="x", pady=(0, 0))
@@ -1271,7 +1286,7 @@ class BottomModuleMockup(tk.Frame):
                               f"K > {cfg_ban.k_short_min:.0f}  (과매수 구간)", NEGATIVE)
 
                 _auto_row("ATR% 범위",
-                          f"{cfg_ban.atr_min:.1f}% ~ {cfg_ban.atr_max:.1f}%", ACCENT_BLUE)
+                          f"{_atr_min_eff_b:.1f}% ~ {cfg_ban.atr_max:.1f}%", ACCENT_BLUE)
 
                 if cfg_ban.quality_grade_req is not None:
                     _auto_row("품질 등급",
