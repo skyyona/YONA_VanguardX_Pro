@@ -144,7 +144,7 @@ class BacktestRunner:
             bars_15m = HistoricalDataLoader.load_bars(symbol, "15m", bars_cfg["15m"])
             bars_1h  = HistoricalDataLoader.load_bars(symbol, "1h",  bars_cfg.get("1h", 225))
 
-        if len(bars_1m) < _MIN_BARS or not bars_3m or not bars_5m or not bars_15m:
+        if len(bars_1m) <= _WARMUP_1M or not bars_3m or not bars_5m or not bars_15m:
             return BacktestResult(symbol=symbol, sort_mode=params.sort_mode,
                                   period_days=period_days)
 
@@ -280,7 +280,7 @@ class BacktestRunner:
             # ── [P3] 1h 기준 ATR% bisect 조회 ──────────────────────
             pos_1h  = max(0, bisect.bisect_left(times_1h, t) - 1) if times_1h else 0
             atr_pct = atr_pct_1h[pos_1h] if (times_1h and pos_1h < len(atr_pct_1h)) else 0.0
-            atr_ok  = cfg.atr_min <= atr_pct <= cfg.atr_max
+            atr_ok  = max(cfg.atr_min, sl_used / 2.0) <= atr_pct <= cfg.atr_max
 
             # ── [P6] 1m 기준 volume_ratio 직접 조회 ─────────────────
             vol_ok = True

@@ -73,10 +73,13 @@ class LongCondition:
                 )
 
         # ── G4: ATR% 범위 ──────────────────────────────────────
-        atr_pct = float(ind_data.get("atr_pct", 0.0))
-        if atr_pct < cfg.atr_min:
+        _sl_used, _ = SLCalculator.clamp(
+            params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr)
+        atr_pct      = float(ind_data.get("atr_pct", 0.0))
+        _atr_min_eff = max(cfg.atr_min, _sl_used / 2.0)
+        if atr_pct < _atr_min_eff:
             return False, (
-                f"ATR%={atr_pct:.2f} — {params.sort_mode} 최소 변동성 {cfg.atr_min}% 미달"
+                f"ATR%={atr_pct:.2f} — {params.sort_mode} 최소 변동성 {_atr_min_eff:.2f}% 미달"
             )
         if atr_pct > cfg.atr_max:
             return False, (
@@ -121,8 +124,6 @@ class LongCondition:
                 return False, f"거시 추세 하락 ({_mac_score:+d}/3) — 롱 진입 보류"
 
         # ── G8: 절대 금지 필터 ─────────────────────────────────
-        _sl_used, _ = SLCalculator.clamp(
-            params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr)
         result = ProhibitionFilter.check(
             params.prohibition, PositionSide.LONG, ind_data,
             has_short_open=has_short_open, days_listed=days_listed,
