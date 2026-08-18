@@ -124,8 +124,11 @@ class TradingEngine:
                 self._last_leverage_sym = symbol
                 self._last_leverage_val = lev
             else:
+                self._last_leverage_sym = ""
+                self._last_leverage_val = 0
+                _lev_err = self._client._last_api_error or "응답 없음"
                 with self._lock:
-                    self._state.error_msg = "[경고] 레버리지 설정 실패 — Binance 응답 확인 필요"
+                    self._state.error_msg = f"[경고] 레버리지 설정 실패 ({_lev_err}) — Binance 응답 확인 필요"
         # MMR 캐시 선행 채우기 — _auto_calc() 에서 get_mmr_cached() 가 캐시 히트하도록
         if symbol:
             self._client.get_mmr(symbol)
@@ -227,11 +230,18 @@ class TradingEngine:
             self._state.initial_balance  = balance  # 기준 잔고 저장 — current_loss_pct 계산용
         self._stop_event.clear()
         lev = self._params.leverage
-        if sym and (sym != self._last_leverage_sym or lev != self._last_leverage_val):
+        # 포지션 선조회 — 포지션 존재 시 레버리지 변경 건너뜀 (Binance 거부 방지)
+        _pre_pos_data = self._client.get_position(sym) if sym else None
+        _has_pos = (
+            _pre_pos_data is not None and
+            float(_pre_pos_data.get("positionAmt", 0.0)) != 0.0
+        )
+        if sym and not _has_pos and (sym != self._last_leverage_sym or lev != self._last_leverage_val):
             if not self._client.set_leverage(sym, lev):
+                _lev_err = self._client._last_api_error or "응답 없음"
                 with self._lock:
                     self._state.error_msg = (
-                        "[오류] 레버리지 설정 실패 — "
+                        f"[오류] 레버리지 설정 실패 ({_lev_err}) — "
                         "Binance 계정에서 수동 확인 후 재시작")
                 return False
             self._last_leverage_sym = sym
@@ -282,7 +292,7 @@ class TradingEngine:
         # 실제 Binance 포지션 동기화 — 진입 체결 후 SL 등록 전 크래시 시나리오 복구
         if sym and self._params:
             try:
-                pos_data = self._client.get_position(sym)
+                pos_data = _pre_pos_data  # start() 초반 선조회 결과 재사용 (API 호출 절약)
                 if pos_data:
                     pos_amt     = float(pos_data.get("positionAmt", 0.0))
                     entry_price = float(pos_data.get("entryPrice", 0.0))
