@@ -237,6 +237,14 @@ class TradingEngine:
             float(_pre_pos_data.get("positionAmt", 0.0)) != 0.0
         )
         if sym and not _has_pos and (sym != self._last_leverage_sym or lev != self._last_leverage_val):
+            # 심볼 최대 레버리지 사전 조회 — 설정값 초과 시 자동 클램핑 (-4028 방지)
+            _max_lev = self._client.get_leverage_bracket(sym)
+            if _max_lev is not None and lev > _max_lev:
+                with self._lock:
+                    self._state.error_msg = (
+                        f"[경고] {sym} 최대 허용 레버리지 {_max_lev}x — "
+                        f"설정값 {lev}x → {_max_lev}x 자동 조정")
+                lev = _max_lev
             if not self._client.set_leverage(sym, lev):
                 _lev_err = self._client._last_api_error or "응답 없음"
                 with self._lock:
@@ -255,14 +263,6 @@ class TradingEngine:
                         "Binance 계정에서 수동 확인 후 재시작")
                 return False
         self._state.running = True
-        # [C] 레버리지 브래킷 검증 — 심볼 허용 최대 레버리지 확인
-        if sym:
-            _max_lev = self._client.get_leverage_bracket(sym)
-            if _max_lev is not None and _max_lev < self._params.leverage:
-                with self._lock:
-                    self._state.error_msg = (
-                        f"[경고] {sym} 최대 허용 레버리지 {_max_lev}x — "
-                        f"설정값 {self._params.leverage}x 초과, 실제 적용 레버리지 확인 필요")
         # Binance SL 주문 ID 복구 — 앱 재시작 후 기존 등록 주문 이어받기
         self._sl_order_id_long  = ""
         self._sl_order_id_short = ""

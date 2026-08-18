@@ -460,7 +460,7 @@ class BottomModuleMockup(tk.Frame):
         self._shared_sym.set("")
 
     def _on_sort_mode_watch(self, *_) -> None:
-        """Sort by 모드 변경 감지 → 전략 재확정 필요 경고 표시."""
+        """Sort by 모드 변경 감지 → 전략 재확정 필요 경고 표시 + UI vars 동기화."""
         if not self._strategy_ready:
             return
         if self._shared_sort_mode is None:
@@ -471,6 +471,7 @@ class BottomModuleMockup(tk.Frame):
                 self._strategy_msg.configure(
                     text=f"  ⚠ Sort [{new_mode}] 변경 — 전략 재확정 필요  ",
                     fg=ORANGE)
+            self._restore_strategy_vars(new_mode)  # lev/sl/trail/funds vars를 JSON 저장값으로 동기화
 
     def _restore_strategy_vars(self, sort_mode: str) -> str | None:
         """sort_mode에 저장된 전략 설정을 UI vars에 복원한다. consensus_mode 반환."""
