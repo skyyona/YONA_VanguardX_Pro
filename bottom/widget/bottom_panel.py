@@ -980,6 +980,7 @@ class BottomModuleMockup(tk.Frame):
                         font=("Segoe UI", 8, "bold" if sel else "normal"))
                 cfg = _get_mode_cfg(mode)
                 from bottom.engine_core.sl_calculator import SLCalculator as _SLC
+                # Sort by 팝업은 심볼 독립 UI — sym 없으므로 mmr은 Binance USDT-M 표준값 사용
                 _sl_used_s, _ = _SLC.clamp(
                     self._sl_var.get(), self._trail_var.get(),
                     self._lev_var.get(), mmr=0.004)
@@ -1028,6 +1029,7 @@ class BottomModuleMockup(tk.Frame):
 
                 cfg = _get_mode_cfg(mode)
                 from bottom.engine_core.sl_calculator import SLCalculator as _SLC
+                # Sort by 팝업은 심볼 독립 UI — sym 없으므로 mmr은 Binance USDT-M 표준값 사용
                 _sl_used_c, _ = _SLC.clamp(
                     self._sl_var.get(), self._trail_var.get(),
                     self._lev_var.get(), mmr=0.004)
@@ -1246,6 +1248,7 @@ class BottomModuleMockup(tk.Frame):
                 cur_mode = _selected_sort_ref[0]   # 팝업 내 선택된 Sort by 모드
                 cfg_ban  = _get_mode_cfg(cur_mode)
                 from bottom.engine_core.sl_calculator import SLCalculator as _SLC
+                # Sort by 팝업은 심볼 독립 UI — sym 없으므로 mmr은 Binance USDT-M 표준값 사용
                 _sl_used_b, _ = _SLC.clamp(
                     self._sl_var.get(), self._trail_var.get(),
                     self._lev_var.get(), mmr=0.004)
