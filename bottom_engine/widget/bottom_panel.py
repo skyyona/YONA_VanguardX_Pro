@@ -81,16 +81,6 @@ from bottom_engine.main_header.symbol_set_backtest.pop_set_ui.strategy_popup_mix
 from bottom_engine.ctr_ctrl_sess.center_ctrl_mixin import CenterCtrlMixin
 
 
-# ── 헥스 색상 보간 (발광 펄스 애니메이션용) ───────────────────────
-def _lerp_hex(c0: str, c1: str, t: float) -> str:
-    r0, g0, b0 = int(c0[1:3], 16), int(c0[3:5], 16), int(c0[5:7], 16)
-    r1, g1, b1 = int(c1[1:3], 16), int(c1[3:5], 16), int(c1[5:7], 16)
-    r = int(r0 + (r1 - r0) * t)
-    g = int(g0 + (g1 - g0) * t)
-    b = int(b0 + (b1 - b0) * t)
-    return f"#{r:02x}{g:02x}{b:02x}"
-
-
 # ── 거래 내역 영속화 경로 (C: 보완 2) ────────────────────────────
 _TRADE_HISTORY_PATH = Path(__file__).resolve().parents[2] / "trade_history.json"
 
@@ -106,76 +96,7 @@ def _dedup_hist(records: list) -> list:
             out.append(r)
     return out
 
-TF_KEYS = ["1m", "3m", "5m", "15m"]
-TF_W    = 76   # 각 TF 컬럼 너비(px)
-
 _BASE_SL,    _BASE_TRAIL = 2.5,  1.5
-
-
-def _backtest_result_to_dict(result: "BacktestResult") -> dict:  # type: ignore[name-defined]
-    """BacktestResult → _populate_tab2() 가 기대하는 dict 구조로 변환."""
-    long_trades  = [t for t in result.trades if t.side == "long"]
-    short_trades = [t for t in result.trades if t.side == "short"]
-
-    def _side_stats(trades: list, period_days: int) -> dict:
-        if not trades:
-            return {"count": 0, "hit": "0%", "avg": "—", "max": "—",
-                    "total": "—", "total_usdt": "—", "rr_ratio": "—",
-                    "profit_factor": "—", "avg_loss": "—", "avg_hold": "—",
-                    "max_consec_loss": "0회", "daily_freq": "0.00회"}
-        wins   = [t for t in trades if t.pnl_pct > 0]
-        losses = [t for t in trades if t.pnl_pct <= 0]
-        wr      = len(wins) / len(trades) * 100
-        avg_w   = sum(t.pnl_pct for t in wins)   / max(len(wins),   1)
-        avg_l   = sum(t.pnl_pct for t in losses) / max(len(losses), 1)
-        mx       = max(t.pnl_pct  for t in trades)
-        tot      = sum(t.pnl_pct  for t in trades)
-        tot_usdt = sum(t.pnl_usdt for t in trades)
-        rr      = abs(avg_w / avg_l) if avg_l != 0 else 0
-        pf_num  = sum(t.pnl_pct for t in wins)
-        pf_den  = abs(sum(t.pnl_pct for t in losses)) if losses else 0
-        pf      = pf_num / pf_den if pf_den > 0 else 0
-        hold_ms = [t.exit_time - t.entry_time for t in trades
-                   if t.exit_time > t.entry_time]
-        avg_min = (sum(hold_ms) / len(hold_ms) / 60000) if hold_ms else 0
-        consec = max_consec = 0
-        for t in trades:
-            if t.pnl_pct <= 0:
-                consec += 1; max_consec = max(max_consec, consec)
-            else:
-                consec = 0
-        freq = len(trades) / max(period_days, 1)
-        return {
-            "count":           len(trades),
-            "hit":             f"{wr:.0f}%",
-            "avg":             f"{avg_w:+.1f}%" if wins   else "—",
-            "max":             f"{mx:+.1f}%",
-            "total":           f"{tot:+.1f}%",
-            "total_usdt":      f"{tot_usdt:+.2f} U",
-            "rr_ratio":        f"{rr:.1f} : 1"  if losses else "—",
-            "profit_factor":   f"{pf:.2f}"       if losses else "—",
-            "avg_loss":        f"{avg_l:.1f}%"   if losses else "—",
-            "avg_hold":        f"{avg_min:.0f}분",
-            "max_consec_loss": f"{max_consec}회",
-            "daily_freq":      f"{freq:.2f}회",
-        }
-
-    pd_ = result.period_days
-    return {
-        "long_align":  len(long_trades),
-        "short_align": len(short_trades),
-        "next_est":    "—",
-        "sort_mode":            result.sort_mode,
-        "long_ratio_coverage":  result.long_ratio_coverage,
-        "long":        _side_stats(long_trades,  pd_),
-        "short":       _side_stats(short_trades, pd_),
-        "total": {
-            "return": f"{result.total_return:+.1f}%",
-            "win":    f"{result.win_rate:.0f}%",
-            "max":    f"{result.max_profit:+.1f}%",
-            "mdd":    f"-{result.max_drawdown:.1f}%",
-        },
-    }
 
 
 # ══════════════════════════════════════════════════════════════════

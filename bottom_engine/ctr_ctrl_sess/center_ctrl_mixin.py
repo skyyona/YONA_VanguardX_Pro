@@ -39,7 +39,6 @@ def _lerp_hex(c0: str, c1: str, t: float) -> str:
 
 
 TF_KEYS = ["1m", "3m", "5m", "15m"]
-TF_W    = 76
 
 
 class CenterCtrlMixin:
