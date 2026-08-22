@@ -1,4 +1,4 @@
-"""
+﻿"""
 YONA VanguardX Pro — 메인 진입점
 Header + Middle + Bottom 세 모듈을 단일 통합 GUI 창으로 실행
 
@@ -19,7 +19,7 @@ from header.widget.header_panel import HeaderPanel
 from header.widget.investment_dialog import InvestmentDialog
 from header.models import HeaderStatus
 from middle.widget.middle_panel import MiddlePanel
-from bottom.widget.bottom_panel import BottomModuleMockup
+from bottom_engine.widget.bottom_panel import BottomModuleMockup
 
 # ── 단일 인스턴스 락 (L09-2) ──────────────────────────────────────
 _LOCK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".app.lock")

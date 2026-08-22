@@ -1,4 +1,4 @@
-"""
+﻿"""
 verify_4tf_frequency.py
 "4TF 완전 정렬은 발생하지 않는다(0%)" 주장 검증 스크립트
 앱의 실제 코드(StochRSI, FourTFConsensus)를 그대로 import하여
@@ -10,7 +10,7 @@ import sys
 sys.path.insert(0, ".")
 
 from middle.col2_chart_indicators.mtf_stochrsi import StochRSI
-from bottom.engine_core.fourtf_consensus import FourTFConsensus
+from bottom_engine.engine_core.fourtf_consensus import FourTFConsensus
 from middle.models import OHLCVBar
 
 SERIES     = 40

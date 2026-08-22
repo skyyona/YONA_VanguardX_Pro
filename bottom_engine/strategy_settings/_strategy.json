@@ -1,0 +1,107 @@
+{
+  "Sharp rise": {
+    "funds_pct": 100,
+    "leverage": 10,
+    "stop_loss": 0.5,
+    "trail_stop": 0.3,
+    "prohibition": {
+      "common_liq": false,
+      "common_fr": false,
+      "common_new": false,
+      "common_hunter": false,
+      "long_fomo": false,
+      "long_short_open": true,
+      "short_accum": false,
+      "short_long_open": true
+    },
+    "use_macro": true,
+    "consensus_mode": "3/4"
+  },
+  "Sharp decline": {
+    "funds_pct": 100,
+    "leverage": 20,
+    "stop_loss": 2.0,
+    "trail_stop": 1.2,
+    "prohibition": {
+      "common_liq": false,
+      "common_fr": false,
+      "common_new": false,
+      "common_hunter": false,
+      "long_fomo": false,
+      "long_short_open": true,
+      "short_accum": false,
+      "short_long_open": true
+    },
+    "use_macro": true,
+    "consensus_mode": "3/4"
+  },
+  "24h Ticker": {
+    "funds_pct": 100,
+    "leverage": 20,
+    "stop_loss": 1.0,
+    "trail_stop": 0.4,
+    "prohibition": {
+      "common_liq": true,
+      "common_fr": true,
+      "common_new": true,
+      "common_hunter": true,
+      "long_fomo": true,
+      "long_short_open": true,
+      "short_accum": true,
+      "short_long_open": true
+    },
+    "use_macro": true,
+    "consensus_mode": "3/4"
+  },
+  "Newly Listed": {
+    "funds_pct": 100,
+    "leverage": 10,
+    "stop_loss": 2.5,
+    "trail_stop": 1.5,
+    "prohibition": {
+      "common_liq": true,
+      "common_fr": false,
+      "common_new": false,
+      "common_hunter": true,
+      "long_fomo": false,
+      "long_short_open": true,
+      "short_accum": false,
+      "short_long_open": true
+    },
+    "use_macro": true
+  },
+  "4TF Optimization": {
+    "funds_pct": 100,
+    "leverage": 20,
+    "stop_loss": 4.0,
+    "trail_stop": 2.3,
+    "prohibition": {
+      "common_liq": true,
+      "common_fr": false,
+      "common_new": false,
+      "common_hunter": false,
+      "long_fomo": true,
+      "long_short_open": true,
+      "short_accum": true,
+      "short_long_open": true
+    },
+    "use_macro": true
+  },
+  "Volatility": {
+    "funds_pct": 100,
+    "leverage": 20,
+    "stop_loss": 0.5,
+    "trail_stop": 1.0,
+    "prohibition": {
+      "common_liq": true,
+      "common_fr": true,
+      "common_new": true,
+      "common_hunter": true,
+      "long_fomo": true,
+      "long_short_open": true,
+      "short_accum": true,
+      "short_long_open": true
+    },
+    "use_macro": true
+  }
+}

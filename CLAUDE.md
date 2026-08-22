@@ -85,7 +85,7 @@ Do not suggest, install, or reference any other Python version.
 Do not add dry-run modes, simulation branches, or paper-trading paths unless explicitly requested.
 
 ### 5-5. Security — API Credentials
-**`bottom/.env`에는 실제 Binance API 자격증명이 포함되어 있다.**  
+**`bottom_engine/.env`에는 실제 Binance API 자격증명이 포함되어 있다.**  
 - Never commit, share, log, or display the contents of `.env`.
 - Never echo API keys or secrets in any output.
 
