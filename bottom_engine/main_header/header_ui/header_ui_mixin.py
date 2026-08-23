@@ -76,7 +76,7 @@ class HeaderUiMixin:
         self._strategy_msg = tk.Label(
             inner, text="  — 전략 미설정 —  ",
             bg=DARK_HEADER, fg=DIM_TEXT,
-            font=("Segoe UI", 8, "bold"), width=22)
+            font=("Segoe UI", 8, "bold"), width=38)
         self._strategy_msg.pack(side="left")
 
     def _clear_symbol(self) -> None:
@@ -84,16 +84,3 @@ class HeaderUiMixin:
             return
         self._shared_sym.set("")
 
-    def _on_sort_mode_watch(self, *_) -> None:
-        """Sort by 모드 변경 감지 → 전략 재확정 필요 경고 표시 + UI vars 동기화."""
-        if not self._strategy_ready:
-            return
-        if self._shared_sort_mode is None:
-            return
-        new_mode = self._shared_sort_mode.get()
-        if new_mode and new_mode != self._applied_sort_mode:
-            if self._strategy_msg is not None:
-                self._strategy_msg.configure(
-                    text=f"  ⚠ Sort [{new_mode}] 변경 — 전략 재확정 필요  ",
-                    fg=ORANGE)
-            self._restore_strategy_vars(new_mode)  # lev/sl/trail/funds vars를 JSON 저장값으로 동기화

@@ -129,8 +129,6 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
 
         # middle module 과 공유하는 Sort by 모드 변수 — 없으면 독립 동작
         self._shared_sort_mode = shared_sort_mode
-        if self._shared_sort_mode is not None:
-            self._shared_sort_mode.trace_add("write", self._on_sort_mode_watch)
 
         # ── 중앙 컨트롤 세션 — 실데이터 폴링 위젯 참조 ──────────
         self._pos_ind:        dict            = {}
@@ -352,7 +350,7 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
         self._applied_sort_mode = sort_mode
         self._strategy_ready = True
         self._strategy_msg.configure(
-            text=f"  ✓ 전략설정완료   {consensus_mode} 합의 모드  ", fg=POSITIVE)
+            text=f"  ✓ 전략설정완료   {sort_mode}   {consensus_mode}  ", fg=POSITIVE)
         self._trade_btn.configure(
             state="normal", cursor="hand2",
             bg="#0A2A12", fg=POSITIVE,
