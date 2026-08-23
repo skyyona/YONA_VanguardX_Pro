@@ -49,7 +49,7 @@ except ImportError:
     _HAS_ENGINE = False
 
 try:
-    from bottom_engine.engine_core.sort_mode_config import get_mode_config as _get_mode_cfg
+    from bottom_engine.strategy_settings.realtrade_strategy_sort_by import get_mode_config as _get_mode_cfg
 except ImportError:
     def _get_mode_cfg(m: str):   # type: ignore[misc]
         from types import SimpleNamespace

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from bottom_engine.models import PositionSide, StrategyParams
 from bottom_engine.engine_core.fourtf_consensus import FourTFConsensus
-from bottom_engine.engine_core.sort_mode_config import get_mode_config
+from bottom_engine.strategy_settings.realtrade_strategy_sort_by import get_mode_config
 from bottom_engine.engine_core.quality_grader import QualityGrader
 from bottom_engine.prohibition_settings.prohibition_filter import ProhibitionFilter
 from bottom_engine.engine_core.sl_calculator import SLCalculator

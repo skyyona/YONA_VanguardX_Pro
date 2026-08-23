@@ -8,7 +8,7 @@ from core.config import (
     DARK_TEXT, DIM_TEXT, ACCENT_BLUE, POSITIVE, NEGATIVE, ORANGE, YELLOW,
     LONG_HDR_BG, SHORT_HDR_BG,
 )
-from bottom_engine.engine_core.sort_mode_config import get_mode_config as _get_mode_cfg
+from bottom_engine.strategy_settings.realtrade_strategy_sort_by import get_mode_config as _get_mode_cfg
 from bottom_engine.strategy_settings.strategy_loader import StrategyLoader
 from bottom_engine.models import PositionState, ProhibitionFlags
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader

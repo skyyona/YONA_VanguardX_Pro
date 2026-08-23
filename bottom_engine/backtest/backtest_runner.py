@@ -24,7 +24,7 @@ from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
 from bottom_engine.engine_core.quality_grader import QualityGrader
 from bottom_engine.engine_core.risk_manager import RiskManager as _RM
 from bottom_engine.engine_core.sl_calculator import SLCalculator
-from bottom_engine.engine_core.sort_mode_config import get_mode_config
+from bottom_engine.strategy_settings.realtrade_strategy_sort_by import get_mode_config
 from bottom_engine.models import BacktestResult, BacktestTrade, StrategyParams
 
 # 실거래 엔진과 동일한 표준 StochRSI 파라미터 (rsi_period, stoch_period, smooth_k, smooth_d)
