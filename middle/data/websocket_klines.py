@@ -38,6 +38,8 @@ class WebSocketKlines:
         self._ws: websocket.WebSocketApp | None = None
         self._running = False
         self._symbol  = ""
+        self._intentional_close = False
+        self._last_error: str = ""
         self._thread: threading.Thread | None = None
 
     # ── 공개 인터페이스 ───────────────────────────────────────
@@ -54,6 +56,7 @@ class WebSocketKlines:
         if symbol == self._symbol:
             return
         self._symbol = symbol
+        self._intentional_close = True
         if self._ws is not None:
             try:
                 self._ws.close()
@@ -92,8 +95,9 @@ class WebSocketKlines:
                 self._ws.run_forever(ping_interval=20, ping_timeout=10)
             except Exception:
                 pass
-            if self._running:
+            if self._running and not self._intentional_close:
                 time.sleep(_RECONNECT_DELAY)
+            self._intentional_close = False
 
     # ── WebSocket 이벤트 핸들러 ───────────────────────────────
 
@@ -101,7 +105,7 @@ class WebSocketKlines:
         pass
 
     def _on_error(self, ws, error) -> None:
-        pass
+        self._last_error = f"[klines:{self._symbol}] {error}"
 
     def _on_message(self, ws, message: str) -> None:
         try:

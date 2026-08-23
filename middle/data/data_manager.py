@@ -147,6 +147,7 @@ class MiddleDataManager:
         self._ws_ticker = WebSocketTicker(on_update=self._on_ws_ticker_update)
         self._ws_ticker.start()
         self._ws_klines = WebSocketKlines(on_closed=self._on_kline_closed)
+        self._ws_klines.start(self._last_detail_sym)
         threading.Thread(target=self._auto_refresh_loop, daemon=True).start()
 
     def stop_auto_refresh(self) -> None:
@@ -177,11 +178,12 @@ class MiddleDataManager:
     def request_selected(self, symbol: str) -> None:
         """선택 심볼 상세 데이터 비동기 갱신 요청."""
         now = time.time()
-        if (symbol == self._last_detail_sym
-                and now - self._last_detail_time < _DETAIL_COOLDOWN):
-            return
-        self._last_detail_sym  = symbol
-        self._last_detail_time = now
+        with self._lock:
+            if (symbol == self._last_detail_sym
+                    and now - self._last_detail_time < _DETAIL_COOLDOWN):
+                return
+            self._last_detail_sym  = symbol
+            self._last_detail_time = now
         if self._ws_klines is not None:
             self._ws_klines.set_symbol(symbol)
         threading.Thread(target=self._refresh_detail, args=(symbol,), daemon=True).start()
@@ -483,12 +485,13 @@ class MiddleDataManager:
 
     def _on_kline_closed(self, symbol: str, tf: str) -> None:
         """WebSocket klines 봉 마감 감지 콜백 — 쿨다운 없이 즉시 상세 갱신."""
-        if symbol != self._last_detail_sym:
-            return
-        now = time.time()
-        if now - self._last_detail_time < 2.0:   # 동일 봉 중복 트리거 방지 (2초)
-            return
-        self._last_detail_time = now
+        with self._lock:
+            if symbol != self._last_detail_sym:
+                return
+            now = time.time()
+            if now - self._last_detail_time < 2.0:   # 동일 봉 중복 트리거 방지 (2초)
+                return
+            self._last_detail_time = now
         threading.Thread(target=self._refresh_detail, args=(symbol,), daemon=True).start()
 
     def _refresh_tickers(self) -> None:
