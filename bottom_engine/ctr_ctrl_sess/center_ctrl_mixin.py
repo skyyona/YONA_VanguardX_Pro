@@ -445,7 +445,7 @@ class CenterCtrlMixin:
             else:                           self._update_position_indicator(None)
 
     def _poll_center(self) -> None:
-        """2초 주기 중앙 컨트롤 세션 폴링 루프."""
+        """0.5초 주기 중앙 컨트롤 세션 폴링 루프."""
         if not self._center_running:
             return
         try:
@@ -459,7 +459,7 @@ class CenterCtrlMixin:
         except Exception:
             pass
         try:
-            self.after(2000, self._poll_center)
+            self.after(500, self._poll_center)
         except Exception:
             pass
 

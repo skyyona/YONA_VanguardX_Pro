@@ -33,6 +33,7 @@ _KLINES_TFS      = ("1m", "3m", "5m", "15m", "1h", "4h", "1d")
 from middle.api.binance_client import MiddleBinanceClient
 from middle.data.ticker_data import TickerData
 from middle.data.websocket_ticker import WebSocketTicker
+from middle.data.websocket_klines import WebSocketKlines
 from middle.data.ohlcv_data import OHLCVData
 from middle.data.funding_rate_data import FundingRateFetcher
 from middle.data.open_interest_data import OpenInterestFetcher
@@ -129,6 +130,8 @@ class MiddleDataManager:
         self._lock = threading.Lock()
         # WebSocket 실시간 ticker (1초 Push)
         self._ws_ticker: WebSocketTicker | None = None
+        # WebSocket klines — 선택 심볼 봉 마감 즉시 감지
+        self._ws_klines: WebSocketKlines | None = None
         self._ws_update_count: int = 0   # rebuild_ranking_rows 주기 카운터
         self._running: bool = False      # auto_refresh_loop 실행 여부
         self._last_refresh_error:      str   = ""
@@ -143,6 +146,7 @@ class MiddleDataManager:
         self._running = True
         self._ws_ticker = WebSocketTicker(on_update=self._on_ws_ticker_update)
         self._ws_ticker.start()
+        self._ws_klines = WebSocketKlines(on_closed=self._on_kline_closed)
         threading.Thread(target=self._auto_refresh_loop, daemon=True).start()
 
     def stop_auto_refresh(self) -> None:
@@ -154,6 +158,12 @@ class MiddleDataManager:
             except Exception:
                 pass
             self._ws_ticker = None
+        if self._ws_klines is not None:
+            try:
+                self._ws_klines.stop()
+            except Exception:
+                pass
+            self._ws_klines = None
         # 캐시 초기화 — STOP 후 재START 시 신선한 데이터
         with self._lock:
             self._tickers.clear()
@@ -172,6 +182,8 @@ class MiddleDataManager:
             return
         self._last_detail_sym  = symbol
         self._last_detail_time = now
+        if self._ws_klines is not None:
+            self._ws_klines.set_symbol(symbol)
         threading.Thread(target=self._refresh_detail, args=(symbol,), daemon=True).start()
 
     def get_ind(self, symbol: str) -> dict:
@@ -468,6 +480,16 @@ class MiddleDataManager:
                 cb()
             except Exception:
                 pass
+
+    def _on_kline_closed(self, symbol: str, tf: str) -> None:
+        """WebSocket klines 봉 마감 감지 콜백 — 쿨다운 없이 즉시 상세 갱신."""
+        if symbol != self._last_detail_sym:
+            return
+        now = time.time()
+        if now - self._last_detail_time < 2.0:   # 동일 봉 중복 트리거 방지 (2초)
+            return
+        self._last_detail_time = now
+        threading.Thread(target=self._refresh_detail, args=(symbol,), daemon=True).start()
 
     def _refresh_tickers(self) -> None:
         try:
