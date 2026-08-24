@@ -68,7 +68,8 @@
       "short_accum": false,
       "short_long_open": true
     },
-    "use_macro": true
+    "use_macro": true,
+    "consensus_mode": "4/4"
   },
   "4TF Optimization": {
     "funds_pct": 100,
@@ -103,6 +104,7 @@
       "short_accum": true,
       "short_long_open": true
     },
-    "use_macro": true
+    "use_macro": true,
+    "consensus_mode": "4/4"
   }
 }
