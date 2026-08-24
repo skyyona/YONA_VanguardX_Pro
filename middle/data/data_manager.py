@@ -294,6 +294,18 @@ class MiddleDataManager:
             # ── STAGE3: 60초마다 klines 갱신 ─────────────────
             if _elapsed % _STAGE3_INTERVAL == 0:
                 threading.Thread(target=self._refresh_topn_klines, args=(100,), daemon=True).start()
+                # WS klines 미수신 시 선택 심볼 지표 고착 방지 (엔진 정지 상태 대응)
+                if self._ws_klines is None or not self._ws_klines.has_received_data:
+                    with self._lock:
+                        _fallback_sym = self._last_detail_sym
+                    if _fallback_sym:
+                        _ws_err = (self._ws_klines.last_error
+                                   if self._ws_klines is not None else "")
+                        if _ws_err:
+                            with self._lock:
+                                self._last_refresh_error      = _ws_err
+                                self._last_refresh_error_time = time.time()
+                        self.request_selected(_fallback_sym)
 
             # ── 카운터 리셋 (1시간 기준) + onboard_map 갱신 ──
             if _elapsed >= 3600:
