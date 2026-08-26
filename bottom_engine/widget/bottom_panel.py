@@ -1141,8 +1141,10 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
         sym = self._shared_sym.get()
         ind = get_ind(sym) if sym else {}
 
-        _state  = self._engine.get_state() if self._engine else None
-        err_msg = (_state.error_msg or "") if _state else ""
+        _state    = self._engine.get_state() if self._engine else None
+        err_msg   = (_state.error_msg        or "") if _state else ""
+        blk_long  = (_state.last_blocked_long  or "") if _state else ""
+        blk_short = (_state.last_blocked_short or "") if _state else ""
 
         if not self._trading_active or not sym:
             trading_on = False
@@ -1166,14 +1168,15 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             if _state is not None:
                 pos = _state.long_pos if side == "long" else _state.short_pos
             try:
-                self._refresh_engine_panel(panel, side, trading_on, direction, ind, pos, err_msg)
+                blk = blk_long if side == "long" else blk_short
+                self._refresh_engine_panel(panel, side, trading_on, direction, ind, pos, err_msg, blk)
             except tk.TclError:
                 pass
 
     def _refresh_engine_panel(self, panel: dict, side: str,
                               trading_on: bool, direction: str | None,
                               ind: dict,
-                              pos=None, err: str = "") -> None:
+                              pos=None, err: str = "", blk: str = "") -> None:
         """개별 엔진 패널 위젯 갱신."""
         tf1    = ind.get("tf1", {})
         k1, d1 = tf1.get("k", 50.0), tf1.get("d", 50.0)
@@ -1308,7 +1311,8 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             else:
                 _sl, _slc = f"{_tf_str}  |  진입 신호 탐색", YELLOW
             _dot = "●";  _dc = POSITIVE if side == "long" else NEGATIVE
-            if   k1 < 20:  _pt, _pc = "1m 과매도 진입 신호 대기 중", POSITIVE
+            if   blk:      _pt, _pc = blk,                             YELLOW
+            elif k1 < 20:  _pt, _pc = "1m 과매도 진입 신호 대기 중", POSITIVE
             elif k1 > 80:  _pt, _pc = "1m 과매수  —  진입 보류",     YELLOW
             else:          _pt, _pc = f"1m K {k1:.0f}  D {d1:.0f}  —  신호 탐색 중", ACCENT_BLUE
 
@@ -1327,7 +1331,7 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             _st  = "⏸  4TF 합의 대기  —  엔진 대기 중";  _sc  = DIM_TEXT
             _sl  = "4TF 방향 미확정  |  진입 신호 대기";  _slc = DIM_TEXT
             _dot, _dc = "○", DIM_TEXT
-            _pt, _pc  = "4TF 합의 대기 중", DIM_TEXT
+            _pt, _pc  = (blk, YELLOW) if blk else ("4TF 합의 대기 중", DIM_TEXT)
 
         # ── 에러 오버레이 (포지션 없을 때 항상, 비활성 시 강조 표시) ─
         if err and not pos_open and not pos_closed:
