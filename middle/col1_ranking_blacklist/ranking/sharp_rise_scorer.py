@@ -45,7 +45,7 @@ class SharpRiseScorer:
         s_vss = 2 if vss > 1.5 else 1 if vss > 1.2 else 0
 
         return {
-            "qualified": sr >= 50.0,
+            "qualified": (fr < -0.01) or (sr >= 40.0),
             "sr": sr, "fr": fr, "liq_s": liq_s, "oi": oi, "vss": vss,
             "has_rise_tag": has_rise_tag,
             "scores": {"sr": s_sr, "fr": s_fr, "liq": s_liq, "oi": s_oi,

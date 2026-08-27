@@ -19,6 +19,7 @@ from bottom_engine.models import (
 from bottom_engine.engine_core.risk_manager import RiskManager, MAX_PORTFOLIO_LOSS_PCT, MAX_DAILY_LOSS_PCT
 from bottom_engine.engine_core.daily_loss_tracker import DailyLossTracker
 from bottom_engine.engine_core.sl_calculator import SLCalculator
+from bottom_engine.engine_core.quality_grader import QualityGrader
 from bottom_engine.long_engine.long_condition import LongCondition
 from bottom_engine.long_engine.long_order import LongOrder
 from bottom_engine.long_engine.long_position import LongPosition
@@ -26,6 +27,7 @@ from bottom_engine.short_engine.short_condition import ShortCondition
 from bottom_engine.short_engine.short_order import ShortOrder
 from bottom_engine.short_engine.short_position import ShortPosition
 
+_PROFIT_TRIGGER_PCT = 1.0  # Phase3 진입 후 trail 활성화까지 추가 수익 임계값 (%)
 SL_INTERVAL_SEC  = 1   # SL/Trailing 체크 주기 — 포지션 보유 중
 _DATA_SETTLE_SEC = 2   # 봉 마감 후 API 갱신 완료 대기 (초) — 7TF 병렬화 후 실측 1초 내외
 _BALANCE_TTL_SEC    = 30  # 잔고 캐시 유효 시간 (초)
@@ -88,6 +90,8 @@ class TradingEngine:
         # Trailing Stop 배치 완료 플래그 — Phase3 trailing 재시도 제어
         self._trailing_placed_long:  bool = False
         self._trailing_placed_short: bool = False
+        # Phase3 profit-trigger — trail 지연 발동 기준가 (0.0 = 미사용)
+        self._profit_trigger_price_long: float = 0.0
         # 연속 손실 쿨다운 — [B] 연속 손절 차단
         self._consecutive_losses:  int   = 0
         self._loss_cooldown_until: float = 0.0
@@ -117,6 +121,7 @@ class TradingEngine:
         self._sl_order_id_short = ""
         self._trailing_placed_long  = False
         self._trailing_placed_short = False
+        self._profit_trigger_price_long = 0.0
         # 레버리지 — 심볼·값 변경 시 Binance에 즉시 반영
         lev = params.leverage
         if symbol and (symbol != self._last_leverage_sym or lev != self._last_leverage_val):
@@ -475,45 +480,34 @@ class TradingEngine:
                                 self._beep((659, 100), (880, 180))
                                 self._update_binance_sl_long(updated.entry_price, mark)
                             elif updated.phase == 3 and not updated.partial_closed and not updated.partial_in_progress:
-                                # Phase2 → Phase3: 50% 부분 청산 후 trailing stop 등록
+                                # Phase2 → Phase3: 50% 부분 청산 + profit-trigger 기준가 설정 (trail 지연)
                                 self._beep((523, 80), (659, 80), (784, 80), (1047, 180))
                                 self._partial_close_long(mark)
-                                with self._lock:
-                                    lp_now = self._state.long_pos
-                                remaining = (lp_now.quantity
-                                             if lp_now and lp_now.state == PositionState.OPEN
-                                             else 0.0)
-                                if remaining > 0:
-                                    sym = self._state.symbol
-                                    oid = self._client.place_trailing_stop(
-                                        sym, "SELL", updated.trail_stop_pct, remaining)
-                                    if oid:
-                                        if self._sl_order_id_long:
-                                            self._client.cancel_order(sym, self._sl_order_id_long)
-                                        self._sl_order_id_long = oid
-                                        self._trailing_placed_long = True
-                                    else:
-                                        with self._lock:
-                                            self._state.error_msg = "[경보] 롱 Trailing Stop 등록 실패 — Binance 연결 확인 필요"
+                                self._profit_trigger_price_long = round(
+                                    mark * (1 + _PROFIT_TRIGGER_PCT / 100), 8)
                             elif updated.phase == 3 and updated.partial_closed and not self._trailing_placed_long:
-                                # Phase3 trailing 재시도 — 이전 루프에서 배치 실패한 경우
-                                with self._lock:
-                                    lp_now = self._state.long_pos
-                                remaining = (lp_now.quantity
-                                             if lp_now and lp_now.state == PositionState.OPEN
-                                             else 0.0)
-                                if remaining > 0:
-                                    sym = self._state.symbol
-                                    oid = self._client.place_trailing_stop(
-                                        sym, "SELL", updated.trail_stop_pct, remaining)
-                                    if oid:
-                                        if self._sl_order_id_long:
-                                            self._client.cancel_order(sym, self._sl_order_id_long)
-                                        self._sl_order_id_long = oid
-                                        self._trailing_placed_long = True
-                                    else:
-                                        with self._lock:
-                                            self._state.error_msg = "[경보] 롱 Trailing Stop 재시도 실패 — Binance 연결 확인 필요"
+                                # Phase3 Trailing — profit-trigger 기준가 도달 시 등록
+                                if self._profit_trigger_price_long > 0 and mark < self._profit_trigger_price_long:
+                                    pass  # 트리거가격 미달 — BEP SL 유지
+                                else:
+                                    with self._lock:
+                                        lp_now = self._state.long_pos
+                                    remaining = (lp_now.quantity
+                                                 if lp_now and lp_now.state == PositionState.OPEN
+                                                 else 0.0)
+                                    if remaining > 0:
+                                        sym = self._state.symbol
+                                        oid = self._client.place_trailing_stop(
+                                            sym, "SELL", updated.trail_stop_pct, remaining)
+                                        if oid:
+                                            if self._sl_order_id_long:
+                                                self._client.cancel_order(sym, self._sl_order_id_long)
+                                            self._sl_order_id_long = oid
+                                            self._trailing_placed_long = True
+                                            self._profit_trigger_price_long = 0.0
+                                        else:
+                                            with self._lock:
+                                                self._state.error_msg = "[경보] 롱 Trailing Stop 등록 실패 — Binance 연결 확인 필요"
                             # KD 역전 익절 — 롱 (Phase3 전용, 과매수 구간 하향 이탈)
                             if _ind_kd and updated.phase == 3 and not RiskManager.should_stop_loss(updated, mark):
                                 _tf1 = _ind_kd.get("tf1", {})
@@ -758,11 +752,15 @@ class TradingEngine:
         qty     = RiskManager.calc_position_size(self._params, mark, balance,
                                                  qty_precision=prec)
         qty = self._client.floor_qty(self._state.symbol, qty)
-        # [C-2] R-cap 사전 계산 — 사용자 설정 SL에 liq_safe 상한 적용 후 무조건 적용
-        _mmr          = self._client.get_mmr(self._state.symbol)
-        _sl_used, _trail_used = SLCalculator.clamp(
-            self._params.stop_loss, self._params.trail_stop,
-            self._params.leverage, mmr=_mmr)
+        # [C-2] R-cap 사전 계산 — ATR 기반 자동 계산, 유효하지 않으면 사용자 설정 fallback
+        _mmr              = self._client.get_mmr(self._state.symbol)
+        _atr              = float(ind.get("atr_pct", 0.0)) if ind else 0.0
+        _grade, _         = QualityGrader.grade(ind, "long") if ind else ("B", 0)
+        _sl_used, _trail_used = SLCalculator.compute(_atr, _grade, self._params.leverage, mmr=_mmr)
+        if _sl_used == 0.0:
+            _sl_used, _trail_used = SLCalculator.clamp(
+                self._params.stop_loss, self._params.trail_stop,
+                self._params.leverage, mmr=_mmr)
         qty = RiskManager.apply_r_cap(qty, mark, _sl_used, balance)
         qty = self._client.floor_qty(self._state.symbol, qty)
         if qty <= 0:
@@ -777,8 +775,8 @@ class TradingEngine:
             return False
         result = LongOrder.execute(self._client, self._state.symbol, qty, self._params, mark)
         if not result.success:
-            _err = result.error or ""
-            _sym = self._state.symbol
+            _err  = result.error or ""
+            _sym  = self._state.symbol
             _no_retry = ("Rate Limited" in _err or "418" in _err or
                          "[-2010]" in _err or "[-1111]" in _err or "[-1003]" in _err)
             if not _no_retry:
