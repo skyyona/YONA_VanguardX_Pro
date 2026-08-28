@@ -282,6 +282,8 @@ class TradingEngine:
                         "SL 주문 복구 불가, 네트워크 확인 후 재시작")
                 self._state.running = False
                 return False
+            _trailing_oid_long: str = ""
+            _stop_oid_long:     str = ""
             for o in _open_orders:
                 otype = o.get("type", "")
                 if otype not in ("STOP_MARKET", "TRAILING_STOP_MARKET"):
@@ -290,10 +292,14 @@ class TradingEngine:
                 side = o.get("side", "")
                 if not oid:
                     continue
-                if side == "SELL" and not self._sl_order_id_long:
-                    self._sl_order_id_long  = oid
+                if side == "SELL":
+                    if otype == "TRAILING_STOP_MARKET" and not _trailing_oid_long:
+                        _trailing_oid_long = oid
+                    elif otype == "STOP_MARKET" and not _stop_oid_long:
+                        _stop_oid_long = oid
                 elif side == "BUY" and not self._sl_order_id_short:
                     self._sl_order_id_short = oid
+            self._sl_order_id_long = _trailing_oid_long or _stop_oid_long
         # 실제 Binance 포지션 동기화 — 진입 체결 후 SL 등록 전 크래시 시나리오 복구
         if sym and self._params:
             try:
@@ -307,14 +313,21 @@ class TradingEngine:
                         self._params.stop_loss, self._params.trail_stop,
                         self._params.leverage, mmr=_rec_mmr)
                     if pos_amt > 0.0 and entry_price > 0.0:
+                        _phase3_recovery = bool(_trailing_oid_long)
                         with self._lock:
                             lp = self._state.long_pos
                             if lp is None or lp.state != PositionState.OPEN:
                                 recovered = LongPosition.open(
                                     sym, entry_price, pos_amt, self._params,
                                     sl_pct=_rec_sl, trail_pct=_rec_trail)
-                                recovered.phase = 1
+                                if _phase3_recovery:
+                                    recovered.phase          = 3
+                                    recovered.partial_closed = True
+                                else:
+                                    recovered.phase = 1
                                 self._state.long_pos = recovered
+                        if _phase3_recovery:
+                            self._trailing_placed_long = True
                         if not self._sl_order_id_long:
                             with self._lock:
                                 lp_now = self._state.long_pos
