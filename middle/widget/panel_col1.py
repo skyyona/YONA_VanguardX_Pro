@@ -583,7 +583,7 @@ class _Col1Mixin:
                     # 자격 미달 — 별점 산정 대상이 아님을 명시
                     _stars, _star_col = "—", DIM_TEXT
                     if self._sort_mode == "Sharp rise":
-                        _sq_txt = f"⚠ 자격 미달 (숏쏠림 {_res['sr']:.0f}%<50%)"
+                        _sq_txt = f"⚠ 자격 미달 (SR {_res['sr']:.0f}%<40% & FR 미달)"
                     else:
                         _sq_txt = f"⚠ 자격 미달 (롱쏠림 {_res['lr']:.0f}%<50%)"
                     _sq_col = DIM_TEXT

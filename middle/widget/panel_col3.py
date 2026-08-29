@@ -552,7 +552,7 @@ class _Col3Mixin:
             ctx_f = tk.Frame(self._verdict_f, bg=DARK_PANEL)
             ctx_f.pack(fill="x", padx=10, pady=(2, 1))
             if not res["qualified"]:
-                tk.Label(ctx_f, text=f"⚠ Sharp rise 자격 미달 (숏쏠림 {res['sr']:.0f}% < 50%) — 참고용 분석",
+                tk.Label(ctx_f, text=f"⚠ Sharp rise 자격 미달 (SR {res['sr']:.0f}%<40% & FR 미달) — 참고용 분석",
                          bg=DARK_PANEL, fg=ORANGE,
                          font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
             else:

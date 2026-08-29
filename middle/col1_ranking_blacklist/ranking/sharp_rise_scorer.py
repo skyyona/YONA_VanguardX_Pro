@@ -1,7 +1,7 @@
 """
 middle/col1_ranking_blacklist/ranking/sharp_rise_scorer.py
 Sharp rise Sort by — 급등 직전 숏 쏠림 심볼 스코어링
-자격 조건: 숏쏠림(sr) ≥ 50%
+자격 조건: FR<-0.01% OR 숏쏠림(sr) ≥ 40%
 6개 항목: 숏쏠림(0~4) + FR(0~3) + 숏청산근접(0~3) + OI(0~2) + Player태그(0~2) + VSS(0~2)
 """
 from __future__ import annotations
@@ -56,7 +56,7 @@ class SharpRiseScorer:
 
     @classmethod
     def get_sorted(cls, data: list, limit: int = 20) -> list:
-        """숏쏠림≥50% 자격 + 점수≥4 필터 → 상위 N개."""
+        """FR<-0.01 or SR≥40% 자격 + 점수≥4 필터 → 상위 N개."""
         tag_map = {d[0]: d[11] for d in _live_ranking()}
         scored = [(r, cls.calc_score(r[0], tag_map)) for r in data]
         scored.sort(key=lambda x: (999, -x[1]["vss"]) if not x[1]["qualified"]
