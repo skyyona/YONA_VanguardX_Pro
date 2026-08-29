@@ -99,7 +99,9 @@ class LongCondition:
         if cfg.macro_ema:
             e5  = float(ind_data.get("e5",  0.0))
             e50 = float(ind_data.get("e50", 0.0))
-            if e50 > 0 and e5 <= e50:
+            if e50 <= 0.0:
+                return False, f"EMA50 미수신 — G6 데이터 대기 중, {params.sort_mode} 롱 보류"
+            if e5 <= e50:
                 return False, (
                     f"EMA5({e5:.4f}) ≤ EMA50({e50:.4f}) "
                     f"— 거시 하락 추세, {params.sort_mode} 롱 보류"
