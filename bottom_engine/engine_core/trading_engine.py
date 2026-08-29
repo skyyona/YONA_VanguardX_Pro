@@ -1099,7 +1099,8 @@ class TradingEngine:
             if self._sl_order_id_long:
                 self._client.cancel_order(self._state.symbol, self._sl_order_id_long)
                 self._sl_order_id_long = ""
-            self._trailing_placed_long = False
+            self._trailing_placed_long      = False
+            self._profit_trigger_price_long = 0.0
             # [B] 연속 손실 카운터 갱신 — 문자열이 아니라 실현 손익 기준 판정
             #     (Phase2 BEP 스탑 청산이 손절로 오분류되는 문제 수정)
             with self._lock:
@@ -1134,7 +1135,8 @@ class TradingEngine:
                         self._state.last_signal = "롱 청산(Binance SL 발동)"
                     self._invalidate_balance()
                     self._sl_order_id_long = ""
-                    self._trailing_placed_long = False
+                    self._trailing_placed_long      = False
+                    self._profit_trigger_price_long = 0.0
                     # [B] Binance SL 발동 — mark vs entry로 손절 여부 판단
                     if mark > 0 and lp.entry_price > 0 and mark < lp.entry_price:
                         self._consecutive_losses += 1
