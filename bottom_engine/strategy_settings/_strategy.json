@@ -104,7 +104,7 @@
       "short_accum": true,
       "short_long_open": true
     },
-    "use_macro": true,
+    "use_macro": false,
     "consensus_mode": "4/4"
   }
 }
