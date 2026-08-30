@@ -91,7 +91,8 @@ class TradingEngine:
         self._trailing_placed_long:  bool = False
         self._trailing_placed_short: bool = False
         # Phase3 profit-trigger — trail 지연 발동 기준가 (0.0 = 미사용)
-        self._profit_trigger_price_long: float = 0.0
+        self._profit_trigger_price_long:  float = 0.0
+        self._profit_trigger_price_short: float = 0.0
         # 연속 손실 쿨다운 — [B] 연속 손절 차단
         self._consecutive_losses:  int   = 0
         self._loss_cooldown_until: float = 0.0
@@ -121,7 +122,8 @@ class TradingEngine:
         self._sl_order_id_short = ""
         self._trailing_placed_long  = False
         self._trailing_placed_short = False
-        self._profit_trigger_price_long = 0.0
+        self._profit_trigger_price_long  = 0.0
+        self._profit_trigger_price_short = 0.0
         # 레버리지 — 심볼·값 변경 시 Binance에 즉시 반영
         lev = params.leverage
         if symbol and (symbol != self._last_leverage_sym or lev != self._last_leverage_val):
@@ -282,8 +284,10 @@ class TradingEngine:
                         "SL 주문 복구 불가, 네트워크 확인 후 재시작")
                 self._state.running = False
                 return False
-            _trailing_oid_long: str = ""
-            _stop_oid_long:     str = ""
+            _trailing_oid_long:  str = ""
+            _stop_oid_long:      str = ""
+            _trailing_oid_short: str = ""
+            _stop_oid_short:     str = ""
             for o in _open_orders:
                 otype = o.get("type", "")
                 if otype not in ("STOP_MARKET", "TRAILING_STOP_MARKET"):
@@ -297,9 +301,13 @@ class TradingEngine:
                         _trailing_oid_long = oid
                     elif otype == "STOP_MARKET" and not _stop_oid_long:
                         _stop_oid_long = oid
-                elif side == "BUY" and not self._sl_order_id_short:
-                    self._sl_order_id_short = oid
-            self._sl_order_id_long = _trailing_oid_long or _stop_oid_long
+                elif side == "BUY":
+                    if otype == "TRAILING_STOP_MARKET" and not _trailing_oid_short:
+                        _trailing_oid_short = oid
+                    elif otype == "STOP_MARKET" and not _stop_oid_short:
+                        _stop_oid_short = oid
+            self._sl_order_id_long  = _trailing_oid_long or _stop_oid_long
+            self._sl_order_id_short = _stop_oid_short or _trailing_oid_short
         # 실제 Binance 포지션 동기화 — 진입 체결 후 SL 등록 전 크래시 시나리오 복구
         if sym and self._params:
             try:
@@ -339,14 +347,21 @@ class TradingEngine:
                                     oid = self._client.place_stop_market(sym, "SELL", sl_price)
                                     self._sl_order_id_long = oid
                     elif pos_amt < 0.0 and entry_price > 0.0:
+                        _phase3_recovery_short = bool(_trailing_oid_short)
                         with self._lock:
                             sp = self._state.short_pos
                             if sp is None or sp.state != PositionState.OPEN:
                                 recovered = ShortPosition.open(
                                     sym, entry_price, abs(pos_amt), self._params,
                                     sl_pct=_rec_sl, trail_pct=_rec_trail)
-                                recovered.phase = 1
+                                if _phase3_recovery_short:
+                                    recovered.phase          = 3
+                                    recovered.partial_closed = True
+                                else:
+                                    recovered.phase = 1
                                 self._state.short_pos = recovered
+                        if _phase3_recovery_short:
+                            self._trailing_placed_short = True
                         if not self._sl_order_id_short:
                             with self._lock:
                                 sp_now = self._state.short_pos
@@ -542,45 +557,34 @@ class TradingEngine:
                                 self._beep((659, 100), (880, 180))
                                 self._update_binance_sl_short(updated.entry_price, mark)
                             elif updated.phase == 3 and not updated.partial_closed and not updated.partial_in_progress:
-                                # Phase2 → Phase3: 50% 부분 청산 후 trailing stop 등록
+                                # Phase2 → Phase3: 50% 부분 청산 + profit-trigger 기준가 설정 (trail 지연)
                                 self._beep((523, 80), (659, 80), (784, 80), (1047, 180))
                                 self._partial_close_short(mark)
-                                with self._lock:
-                                    sp_now = self._state.short_pos
-                                remaining = (sp_now.quantity
-                                             if sp_now and sp_now.state == PositionState.OPEN
-                                             else 0.0)
-                                if remaining > 0:
-                                    sym = self._state.symbol
-                                    oid = self._client.place_trailing_stop(
-                                        sym, "BUY", updated.trail_stop_pct, remaining)
-                                    if oid:
-                                        if self._sl_order_id_short:
-                                            self._client.cancel_order(sym, self._sl_order_id_short)
-                                        self._sl_order_id_short = oid
-                                        self._trailing_placed_short = True
-                                    else:
-                                        with self._lock:
-                                            self._state.error_msg = "[경보] 숏 Trailing Stop 등록 실패 — Binance 연결 확인 필요"
+                                self._profit_trigger_price_short = round(
+                                    mark * (1 - _PROFIT_TRIGGER_PCT / 100), 8)
                             elif updated.phase == 3 and updated.partial_closed and not self._trailing_placed_short:
-                                # Phase3 trailing 재시도 — 이전 루프에서 배치 실패한 경우
-                                with self._lock:
-                                    sp_now = self._state.short_pos
-                                remaining = (sp_now.quantity
-                                             if sp_now and sp_now.state == PositionState.OPEN
-                                             else 0.0)
-                                if remaining > 0:
-                                    sym = self._state.symbol
-                                    oid = self._client.place_trailing_stop(
-                                        sym, "BUY", updated.trail_stop_pct, remaining)
-                                    if oid:
-                                        if self._sl_order_id_short:
-                                            self._client.cancel_order(sym, self._sl_order_id_short)
-                                        self._sl_order_id_short = oid
-                                        self._trailing_placed_short = True
-                                    else:
-                                        with self._lock:
-                                            self._state.error_msg = "[경보] 숏 Trailing Stop 재시도 실패 — Binance 연결 확인 필요"
+                                # Phase3 Trailing — profit-trigger 기준가 도달 시 등록
+                                if self._profit_trigger_price_short > 0 and mark > self._profit_trigger_price_short:
+                                    pass  # 트리거가격 미달 — BEP SL 유지
+                                else:
+                                    with self._lock:
+                                        sp_now = self._state.short_pos
+                                    remaining = (sp_now.quantity
+                                                 if sp_now and sp_now.state == PositionState.OPEN
+                                                 else 0.0)
+                                    if remaining > 0:
+                                        sym = self._state.symbol
+                                        oid = self._client.place_trailing_stop(
+                                            sym, "BUY", updated.trail_stop_pct, remaining)
+                                        if oid:
+                                            if self._sl_order_id_short:
+                                                self._client.cancel_order(sym, self._sl_order_id_short)
+                                            self._sl_order_id_short = oid
+                                            self._trailing_placed_short = True
+                                            self._profit_trigger_price_short = 0.0
+                                        else:
+                                            with self._lock:
+                                                self._state.error_msg = "[경보] 숏 Trailing Stop 등록 실패 — Binance 연결 확인 필요"
                             # KD 역전 익절 — 숏 (Phase3 전용, 과매도 구간 상향 돌파)
                             if _ind_kd and updated.phase == 3 and not RiskManager.should_stop_loss(updated, mark):
                                 _tf1 = _ind_kd.get("tf1", {})
@@ -1172,7 +1176,8 @@ class TradingEngine:
             if self._sl_order_id_short:
                 self._client.cancel_order(self._state.symbol, self._sl_order_id_short)
                 self._sl_order_id_short = ""
-            self._trailing_placed_short = False
+            self._trailing_placed_short      = False
+            self._profit_trigger_price_short = 0.0
             # [B] 연속 손실 카운터 갱신 — 문자열이 아니라 실현 손익 기준 판정
             #     (Phase2 BEP 스탑 청산이 손절로 오분류되는 문제 수정)
             with self._lock:
@@ -1206,8 +1211,9 @@ class TradingEngine:
                             sp, exit_price=mark, exit_reason="Binance SL 발동")
                         self._state.last_signal = "숏 청산(Binance SL 발동)"
                     self._invalidate_balance()
-                    self._sl_order_id_short = ""
-                    self._trailing_placed_short = False
+                    self._sl_order_id_short          = ""
+                    self._trailing_placed_short      = False
+                    self._profit_trigger_price_short = 0.0
                     # [B] Binance SL 발동 — mark vs entry로 손절 여부 판단
                     if mark > 0 and sp.entry_price > 0 and mark > sp.entry_price:
                         self._consecutive_losses += 1
