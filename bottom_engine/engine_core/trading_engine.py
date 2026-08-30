@@ -37,6 +37,7 @@ _BALANCE_TTL_SEC    = 30  # 잔고 캐시 유효 시간 (초)
 _MAX_CONSECUTIVE_LOSSES = 3    # N연패 시 쿨다운 진입
 _LOSS_COOLDOWN_SEC      = 300  # 쿨다운 지속 시간 (초) — 5분
 _POS_SYNC_INTERVAL_SEC  = 10   # Binance 실제 포지션 동기화 주기 (초) — 외부 강제 청산 감지
+_SLIPPAGE_WARN_PCT      = 2.0  # 진입 슬리피지 경고 임계값 (%) — 체결가 vs 마크가 괴리
 
 
 @dataclass
@@ -856,6 +857,16 @@ class TradingEngine:
                             result = LongOrder.execute(
                                 self._client, _sym, qty, self._params, mark)
         if result.success:
+            _slip_pct = (
+                (result.fill_price - mark) / mark * 100.0
+                if mark > 0 and result.fill_price > 0 else 0.0
+            )
+            if _slip_pct > _SLIPPAGE_WARN_PCT:
+                with self._lock:
+                    self._state.error_msg = (
+                        f"[경보] 롱 진입 슬리피지 {_slip_pct:.2f}% — "
+                        f"체결가 {result.fill_price:.6f} vs 마크가 {mark:.6f}"
+                    )
             pos = LongPosition.open(
                 self._state.symbol, result.fill_price, result.quantity,
                 self._params,
