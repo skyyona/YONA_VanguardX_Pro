@@ -559,7 +559,8 @@ class TradingEngine:
                                 _tf1 = _ind_kd.get("tf1", {})
                                 _k1m = float(_tf1.get("k", 50.0))
                                 _d1m = float(_tf1.get("d", 50.0))
-                                if _k1m > 80.0 and _k1m < _d1m and (_d1m - _k1m) >= 2.0:
+                                _kd_spread = 5.0 if self._params.sort_mode == "Newly Listed" else 2.0
+                                if _k1m > 80.0 and _k1m < _d1m and (_d1m - _k1m) >= _kd_spread:
                                     self._close_long("KD 역전 익절", mark)
                             if RiskManager.should_stop_loss(updated, mark):
                                 self._close_long("SL 도달", mark)
@@ -610,7 +611,8 @@ class TradingEngine:
                                 _tf1 = _ind_kd.get("tf1", {})
                                 _k1m = float(_tf1.get("k", 50.0))
                                 _d1m = float(_tf1.get("d", 50.0))
-                                if _k1m < 20.0 and _k1m > _d1m and (_k1m - _d1m) >= 2.0:
+                                _kd_spread = 5.0 if self._params.sort_mode == "Newly Listed" else 2.0
+                                if _k1m < 20.0 and _k1m > _d1m and (_k1m - _d1m) >= _kd_spread:
                                     self._close_short("KD 역전 익절", mark)
                             if RiskManager.should_stop_loss(updated, mark):
                                 self._close_short("SL 도달", mark)
