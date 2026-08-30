@@ -29,7 +29,7 @@
       "common_hunter": false,
       "long_fomo": false,
       "long_short_open": true,
-      "short_accum": false,
+      "short_accum": true,
       "short_long_open": true
     },
     "use_macro": true,
