@@ -48,7 +48,7 @@ class ProhibitionFilter:
         if flags.common_liq:
             liq_l    = ind_data.get("liq_long_pct",  -99.0)
             liq_s    = ind_data.get("liq_short_pct", +99.0)
-            liq_safe = min(sl_used, _LIQ_GAUGE_MAX * 0.95)  # 진입 허용 최소 청산 거리 상한값 (sl_used=3.3% 기준 → 3.3%, 빈도 아님)
+            liq_safe = min(sl_used, _LIQ_GAUGE_MAX * 0.95)  # 진입 허용 최소 청산 거리 상한값 (sl_used=2.4% 기준 → 2.4%, 빈도 아님)
             if side == PositionSide.LONG and abs(liq_l) < liq_safe:
                 return FilterResult(True, f"롱 청산가 근접도 {abs(liq_l):.2f}% < liq_safe {liq_safe:.2f}% — 롱 진입 금지")
             if side == PositionSide.SHORT and abs(liq_s) < liq_safe:
