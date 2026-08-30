@@ -7,6 +7,8 @@ bottom/engine_core/trading_engine.py
 """
 from __future__ import annotations
 
+import json
+import pathlib
 import threading
 import time
 import winsound
@@ -28,6 +30,7 @@ from bottom_engine.short_engine.short_order import ShortOrder
 from bottom_engine.short_engine.short_position import ShortPosition
 
 _PROFIT_TRIGGER_PCT = 1.0  # Phase3 진입 후 trail 활성화까지 추가 수익 임계값 (%)
+_ENGINE_DIR = pathlib.Path(__file__).parent  # Phase3 상태 파일 저장 디렉터리
 SL_INTERVAL_SEC  = 1   # SL/Trailing 체크 주기 — 포지션 보유 중
 _DATA_SETTLE_SEC = 2   # 봉 마감 후 API 갱신 완료 대기 (초) — 7TF 병렬화 후 실측 1초 내외
 _BALANCE_TTL_SEC    = 30  # 잔고 캐시 유효 시간 (초)
@@ -124,6 +127,8 @@ class TradingEngine:
         self._trailing_placed_short = False
         self._profit_trigger_price_long  = 0.0
         self._profit_trigger_price_short = 0.0
+        self._clear_p3_state("long")
+        self._clear_p3_state("short")
         # 레버리지 — 심볼·값 변경 시 Binance에 즉시 반영
         lev = params.leverage
         if symbol and (symbol != self._last_leverage_sym or lev != self._last_leverage_val):
@@ -321,7 +326,9 @@ class TradingEngine:
                         self._params.stop_loss, self._params.trail_stop,
                         self._params.leverage, mmr=_rec_mmr)
                     if pos_amt > 0.0 and entry_price > 0.0:
-                        _phase3_recovery = bool(_trailing_oid_long)
+                        _p3_trailing = bool(_trailing_oid_long)
+                        _p3_pre_trail = (not _trailing_oid_long) and self._has_p3_state("long")
+                        _phase3_recovery = _p3_trailing or _p3_pre_trail
                         with self._lock:
                             lp = self._state.long_pos
                             if lp is None or lp.state != PositionState.OPEN:
@@ -334,8 +341,11 @@ class TradingEngine:
                                 else:
                                     recovered.phase = 1
                                 self._state.long_pos = recovered
-                        if _phase3_recovery:
+                        if _p3_trailing:
                             self._trailing_placed_long = True
+                        elif _p3_pre_trail:
+                            self._trailing_placed_long = False
+                            self._profit_trigger_price_long = self._load_p3_trigger("long")
                         if not self._sl_order_id_long:
                             with self._lock:
                                 lp_now = self._state.long_pos
@@ -347,7 +357,9 @@ class TradingEngine:
                                     oid = self._client.place_stop_market(sym, "SELL", sl_price)
                                     self._sl_order_id_long = oid
                     elif pos_amt < 0.0 and entry_price > 0.0:
-                        _phase3_recovery_short = bool(_trailing_oid_short)
+                        _p3_trailing_s = bool(_trailing_oid_short)
+                        _p3_pre_trail_s = (not _trailing_oid_short) and self._has_p3_state("short")
+                        _phase3_recovery_short = _p3_trailing_s or _p3_pre_trail_s
                         with self._lock:
                             sp = self._state.short_pos
                             if sp is None or sp.state != PositionState.OPEN:
@@ -360,8 +372,11 @@ class TradingEngine:
                                 else:
                                     recovered.phase = 1
                                 self._state.short_pos = recovered
-                        if _phase3_recovery_short:
+                        if _p3_trailing_s:
                             self._trailing_placed_short = True
+                        elif _p3_pre_trail_s:
+                            self._trailing_placed_short = False
+                            self._profit_trigger_price_short = self._load_p3_trigger("short")
                         if not self._sl_order_id_short:
                             with self._lock:
                                 sp_now = self._state.short_pos
@@ -513,6 +528,7 @@ class TradingEngine:
                                 self._partial_close_long(mark)
                                 self._profit_trigger_price_long = round(
                                     mark * (1 + _PROFIT_TRIGGER_PCT / 100), 8)
+                                self._save_p3_state("long", self._profit_trigger_price_long)
                             elif updated.phase == 3 and updated.partial_closed and not self._trailing_placed_long:
                                 # Phase3 Trailing — profit-trigger 기준가 도달 시 등록
                                 if self._profit_trigger_price_long > 0 and mark < self._profit_trigger_price_long:
@@ -533,6 +549,7 @@ class TradingEngine:
                                             self._sl_order_id_long = oid
                                             self._trailing_placed_long = True
                                             self._profit_trigger_price_long = 0.0
+                                            self._clear_p3_state("long")
                                         else:
                                             with self._lock:
                                                 self._state.error_msg = "[경보] 롱 Trailing Stop 등록 실패 — Binance 연결 확인 필요"
@@ -562,6 +579,7 @@ class TradingEngine:
                                 self._partial_close_short(mark)
                                 self._profit_trigger_price_short = round(
                                     mark * (1 - _PROFIT_TRIGGER_PCT / 100), 8)
+                                self._save_p3_state("short", self._profit_trigger_price_short)
                             elif updated.phase == 3 and updated.partial_closed and not self._trailing_placed_short:
                                 # Phase3 Trailing — profit-trigger 기준가 도달 시 등록
                                 if self._profit_trigger_price_short > 0 and mark > self._profit_trigger_price_short:
@@ -582,6 +600,7 @@ class TradingEngine:
                                             self._sl_order_id_short = oid
                                             self._trailing_placed_short = True
                                             self._profit_trigger_price_short = 0.0
+                                            self._clear_p3_state("short")
                                         else:
                                             with self._lock:
                                                 self._state.error_msg = "[경보] 숏 Trailing Stop 등록 실패 — Binance 연결 확인 필요"
@@ -1085,6 +1104,37 @@ class TradingEngine:
         if result.success:
             self._invalidate_balance()
 
+    # ── Phase3 pre-trailing 상태 영속화 헬퍼 ──────────────────
+    def _p3_state_path(self, side: str) -> pathlib.Path:
+        sym = (self._state.symbol or "none").replace("/", "_")
+        return _ENGINE_DIR / f".p3_{side}_{sym}"
+
+    def _save_p3_state(self, side: str, trigger_price: float) -> None:
+        try:
+            self._p3_state_path(side).write_text(
+                json.dumps({"trigger": trigger_price}))
+        except Exception:
+            pass
+
+    def _load_p3_trigger(self, side: str) -> float:
+        try:
+            data = json.loads(self._p3_state_path(side).read_text())
+            return float(data.get("trigger", 0.0))
+        except Exception:
+            return 0.0
+
+    def _has_p3_state(self, side: str) -> bool:
+        try:
+            return self._p3_state_path(side).exists()
+        except Exception:
+            return False
+
+    def _clear_p3_state(self, side: str) -> None:
+        try:
+            self._p3_state_path(side).unlink(missing_ok=True)
+        except Exception:
+            pass
+
     # ── 청산 ─────────────────────────────────────────────────
     def _close_long(self, reason: str, mark: float = 0.0) -> None:
         with self._lock:
@@ -1105,6 +1155,7 @@ class TradingEngine:
                 self._sl_order_id_long = ""
             self._trailing_placed_long      = False
             self._profit_trigger_price_long = 0.0
+            self._clear_p3_state("long")
             # [B] 연속 손실 카운터 갱신 — 문자열이 아니라 실현 손익 기준 판정
             #     (Phase2 BEP 스탑 청산이 손절로 오분류되는 문제 수정)
             with self._lock:
@@ -1141,6 +1192,7 @@ class TradingEngine:
                     self._sl_order_id_long = ""
                     self._trailing_placed_long      = False
                     self._profit_trigger_price_long = 0.0
+                    self._clear_p3_state("long")
                     # [B] Binance SL 발동 — mark vs entry로 손절 여부 판단
                     if mark > 0 and lp.entry_price > 0 and mark < lp.entry_price:
                         self._consecutive_losses += 1
@@ -1178,6 +1230,7 @@ class TradingEngine:
                 self._sl_order_id_short = ""
             self._trailing_placed_short      = False
             self._profit_trigger_price_short = 0.0
+            self._clear_p3_state("short")
             # [B] 연속 손실 카운터 갱신 — 문자열이 아니라 실현 손익 기준 판정
             #     (Phase2 BEP 스탑 청산이 손절로 오분류되는 문제 수정)
             with self._lock:
@@ -1214,6 +1267,7 @@ class TradingEngine:
                     self._sl_order_id_short          = ""
                     self._trailing_placed_short      = False
                     self._profit_trigger_price_short = 0.0
+                    self._clear_p3_state("short")
                     # [B] Binance SL 발동 — mark vs entry로 손절 여부 판단
                     if mark > 0 and sp.entry_price > 0 and mark > sp.entry_price:
                         self._consecutive_losses += 1
