@@ -93,9 +93,9 @@
     "funds_pct": 100,
     "leverage": 20,
     "stop_loss": 0.5,
-    "trail_stop": 1.0,
+    "trail_stop": 0.3,
     "prohibition": {
-      "common_liq": true,
+      "common_liq": false,
       "common_fr": true,
       "common_new": true,
       "common_hunter": true,
