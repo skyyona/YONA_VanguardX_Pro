@@ -21,7 +21,6 @@ from bottom_engine.models import (
 from bottom_engine.engine_core.risk_manager import RiskManager, MAX_PORTFOLIO_LOSS_PCT, MAX_DAILY_LOSS_PCT
 from bottom_engine.engine_core.daily_loss_tracker import DailyLossTracker
 from bottom_engine.engine_core.sl_calculator import SLCalculator
-from bottom_engine.engine_core.quality_grader import QualityGrader
 from bottom_engine.long_engine.long_condition import LongCondition
 from bottom_engine.long_engine.long_order import LongOrder
 from bottom_engine.long_engine.long_position import LongPosition
@@ -791,15 +790,11 @@ class TradingEngine:
         qty     = RiskManager.calc_position_size(self._params, mark, balance,
                                                  qty_precision=prec)
         qty = self._client.floor_qty(self._state.symbol, qty)
-        # [C-2] R-cap 사전 계산 — ATR 기반 자동 계산, 유효하지 않으면 사용자 설정 fallback
-        _mmr              = self._client.get_mmr(self._state.symbol)
-        _atr              = float(ind.get("atr_pct", 0.0)) if ind else 0.0
-        _grade, _         = QualityGrader.grade(ind, "long") if ind else ("B", 0)
-        _sl_used, _trail_used = SLCalculator.compute(_atr, _grade, self._params.leverage, mmr=_mmr)
-        if _sl_used == 0.0:
-            _sl_used, _trail_used = SLCalculator.clamp(
-                self._params.stop_loss, self._params.trail_stop,
-                self._params.leverage, mmr=_mmr)
+        # [C-2] R-cap 사전 계산 — 사용자 설정 SL에 liq_safe 상한 적용 후 무조건 적용
+        _mmr          = self._client.get_mmr(self._state.symbol)
+        _sl_used, _trail_used = SLCalculator.clamp(
+            self._params.stop_loss, self._params.trail_stop,
+            self._params.leverage, mmr=_mmr)
         qty = RiskManager.apply_r_cap(qty, mark, _sl_used, balance)
         qty = self._client.floor_qty(self._state.symbol, qty)
         if qty <= 0:
