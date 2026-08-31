@@ -860,12 +860,18 @@ class _Col1Mixin:
         self._refresh_header()
 
     def _on_shared_sym_changed(self, *_) -> None:
-        """bottom [Clear] 등 외부에서 shared_sym="" 설정 시 Assign 버튼 초기화"""
+        """bottom [Clear] 등 외부에서 shared_sym 변경 시 Assign 버튼 동기화"""
         if self._shared_sym is None:
             return
-        if self._shared_sym.get() == "" and self._assigned_sym is not None:
-            self._assigned_sym = None
-            self._refresh_header()
+        new_val = self._shared_sym.get()
+        if new_val == "":
+            if self._assigned_sym is not None:
+                self._assigned_sym = None
+                self._refresh_header()
+        else:
+            if self._assigned_sym != new_val:
+                self._assigned_sym = new_val
+                self._refresh_header()
 
     # ─── Binance 링크 열기 ───────────────────────────────────
     @staticmethod

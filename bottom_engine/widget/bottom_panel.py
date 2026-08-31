@@ -108,6 +108,7 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
         # Toplevel 전용 메서드(title/geometry/minsize) 제거 — 단일 창 통합 GUI
 
         self._trading_active  = False
+        self._reverting_sym   : bool = False   # 심볼 교체 되돌림 재진입 가드
         self._strategy_ready  = False          # 전략 설정 완료 여부
         self._applied_params  : dict | None = None   # 확정 적용된 파라미터 값
         self._prohibited_vars : dict[str, tk.BooleanVar] = {}   # 절대 거래 금지 체크 상태
@@ -245,8 +246,51 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
 
     # ─── middle module 으로부터 심볼 수신 ────────────────────────
     def _on_symbol_received(self, *_) -> None:
+        if self._reverting_sym:             # 되돌림 재진입 차단
+            return
         sym = self._shared_sym.get()
         if sym:
+            # 거래 중 심볼 교체 감지 — 엔진 심볼과 다른 경우에만 판정
+            if self._engine is not None:
+                _cur = self._engine.get_state().symbol
+                if _cur and _cur != sym:
+                    if self._engine.has_open_positions():
+                        # ① 포지션 보유 중 — 차단
+                        from tkinter import messagebox as _mb
+                        _mb.showwarning(
+                            "포지션 보유 중",
+                            "포지션이 열려 있어 심볼을 교체할 수 없습니다.\n"
+                            "청산 후 심볼을 변경하세요.")
+                        self._reverting_sym = True
+                        try:
+                            self._shared_sym.set(_cur)
+                        finally:
+                            self._reverting_sym = False
+                        return
+                    elif self._trading_active:
+                        # ② 거래 활성화 중 (포지션 없음) — 차단
+                        from tkinter import messagebox as _mb
+                        _mb.showwarning(
+                            "거래 활성화 중",
+                            "거래가 활성화되어 있어 심볼을 교체할 수 없습니다.\n"
+                            "[거래 정지] 후 심볼을 변경하세요.")
+                        self._reverting_sym = True
+                        try:
+                            self._shared_sym.set(_cur)
+                        finally:
+                            self._reverting_sym = False
+                        return
+                    else:
+                        # ③ 허용 — 전략·센터 상태 초기화 후 새 심볼로 진행
+                        self._strategy_ready = False
+                        self._strategy_msg.configure(
+                            text="  — 전략 미설정 —  ", fg=DIM_TEXT)
+                        self._trade_btn.configure(
+                            state="disabled", cursor="arrow",
+                            bg="#252525", fg="#888888",
+                            activebackground="#303030", activeforeground=DARK_TEXT)
+                        self._center_running = False
+                        self._reset_center()
             # 심볼 라벨 갱신 + 플래시
             self._sym_lbl.configure(text=sym, fg=POSITIVE, bg="#0A2A12")
             self.after(600, lambda: self._sym_lbl.configure(bg=DARK_HEADER))
