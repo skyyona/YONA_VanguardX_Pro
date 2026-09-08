@@ -128,7 +128,11 @@ class BacktestRunner:
     @classmethod
     def run(cls, symbol: str, params: StrategyParams, period: str = "7일",
             consensus_mode: str = _CONSENSUS_4_4,
-            preloaded: "dict | None" = None) -> BacktestResult:
+            preloaded: "dict | None" = None,
+            entry_variant: str = "CURRENT",
+            exit_variant:  str = "CURRENT",
+            m4_slope_th:   float = 10.0,
+            m4_div_th:     "float | None" = 1.5) -> BacktestResult:
         period_days = cls._days(period)
         bars_cfg    = _TF_BARS.get(period, _TF_BARS["7일"])
 
