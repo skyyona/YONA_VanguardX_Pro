@@ -189,7 +189,8 @@ class BacktestRunner:
         # [P4] G6 EMA — 1h봉 기준 (실거래 data_manager: EMAAlignment.calculate(b1h) 동일)
         ema5_1h:  list[float] = []
         ema50_1h: list[float] = []
-        if cfg.macro_ema and bars_1h:
+        _need_ema1h = cfg.macro_ema or (entry_variant == "M4" and m4_div_th is not None)
+        if _need_ema1h and bars_1h:
             closes_1h = [b.close for b in bars_1h]
             ema5_1h   = cls._calc_ema_series(closes_1h, _EMA_SHORT)
             ema50_1h  = cls._calc_ema_series(closes_1h, _EMA_LONG)
@@ -275,6 +276,9 @@ class BacktestRunner:
         _prev_tf5_long_ok:  bool  = False
         _prev_tf5_short_ok: bool  = False
 
+        _prev_k5m: float = 50.0  # M4 직전봉 5m K
+        _prev_d5m: float = 50.0  # M4 직전봉 5m D
+
         n_1m = len(bars_1m)
         for i in range(_WARMUP_1M, n_1m):
             bar   = bars_1m[i]
@@ -343,13 +347,72 @@ class BacktestRunner:
                 if 0 <= _idx1 < len(_1m_ks):
                     _k1m, _d1m = _1m_ks[_idx1], _1m_ds[_idx1]
 
+            # M4: 5m K/D 현재봉 조회 (진입·청산 공용)
+            _k5m_cur: float = 50.0
+            _d5m_cur: float = 50.0
+            if entry_variant == "M4" or exit_variant == "M4":
+                _5m_tf = tf_data.get("5m")
+                if _5m_tf:
+                    _5m_t, _5m_o, _5m_ks, _5m_ds = _5m_tf
+                    _5m_pos = bisect.bisect_left(_5m_t, t) - 1
+                    _5m_idx = _5m_pos - _5m_o
+                    if 0 <= _5m_idx < len(_5m_ks):
+                        _k5m_cur, _d5m_cur = _5m_ks[_5m_idx], _5m_ds[_5m_idx]
+            # prev 갱신 — continue 이전 선행 업데이트로 다음 봉 prev 보장
+            _k5m_prev_bar = _prev_k5m
+            _d5m_prev_bar = _prev_d5m
+            _prev_k5m = _k5m_cur
+            _prev_d5m = _d5m_cur
+
             # ── 롱 포지션 관리 ────────────────────────────────────
             if in_long:
                 bars_held = i - entry_bar_i
                 R         = entry_price * sl_used / 100.0
                 sl_phase1 = entry_price * (1.0 - sl_used / 100.0)
 
-                if phase == 1:
+                if exit_variant == "M4":
+                    # SL (Phase 1 고정 — M4는 Phase 2/3 없음)
+                    if bar.low <= sl_phase1:
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (sl_phase1 - entry_price) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="long", entry_price=entry_price, exit_price=sl_phase1,
+                            pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="SL",
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val
+                        if pnl < 0:
+                            _consecutive_losses += 1
+                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
+                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _consecutive_losses = 0
+                        else:
+                            _consecutive_losses = 0
+                        in_long = False; phase = 1; trail_ref = 0.0
+                        continue
+                    # K80-5M: 5m K 80 하향 돌파 청산
+                    if _k5m_prev_bar >= 80.0 and _k5m_cur < 80.0:
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (close - entry_price) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="long", entry_price=entry_price, exit_price=close,
+                            pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="K80-5M",
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val
+                        if pnl < 0:
+                            _consecutive_losses += 1
+                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
+                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _consecutive_losses = 0
+                        else:
+                            _consecutive_losses = 0
+                        in_long = False; phase = 1; trail_ref = 0.0
+                        continue
+
+                elif phase == 1:
                     # [P1] intrabar: bar.low ≤ sl_phase1 → STOP_MARKET 체결 재현
                     if bar.low <= sl_phase1:
                         cost = cls._cost(_leff, bars_held)
@@ -489,7 +552,49 @@ class BacktestRunner:
                 R         = entry_price * sl_used / 100.0
                 sl_phase1 = entry_price * (1.0 + sl_used / 100.0)
 
-                if phase == 1:
+                if exit_variant == "M4":
+                    # SL (Phase 1 고정 — M4는 Phase 2/3 없음)
+                    if bar.high >= sl_phase1:
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (entry_price - sl_phase1) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="short", entry_price=entry_price, exit_price=sl_phase1,
+                            pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="SL",
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val
+                        if pnl < 0:
+                            _consecutive_losses += 1
+                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
+                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _consecutive_losses = 0
+                        else:
+                            _consecutive_losses = 0
+                        in_short = False; phase = 1; trail_ref = 0.0
+                        continue
+                    # K20-5M: 5m K 20 상향 돌파 청산
+                    if _k5m_prev_bar <= 20.0 and _k5m_cur > 20.0:
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (entry_price - close) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="short", entry_price=entry_price, exit_price=close,
+                            pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="K20-5M",
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val
+                        if pnl < 0:
+                            _consecutive_losses += 1
+                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
+                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _consecutive_losses = 0
+                        else:
+                            _consecutive_losses = 0
+                        in_short = False; phase = 1; trail_ref = 0.0
+                        continue
+
+                elif phase == 1:
                     # [P1] intrabar: bar.high ≥ sl_phase1 → STOP_MARKET 체결 재현
                     if bar.high >= sl_phase1:
                         cost = cls._cost(_leff, bars_held)
@@ -696,8 +801,36 @@ class BacktestRunner:
                 _sw_long  = cls._swing_bull(bars_15m, _pos_15m)
                 _sw_short = cls._swing_bear(bars_15m, _pos_15m)
 
-                # ── 롱 진입 시도 ──────────────────────────────────
-                if (can_long
+                # ── M4 진입 분기 ─────────────────────────────────
+                if entry_variant == "M4":
+                    k15m, d15m = tf_kd.get("15m", (50.0, 50.0))
+                    e50 = ema50_1h[pos_1h] if (ema50_1h and pos_1h < len(ema50_1h)) else 0.0
+                    _gc = (_k5m_prev_bar <= _d5m_prev_bar) and (_k5m_cur > _d5m_cur)
+                    _dc = (_k5m_prev_bar >= _d5m_prev_bar) and (_k5m_cur < _d5m_cur)
+                    _slope_long  = (_k5m_cur - _k5m_prev_bar) >= m4_slope_th
+                    _slope_short = (_k5m_prev_bar - _k5m_cur) >= m4_slope_th
+                    _trend_long  = (k15m > d15m) and ((k15m - d15m) >= 2.0)
+                    _trend_short = (k15m < d15m) and ((d15m - k15m) >= 2.0)
+                    _div_ok = True
+                    if m4_div_th is not None and e50 > 0.0:
+                        _div_ok = abs(close - e50) / e50 * 100.0 <= m4_div_th
+                    m4_can_long  = _gc and _slope_long  and _trend_long  and _div_ok
+                    m4_can_short = _dc and _slope_short and _trend_short and _div_ok
+                    if (m4_can_long
+                            and cfg.direction_bias != "short_only"
+                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
+                            and fr_ok_long and liq_ok_long):
+                        in_long = True; entry_price = close; entry_time = bar.open_time
+                        entry_bar_i = i; phase = 1; trail_ref = close
+                    elif (m4_can_short
+                            and cfg.direction_bias != "long_only"
+                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
+                            and fr_ok_short and liq_ok_short):
+                        in_short = True; entry_price = close; entry_time = bar.open_time
+                        entry_bar_i = i; phase = 1; trail_ref = close
+
+                # ── 롱 진입 시도 (CURRENT) ────────────────────────
+                elif (can_long
                         and k_5m < cfg.k_long_max
                         and cfg.direction_bias != "short_only"
                         and atr_ok and vol_ok
