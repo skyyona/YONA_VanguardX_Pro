@@ -66,6 +66,8 @@ class StrategyParams:
     consensus_mode: str              = "4/4"  # 4TF 합의 모드 ("4/4" | "3/4")
     portfolio_usdt: float            = 1000.0 # [B-1] 백테스트 기준 자본금 (실잔고 주입)
     mmr:            float            = 0.004  # [C-2] 유지증거금률 — liq_safe 산출용 (실거래 get_mmr 주입)
+    m4_slope_th:    float            = 10.0   # M4 5m K기울기 임계값 (K-D ≥ SLOPE_TH)
+    m4_div_th:      float | None     = None   # M4 1h EMA 이격도 임계값 (None=미사용)
 
     @classmethod
     def from_applied_params(cls, d: dict, sort_mode: str = "24h Ticker") -> "StrategyParams":

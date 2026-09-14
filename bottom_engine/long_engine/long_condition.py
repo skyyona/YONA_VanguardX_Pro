@@ -1,33 +1,26 @@
-﻿"""
+"""
 bottom/long_engine/long_condition.py
-롱 진입 조건 평가 — 7축 교차 검증 + Sort by 모드 분기
+롱 진입 조건 평가 — M4 전략 (5m 에너지 + 15m 추세)
 
 평가 순서:
-  G0. 방향 편향 (Sort by 모드별 롱 허용 여부)
-  G1. 4TF 완전 합의 (1m/3m/5m/15m K>D, spread≥2)
-  G2. K 임계값 (Sort by 모드별 과매도 구간 확인)
-  G3. 품질 등급 (Cascade/Divergence/Zone/지속성 100점 → A/B/C/D)
-  G4. ATR% 범위 (너무 정적 or 과변동 구간 필터)
-  G5. 거래량 배수 (1m 현재봉 / 20봉 평균)
-  G6. EMA 거시 추세 (EMA5 > EMA50 — 상승 방향 확인)
-  G7. 스윙 구조 (15m 상승 고저점 구조 확인)
-  G7.5. use_macro 거시 추세 방향 연동 (tf1h/tf4h/tf1d K·D 점수)
-  G8. 절대 금지 필터 (ProhibitionFilter 11개 항목)
+  G0.  방향 편향 (Sort by 모드별 롱 허용 여부)
+  G1.  M4 5m GC 감지 (K crosses above D) + K기울기 ≥ SLOPE_TH
+  G2.  M4 15m 추세 합의 (K > D, spread ≥ 2)
+  G7.5 use_macro 거시 추세 방향 연동 (tf1h/tf4h/tf1d K·D 점수)
+  G8.  절대 금지 필터 (ProhibitionFilter 11개 항목)
 """
 from __future__ import annotations
 
 from bottom_engine.models import PositionSide, StrategyParams
-from bottom_engine.engine_core.fourtf_consensus import FourTFConsensus
 from bottom_engine.strategy_settings.realtrade_strategy_sort_by import get_mode_config
-from bottom_engine.engine_core.quality_grader import QualityGrader
 from bottom_engine.prohibition_settings.prohibition_filter import ProhibitionFilter
 from bottom_engine.engine_core.sl_calculator import SLCalculator
 
-_GRADE_ORDER = {"A": 4, "B": 3, "C": 2, "D": 1}
-
 
 class LongCondition:
-    """롱 진입 조건 평가기 — Sort by 모드별 7축 교차 검증."""
+    """롱 진입 조건 평가기 — M4 전략 (5m 에너지 + 15m 추세)."""
+
+    _prev_k5m: float | None = None  # 직전 5m K 값 — GC 크로스 감지용
 
     @classmethod
     def evaluate(
@@ -47,72 +40,28 @@ class LongCondition:
         if cfg.direction_bias == "short_only":
             return False, f"[{params.sort_mode}] 숏 전용 모드 — 롱 진입 불가"
 
-        # ── G1: 4TF 합의 ──────────────────────────────────────
-        signal = FourTFConsensus.evaluate(ind_data)
-        if params.consensus_mode == "4/4":
-            if not signal.long_consensus:
-                return False, f"4TF 롱 완전 미합의 ({signal.aligned_long}/4 TF)"
-        else:
-            if signal.aligned_long < 3:
-                return False, f"4TF 롱 최소 미합의 ({signal.aligned_long}/4 TF)"
-
-        # ── G2: Sort by 모드별 K 임계값 ────────────────────────
-        k_std = float(ind_data.get("tf5", {}).get("k", 50.0))
-        if k_std >= cfg.k_long_max:
+        # ── G1: M4 5m GC 감지 + K기울기 ───────────────────────
+        tf5  = ind_data.get("tf5", {})
+        k5   = float(tf5.get("k", 50.0))
+        d5   = float(tf5.get("d", 50.0))
+        pk5  = cls._prev_k5m
+        cls._prev_k5m = k5
+        gc = (pk5 is not None and pk5 < d5 and k5 > d5)
+        if not gc:
+            return False, f"G1: 5m GC 미발생 (K={k5:.1f} D={d5:.1f} prevK={pk5})"
+        if (k5 - d5) < params.m4_slope_th:
             return False, (
-                f"K={k_std:.1f} — {params.sort_mode} 롱 상한 K<{cfg.k_long_max} 초과"
+                f"G1: 5m 기울기 부족 (K-D={k5 - d5:.1f} < SLOPE_TH={params.m4_slope_th})"
             )
 
-        # ── G3: 품질 등급 ──────────────────────────────────────
-        if cfg.quality_grade_req is not None:
-            grade, score = QualityGrader.grade(ind_data, "long")
-            if _GRADE_ORDER.get(grade, 1) < _GRADE_ORDER.get(cfg.quality_grade_req, 1):
-                return False, (
-                    f"품질 등급 {grade}({score}점) "
-                    f"— {params.sort_mode} 최소 {cfg.quality_grade_req}등급 필요"
-                )
-
-        # ── G4: ATR% 범위 ──────────────────────────────────────
-        _sl_used, _ = SLCalculator.clamp(
-            params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr)
-        atr_pct      = float(ind_data.get("atr_pct", 0.0))
-        _atr_min_eff = max(cfg.atr_min, _sl_used / 2.0)
-        if atr_pct < _atr_min_eff:
+        # ── G2: M4 15m 추세 합의 ───────────────────────────────
+        tf15 = ind_data.get("tf15", {})
+        k15  = float(tf15.get("k", 50.0))
+        d15  = float(tf15.get("d", 50.0))
+        if not (k15 > d15 and (k15 - d15) >= 2.0):
             return False, (
-                f"ATR%={atr_pct:.2f} — {params.sort_mode} 최소 변동성 {_atr_min_eff:.2f}% 미달"
+                f"G2: 15m 롱 추세 미합의 (K={k15:.1f} D={d15:.1f} spread={k15 - d15:.1f})"
             )
-        if atr_pct > cfg.atr_max:
-            return False, (
-                f"ATR%={atr_pct:.2f} — {params.sort_mode} 과변동 {cfg.atr_max}% 초과"
-            )
-
-        # ── G5: 거래량 배수 ────────────────────────────────────
-        if cfg.volume_mult is not None:
-            vol_ratio = float(ind_data.get("volume_ratio", 1.0))
-            if vol_ratio < cfg.volume_mult:
-                return False, (
-                    f"거래량 배수={vol_ratio:.2f}x "
-                    f"— {params.sort_mode} 최소 {cfg.volume_mult}x 미달"
-                )
-
-        # ── G6: EMA 거시 추세 (EMA5 > EMA50) ──────────────────
-        if cfg.macro_ema:
-            e5  = float(ind_data.get("e5",  0.0))
-            e50 = float(ind_data.get("e50", 0.0))
-            if e50 <= 0.0:
-                return False, f"EMA50 미수신 — G6 데이터 대기 중, {params.sort_mode} 롱 보류"
-            if e5 <= e50:
-                return False, (
-                    f"EMA5({e5:.4f}) ≤ EMA50({e50:.4f}) "
-                    f"— 거시 하락 추세, {params.sort_mode} 롱 보류"
-                )
-
-        # ── G7: 스윙 구조 ──────────────────────────────────────
-        if cfg.requires_swing:
-            if not ind_data.get("swing_bull", False):
-                return False, (
-                    f"15m 상승 스윙 구조 미형성 — {params.sort_mode} 롱 보류"
-                )
 
         # ── G7.5: use_macro 거시 추세 방향 연동 ────────────────
         if params.use_macro:
@@ -126,6 +75,8 @@ class LongCondition:
                 return False, f"거시 추세 하락 ({_mac_score:+d}/3) — 롱 진입 보류"
 
         # ── G8: 절대 금지 필터 ─────────────────────────────────
+        _sl_used, _ = SLCalculator.clamp(
+            params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr)
         result = ProhibitionFilter.check(
             params.prohibition, PositionSide.LONG, ind_data,
             has_short_open=has_short_open, days_listed=days_listed,
@@ -134,4 +85,7 @@ class LongCondition:
         if result.blocked:
             return False, result.reason
 
-        return True, f"{params.consensus_mode} 합의 [{params.sort_mode}] — 롱 진입 조건 충족"
+        return True, (
+            f"M4 롱 진입 조건 충족 "
+            f"(5m K={k5:.1f} D={d5:.1f}, 15m K={k15:.1f} D={d15:.1f})"
+        )
