@@ -118,7 +118,7 @@ class StrategyPopupMixin:
                   activebackground="#0A3A18", activeforeground=POSITIVE,
                   font=("Segoe UI", 9, "bold"), relief="flat", padx=14, pady=4,
                   cursor="hand2",
-                  command=lambda: self._confirm_strategy(win, _selected_sort_ref[0], _consensus_var.get())
+                  command=lambda: self._confirm_strategy(win, _selected_sort_ref[0], "M4")
                   ).pack(anchor="center", pady=(4, 0))
 
         # [중간] 백테스팅 결과 요약 (항상 표시 — 백테스팅 전: "—", 후: 실제값)
@@ -566,9 +566,7 @@ class StrategyPopupMixin:
 
             def _select_sort_item(mode: str) -> None:
                 _selected_sort_ref[0] = mode   # 전략 창 내 선택값 저장 → 백테스팅·확정에 전달
-                _cm = self._restore_strategy_vars(mode)
-                if _cm:                        # [B-4] 저장된 consensus_mode 복원
-                    _consensus_var.set(_cm)
+                self._restore_strategy_vars(mode)  # M4: consensus_mode 복원 불필요, 반환값 무시
                 for opt, b in sort_btns.items():
                     sel = (opt == mode)
                     b.configure(
@@ -625,26 +623,6 @@ class StrategyPopupMixin:
                     w.destroy()
 
                 cfg = _get_mode_cfg(mode)
-                from bottom_engine.engine_core.sl_calculator import SLCalculator as _SLC
-                # Sort by 팝업은 심볼 독립 UI — sym 없으므로 mmr은 Binance USDT-M 표준값 사용
-                _sl_used_c, _ = _SLC.clamp(
-                    self._sl_var.get(), self._trail_var.get(),
-                    self._lev_var.get(), mmr=0.004)
-                _atr_min_eff_c = max(cfg.atr_min, _sl_used_c / 2.0)
-
-                def _extra_filter_row(parent: tk.Frame, label: str,
-                                      value: str, col: str) -> None:
-                    rw = tk.Frame(parent, bg=DARK_PANEL, pady=3)
-                    rw.pack(fill="x")
-                    tk.Label(rw, text="  ▸",
-                             bg=DARK_PANEL, fg=col,
-                             font=("Segoe UI", 8, "bold")).pack(side="left", padx=(8, 2))
-                    tk.Label(rw, text=label,
-                             bg=DARK_PANEL, fg=DIM_TEXT,
-                             font=("Segoe UI", 7), width=14, anchor="w").pack(side="left")
-                    tk.Label(rw, text=value,
-                             bg=DARK_PANEL, fg=col,
-                             font=("Consolas", 7, "bold")).pack(side="left")
 
                 # ── 롱 포지션 컬럼 ──────────────────────────────────
                 col_hdr_l = tk.Frame(long_col, bg=LONG_HDR_BG, pady=6)
@@ -675,26 +653,14 @@ class StrategyPopupMixin:
                               "G2 — 15m 롱 추세 합의")
 
                     _sec_hdr(long_col, "모드별 추가 필터")
-                    _extra_filter_row(long_col, "ATR% 범위",
-                                      f"{_atr_min_eff_c:.1f}% ~ {cfg.atr_max:.1f}%", ACCENT_BLUE)
-                    if cfg.quality_grade_req is not None:
-                        _extra_filter_row(long_col, "품질 등급",
-                                          f"{cfg.quality_grade_req} 등급 이상", YELLOW)
-                    if cfg.volume_mult is not None:
-                        _extra_filter_row(long_col, "거래량 배수",
-                                          f"{cfg.volume_mult:.1f}x 이상", YELLOW)
-                    if cfg.macro_ema:
-                        _extra_filter_row(long_col, "EMA 거시",
-                                          "EMA5 > EMA50", POSITIVE)
-                    if cfg.requires_swing:
-                        _extra_filter_row(long_col, "스윙 구조",
-                                          "15m 상승 고저점 구조", POSITIVE)
+                    _cond_row(long_col, "ℹ", DIM_TEXT,
+                              "M4 — 추가 필터 없음", DIM_TEXT,
+                              "ATR·등급·거래량·EMA·스윙은 M4 미적용")
 
                     _sec_hdr(long_col, "익절 조건")
                     _cond_row(long_col, "◀", NEGATIVE,
-                              "1m  K > 80", NEGATIVE, "과매수 구간 도달")
-                    _cond_row(long_col, "◀", NEGATIVE,
-                              "K  ↓  D  하향 이탈", NEGATIVE, "K선 D선 하향 이탈 → 익절")
+                              "5m  K ≥ 80 → 80 하향 돌파", NEGATIVE,
+                              "5m K 80선 하향 돌파 시 즉시 익절  (K80-5M)")
 
                     _sec_hdr(long_col, "엔진 상태 전환")
                     _state_row(long_col, "5m GC + G1 + G2 충족",
@@ -733,26 +699,14 @@ class StrategyPopupMixin:
                               "G2 — 15m 숏 추세 합의")
 
                     _sec_hdr(short_col, "모드별 추가 필터")
-                    _extra_filter_row(short_col, "ATR% 범위",
-                                      f"{_atr_min_eff_c:.1f}% ~ {cfg.atr_max:.1f}%", ACCENT_BLUE)
-                    if cfg.quality_grade_req is not None:
-                        _extra_filter_row(short_col, "품질 등급",
-                                          f"{cfg.quality_grade_req} 등급 이상", YELLOW)
-                    if cfg.volume_mult is not None:
-                        _extra_filter_row(short_col, "거래량 배수",
-                                          f"{cfg.volume_mult:.1f}x 이상", YELLOW)
-                    if cfg.macro_ema:
-                        _extra_filter_row(short_col, "EMA 거시",
-                                          "EMA5 < EMA50", NEGATIVE)
-                    if cfg.requires_swing:
-                        _extra_filter_row(short_col, "스윙 구조",
-                                          "15m 하락 고저점 구조", NEGATIVE)
+                    _cond_row(short_col, "ℹ", DIM_TEXT,
+                              "M4 — 추가 필터 없음", DIM_TEXT,
+                              "ATR·등급·거래량·EMA·스윙은 M4 미적용")
 
                     _sec_hdr(short_col, "익절 조건")
                     _cond_row(short_col, "◀", POSITIVE,
-                              "1m  K < 20", POSITIVE, "과매도 구간 도달")
-                    _cond_row(short_col, "◀", POSITIVE,
-                              "K  ↑  D  상향 돌파", POSITIVE, "K선 D선 상향 돌파 → 익절")
+                              "5m  K ≤ 20 → 20 상향 돌파", POSITIVE,
+                              "5m K 20선 상향 돌파 시 즉시 익절  (K20-5M)")
 
                     _sec_hdr(short_col, "엔진 상태 전환")
                     _state_row(short_col, "5m DC + G1 + G2 충족",
@@ -822,12 +776,6 @@ class StrategyPopupMixin:
 
                 cur_mode = _selected_sort_ref[0]   # 팝업 내 선택된 Sort by 모드
                 cfg_ban  = _get_mode_cfg(cur_mode)
-                from bottom_engine.engine_core.sl_calculator import SLCalculator as _SLC
-                # Sort by 팝업은 심볼 독립 UI — sym 없으므로 mmr은 Binance USDT-M 표준값 사용
-                _sl_used_b, _ = _SLC.clamp(
-                    self._sl_var.get(), self._trail_var.get(),
-                    self._lev_var.get(), mmr=0.004)
-                _atr_min_eff_b = max(cfg_ban.atr_min, _sl_used_b / 2.0)
 
                 auto_hdr = tk.Frame(auto_filter_outer, bg="#0A1A10", pady=4)
                 auto_hdr.pack(fill="x", pady=(0, 0))
@@ -856,28 +804,7 @@ class StrategyPopupMixin:
                 }.get(cfg_ban.direction_bias, "양방향")
                 _auto_row("진입 방향", _bias_label, YELLOW)
 
-                if cfg_ban.direction_bias != "short_only":
-                    _auto_row("K 롱 상한",
-                              f"K < {cfg_ban.k_long_max:.0f}  (과매도 구간)", POSITIVE)
-                if cfg_ban.direction_bias != "long_only":
-                    _auto_row("K 숏 하한",
-                              f"K > {cfg_ban.k_short_min:.0f}  (과매수 구간)", NEGATIVE)
-
-                _auto_row("ATR% 범위",
-                          f"{_atr_min_eff_b:.1f}% ~ {cfg_ban.atr_max:.1f}%", ACCENT_BLUE)
-
-                if cfg_ban.quality_grade_req is not None:
-                    _auto_row("품질 등급",
-                              f"{cfg_ban.quality_grade_req} 등급 이상 필수", YELLOW)
-                if cfg_ban.volume_mult is not None:
-                    _auto_row("거래량 배수",
-                              f"{cfg_ban.volume_mult:.1f}x 이상 필수", YELLOW)
-                if cfg_ban.macro_ema:
-                    _auto_row("EMA 거시",
-                              "EMA5 vs EMA50 방향 확인", ACCENT_BLUE)
-                if cfg_ban.requires_swing:
-                    _auto_row("스윙 구조",
-                              "15m 고저점 구조 확인 필수", ACCENT_BLUE)
+                _auto_row("추가 필터", "M4 — 미적용  (G0·G1·G2·G7.5만 적용)", DIM_TEXT)
 
                 ban_canvas.configure(scrollregion=ban_canvas.bbox("all"))
 
@@ -981,8 +908,7 @@ class StrategyPopupMixin:
                     if _HAS_BACKTEST and BacktestRunner is not None:
                         from bottom_engine.backtest.param_deriver import derive_params
                         period_key = _get_period_key(avail_days_ref[0])
-                        mode       = _consensus_var.get()
-                        result_obj = BacktestRunner.run(sym, params, period_key, mode)
+                        result_obj = BacktestRunner.run(sym, params, period_key, entry_variant="M4")
                         res = _backtest_result_to_dict(result_obj)
                         res["derived"] = derive_params(result_obj.trades)
                     else:
