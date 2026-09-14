@@ -20,6 +20,7 @@ quality_grade_req 는 QualityGrader(Cascade/Zone/Duration/Swing 4축)로 반영.
 from __future__ import annotations
 
 import bisect
+import dataclasses
 
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
 from bottom_engine.engine_core.quality_grader import QualityGrader
@@ -943,6 +944,28 @@ class BacktestRunner:
         for mode in (_CONSENSUS_3_4, _CONSENSUS_4_4):
             results[mode] = cls.run(symbol, params, period,
                                     consensus_mode=mode, preloaded=preloaded)
+        return results
+
+    @classmethod
+    def run_m4_slope_comparison(
+        cls,
+        symbol: str,
+        params: StrategyParams,
+        period: str = "7일",
+    ) -> "dict[str, BacktestResult]":
+        """M4 전략 SLOPE_TH 3가지(5/10/15) 동시 비교 — 봉 데이터 1회 로드 후 공유.
+
+        Returns
+        -------
+        dict: SLOPE_TH별 BacktestResult
+            키: 'slope_5', 'slope_10', 'slope_15'
+        """
+        preloaded = cls.load_tf_bars(symbol, period)
+        results: dict[str, BacktestResult] = {}
+        for slope in (5.0, 10.0, 15.0):
+            _p = dataclasses.replace(params, m4_slope_th=slope)
+            results[f"slope_{int(slope)}"] = cls.run(
+                symbol, _p, period, preloaded=preloaded)
         return results
 
     # ── 거래 비용 계산 ──────────────────────────────────────────

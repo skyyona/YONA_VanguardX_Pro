@@ -394,7 +394,7 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
         self._applied_sort_mode = sort_mode
         self._strategy_ready = True
         self._strategy_msg.configure(
-            text=f"  ✓ 전략설정완료   {sort_mode}   {consensus_mode}  ", fg=POSITIVE)
+            text=f"  ✓ 전략설정완료   {sort_mode}   M4  ", fg=POSITIVE)
         self._trade_btn.configure(
             state="normal", cursor="hand2",
             bg="#0A2A12", fg=POSITIVE,
@@ -485,10 +485,10 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             title        = "Long  Position",
             hdr_bg       = LONG_HDR_BG,
             hdr_fg       = POSITIVE,
-            engine_state = "🟢  4TF 불리시 정렬 — 롱 엔진 활성",
+            engine_state = "🟢  M4 롱 진입 조건 충족 — 롱 엔진 활성",
             state_col    = POSITIVE,
-            status_lbl   = ("4TF K>D 정렬 완료  |  진입 대기" if _long_active
-                            else "4TF 불리시 대기  |  엔진 대기 중"),
+            status_lbl   = ("M4 진입 신호 대기  |  5m GC 감지 대기" if _long_active
+                            else "5m GC 조건 대기  |  엔진 대기 중"),
             status_col   = POSITIVE if _long_active else DIM_TEXT,
             pred_txt     = ("1m 과매도 진입 신호 대기 중" if _long_active
                             else "롱 엔진 대기  —  전략 우선순위 외"),
@@ -504,10 +504,10 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             title        = "Short  Position",
             hdr_bg       = SHORT_HDR_BG,
             hdr_fg       = NEGATIVE,
-            engine_state = "🔴  4TF K<D 정렬 — 숏 엔진 활성",
+            engine_state = "🔴  M4 숏 진입 조건 충족 — 숏 엔진 활성",
             state_col    = NEGATIVE,
-            status_lbl   = ("4TF K<D 정렬 완료  |  진입 대기" if _short_active
-                            else "4TF K<D 미정렬  |  잠금 대기 중"),
+            status_lbl   = ("M4 진입 신호 대기  |  5m DC 감지 대기" if _short_active
+                            else "5m DC 조건 대기  |  엔진 대기 중"),
             status_col   = NEGATIVE if _short_active else DIM_TEXT,
             pred_txt     = ("1m 과매수 진입 신호 대기 중" if _short_active
                             else "숏 엔진 대기  —  전략 우선순위 외"),
@@ -1224,17 +1224,13 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
         """개별 엔진 패널 위젯 갱신."""
         tf1    = ind.get("tf1", {})
         k1, d1 = tf1.get("k", 50.0), tf1.get("d", 50.0)
-        if ind:
-            try:
-                sig        = FourTFConsensus.evaluate(ind)
-                al         = sig.aligned_long  if side == "long" else sig.aligned_short
-                al_opp     = sig.aligned_short if side == "long" else sig.aligned_long
-                full_align = sig.long_consensus if side == "long" else sig.short_consensus
-                details    = sig.details
-            except Exception:
-                al, al_opp, full_align, details = 0, 0, False, {}
-        else:
-            al, al_opp, full_align, details = 0, 0, False, {}
+        # M4: 5m/15m 기반 상태 변수 — FourTFConsensus 루프 대신 직접 읽기
+        _tf5m  = ind.get("tf5",  {}) if ind else {}
+        _tf15m = ind.get("tf15", {}) if ind else {}
+        _k5m   = float(_tf5m.get("k",  50.0));  _d5m  = float(_tf5m.get("d",  50.0))
+        _k15m  = float(_tf15m.get("k", 50.0));  _d15m = float(_tf15m.get("d", 50.0))
+        _g2_ok = ((_k15m > _d15m and (_k15m - _d15m) >= 2.0) if side == "long"
+                  else (_k15m < _d15m and (_d15m - _k15m) >= 2.0))
 
         # ── 포지션 상태 파악 ──────────────────────────────────────
         try:
@@ -1337,8 +1333,7 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
         elif not trading_on:
             _hbg, _tfg = DARK_HEADER, DIM_TEXT
             _st  = "⏸  비활성  —  대기 중";  _sc  = DIM_TEXT
-            _sl  = ("4TF 불리시 대기  |  엔진 대기 중" if side == "long"
-                    else "4TF K<D 대기  |  엔진 대기 중");  _slc = DIM_TEXT
+            _sl  = "M4 진입 신호 대기  |  엔진 비활성";  _slc = DIM_TEXT
             _dot, _dc = "○", DIM_TEXT
             _pt  = ("롱 엔진 대기  —  전략 우선순위 외" if side == "long"
                     else "숏 엔진 대기  —  전략 우선순위 외");  _pc = DIM_TEXT
@@ -1347,13 +1342,12 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
         elif direction == side:
             _hbg, _tfg = panel["hdr_bg"], panel["hdr_fg"]
             _st,  _sc  = panel["engine_state"], panel["state_col"]
-            _tf_parts  = [f"{tf}{details[tf]['dir']}" for tf in ("1m", "3m", "5m", "15m") if tf in details]
-            _tf_str    = "  ".join(_tf_parts) if _tf_parts else f"{al}/4"
-            if full_align:
-                _sl  = f"{_tf_str}  |  진입 대기"
+            if _g2_ok:
+                _sl  = f"5m GC 감지 대기  /  15m K={_k15m:.0f} D={_d15m:.0f}  |  진입 대기"
                 _slc = POSITIVE if side == "long" else NEGATIVE
             else:
-                _sl, _slc = f"{_tf_str}  |  진입 신호 탐색", YELLOW
+                _sl  = f"5m 감지 중  /  15m K={_k15m:.0f} D={_d15m:.0f}  |  G2 대기"
+                _slc = YELLOW
             _dot = "●";  _dc = POSITIVE if side == "long" else NEGATIVE
             if   blk:      _pt, _pc = blk,                             YELLOW
             elif k1 < 20:  _pt, _pc = "1m 과매도 진입 신호 대기 중", POSITIVE
@@ -1364,18 +1358,18 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             _hbg, _tfg = DARK_HEADER, DIM_TEXT
             _st  = ("🔒  숏 추세 — 롱 엔진 잠금" if side == "long"
                     else "🔒  롱 추세 — 숏 엔진 잠금");  _sc  = DIM_TEXT
-            _sl  = (f"숏 {al_opp}/4 정렬  —  롱 진입 금지" if side == "long"
-                    else f"롱 {al_opp}/4 정렬  —  숏 진입 금지");  _slc = DIM_TEXT
+            _sl  = ("반대 추세 감지  —  롱 진입 금지" if side == "long"
+                    else "반대 추세 감지  —  숏 진입 금지");  _slc = DIM_TEXT
             _dot, _dc = "○", DIM_TEXT
-            _pt  = (f"숏 추세 {al_opp}/4 진행 중\n롱 엔진 대기" if side == "long"
-                    else f"롱 추세 {al_opp}/4 진행 중\n숏 엔진 대기");  _pc = DIM_TEXT
+            _pt  = ("반대 추세 진행 중\n롱 엔진 대기" if side == "long"
+                    else "반대 추세 진행 중\n숏 엔진 대기");  _pc = DIM_TEXT
 
         else:
             _hbg, _tfg = DARK_HEADER, DIM_TEXT
-            _st  = "⏸  4TF 합의 대기  —  엔진 대기 중";  _sc  = DIM_TEXT
-            _sl  = "4TF 방향 미확정  |  진입 신호 대기";  _slc = DIM_TEXT
+            _st  = "⏸  방향 미확정  —  엔진 대기 중";  _sc  = DIM_TEXT
+            _sl  = "15m 추세 미확정  |  진입 신호 대기";  _slc = DIM_TEXT
             _dot, _dc = "○", DIM_TEXT
-            _pt, _pc  = (blk, YELLOW) if blk else ("4TF 합의 대기 중", DIM_TEXT)
+            _pt, _pc  = (blk, YELLOW) if blk else ("M4 진입 조건 대기 중", DIM_TEXT)
 
         # ── 에러 오버레이 (포지션 없을 때 항상, 비활성 시 강조 표시) ─
         if err and not pos_open and not pos_closed:

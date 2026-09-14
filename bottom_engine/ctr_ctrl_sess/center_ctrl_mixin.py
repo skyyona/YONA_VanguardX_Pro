@@ -58,7 +58,7 @@ class CenterCtrlMixin:
         row.pack(anchor="center")
         glow_widgets.append(row)
 
-        lbl = tk.Label(row, text="⚪   4TF 합의 대기 중",
+        lbl = tk.Label(row, text="⚪   M4 진입 신호 대기 중",
                        bg=INIT_LO, fg=DIM_TEXT,
                        font=("Segoe UI", 9, "bold"))
         lbl.pack(side="left")
@@ -128,7 +128,7 @@ class CenterCtrlMixin:
         # ── ④ 국지적 4TF Stoch RSI 헤더 ─────────────────────────
         stoch_hdr = tk.Frame(parent, bg=DARK_HEADER, pady=4)
         stoch_hdr.pack(fill="x")
-        tk.Label(stoch_hdr, text="  📈  Stoch RSI  모니터링  (국지적 4TF)",
+        tk.Label(stoch_hdr, text="  📈  Stoch RSI  모니터링  (M4 — 5m · 15m 기준)",
                  bg=DARK_HEADER, fg=ACCENT_BLUE,
                  font=("Segoe UI", 8, "bold")).pack(side="left", padx=(6, 0))
 

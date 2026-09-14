@@ -95,7 +95,7 @@ class StrategyPopupMixin:
             return
 
         win = tk.Toplevel(self)
-        win.title(f"🧠  {sym} — 4TF 완전 정렬 Stoch RSI 전략 설정 및 백테스팅")
+        win.title(f"🧠  {sym} — M4 진입 전략 (5m GC/DC + 15m 추세) 설정 및 백테스팅")
         win.configure(bg=DARK_BG)
         win.geometry("1320x640")
         win.minsize(1200, 560)
@@ -127,7 +127,7 @@ class StrategyPopupMixin:
         tk.Frame(footer_mid, bg="#2A2A2A", height=1).pack(fill="x")
 
         _stat_label_items = [
-            ("4TF 정렬 적중도",       "hit"),
+            ("M4 진입 적중도",         "hit"),
             ("단일 거래 최대 수익률", "max"),
             ("기간 총 수익률",        "total"),
             ("예상 USDT 총손익",      "total_usdt"),
@@ -201,18 +201,20 @@ class StrategyPopupMixin:
                             state="disabled")
         cmp_btn.pack(side="left", padx=(12, 0), pady=(4, 0))
 
-        # 합의 모드 선택 Combobox — 실거래·백테스트 양쪽 동시 제어
-        _init_mode = (self._applied_params.get("consensus_mode", "4/4")
-                      if self._applied_params else "4/4")
-        _consensus_var = tk.StringVar(value=_init_mode)
-        _consensus_cb = ttk.Combobox(
+        # M4 SLOPE_TH 선택 — 비교 탭 전용 (실거래 params.m4_slope_th 변경 없음)
+        _init_slope = str(int(
+            self._applied_params.get("m4_slope_th", 10)
+            if self._applied_params else 10
+        ))
+        _slope_var = tk.StringVar(value=_init_slope)
+        _slope_cb = ttk.Combobox(
             footer_row1,
-            textvariable=_consensus_var,
-            values=["4/4", "3/4"],
+            textvariable=_slope_var,
+            values=["5", "10", "15"],
             state="readonly", width=8,
             font=("Segoe UI", 7),
         )
-        _consensus_cb.pack(side="left", padx=(8, 0), pady=(4, 0))
+        _slope_cb.pack(side="left", padx=(8, 0), pady=(4, 0))
 
         bt_btn = tk.Button(footer_row1, text="  ▶  백테스팅  ",
                            bg=DARK_PANEL, fg=ACCENT_BLUE,
@@ -299,7 +301,7 @@ class StrategyPopupMixin:
                       "font": ("Segoe UI", 8)}
 
         tab1_btn = tk.Button(tab_bar_f,
-                             text="  📋  Sort by 일치 4TF 완전 합의 전략 설정  ",
+                             text="  📋  M4 진입 전략 설정  (5m GC/DC + 15m 추세)  ",
                              relief="flat", padx=10, pady=6,
                              cursor="arrow", state="disabled",
                              **_TAB_DIS)
@@ -315,7 +317,7 @@ class StrategyPopupMixin:
         tk.Frame(tab_bar_f, bg="#333333", width=1).pack(
             side="left", fill="y", pady=4)
         tab2_btn = tk.Button(tab_bar_f,
-                             text="  📊  4TF 완전 합의 백테스팅  ",
+                             text="  📊  M4 백테스팅  ",
                              relief="flat", padx=10, pady=6,
                              cursor="arrow", state="disabled",
                              **_TAB_DIS)
@@ -338,7 +340,7 @@ class StrategyPopupMixin:
         def _make_hint_lbl() -> None:
             lbl = tk.Label(tab1_frame,
                            text="[📥 데이터 로딩] 버튼을 클릭하면\n"
-                                "선택한 코인 심볼의 4TF 완전 정렬 조건을 분석합니다",
+                                "선택한 코인 심볼의 M4 진입 조건 (5m GC/DC + 15m 추세)을 분석합니다",
                            bg=DARK_BG, fg=DIM_TEXT,
                            font=("Segoe UI", 10), justify="center")
             lbl.pack(expand=True)
@@ -356,7 +358,7 @@ class StrategyPopupMixin:
         def _make_tab2_hint() -> None:
             lbl = tk.Label(tab2_frame,
                            text="[▶ 백테스팅] 버튼을 클릭하면\n"
-                                "4TF 완전 정렬 백테스팅 결과가 이 탭에 표시됩니다",
+                                "M4 전략 백테스팅 결과가 이 탭에 표시됩니다",
                            bg=DARK_BG, fg=DIM_TEXT,
                            font=("Segoe UI", 10), justify="center")
             lbl.pack(expand=True)
@@ -520,7 +522,7 @@ class StrategyPopupMixin:
             tk.Checkbutton(
                 macro_bar,
                 text="  ☑  거시적 추세(1H · 4H · 1D) 방향 연동"
-                     "  —  체크 해제 시 국지적 4TF 과반(3/4 이상) 기준으로만 판단",
+                     "  —  체크 해제 시 5m GC/DC + 15m 로컬 추세 기준으로만 판단",
                 variable=self._use_macro_var,
                 bg=DARK_HEADER, fg=DARK_TEXT,
                 activebackground=DARK_HEADER, activeforeground=DARK_TEXT,
@@ -661,27 +663,16 @@ class StrategyPopupMixin:
                              font=("Segoe UI", 9, "bold"),
                              justify="center").pack(anchor="center", expand=True)
                 else:
-                    _sec_hdr(long_col, "4TF 완전 정렬 조건  (모두 충족 시 롱 엔진 활성)")
-                    for tf in TF_KEYS:
-                        rw = tk.Frame(long_col, bg=DARK_PANEL, pady=4)
-                        rw.pack(fill="x")
-                        tk.Label(rw, text=f"  ●  {tf}",
-                                 bg=DARK_PANEL, fg=ACCENT_BLUE,
-                                 font=("Segoe UI", 8, "bold"),
-                                 width=7, anchor="w").pack(side="left", padx=(8, 2))
-                        tk.Label(rw, text="K > D",
-                                 bg=DARK_PANEL, fg=POSITIVE,
-                                 font=("Consolas", 8, "bold")).pack(side="left")
-                        tk.Label(rw, text="  (불리시 정렬)",
-                                 bg=DARK_PANEL, fg=DIM_TEXT,
-                                 font=("Segoe UI", 7)).pack(side="left")
-
-                    _sec_hdr(long_col, "진입 조건  (4TF 정렬 상태에서)")
+                    _sec_hdr(long_col, "M4 진입 조건  (모두 충족 시 롱 엔진 활성)")
                     _cond_row(long_col, "▶", POSITIVE,
-                              f"5m  K < {cfg.k_long_max:.0f}", POSITIVE,
-                              f"과매도 구간 진입 (K 상한 {cfg.k_long_max:.0f})")
+                              "5m  GC  (K ↑ D 상향 돌파)", POSITIVE,
+                              "5m 골든크로스 발생  [G1]")
                     _cond_row(long_col, "▶", POSITIVE,
-                              "K  ↑  D  상향 돌파", POSITIVE, "K선 D선 상향 돌파 + 스프레드 ≥ 2.0")
+                              "5m  K − D  ≥ 10", POSITIVE,
+                              f"G1 — K기울기 임계값 충족  (SLOPE_TH={params.m4_slope_th:.0f})")
+                    _cond_row(long_col, "▶", POSITIVE,
+                              "15m  K > D  |  spread ≥ 2", POSITIVE,
+                              "G2 — 15m 롱 추세 합의")
 
                     _sec_hdr(long_col, "모드별 추가 필터")
                     _extra_filter_row(long_col, "ATR% 범위",
@@ -706,11 +697,11 @@ class StrategyPopupMixin:
                               "K  ↓  D  하향 이탈", NEGATIVE, "K선 D선 하향 이탈 → 익절")
 
                     _sec_hdr(long_col, "엔진 상태 전환")
-                    _state_row(long_col, "4TF K>D 정렬 감지",
-                               "→  롱 엔진 활성화", POSITIVE)
-                    _state_row(long_col, "4TF 정렬 해제 시",
+                    _state_row(long_col, "5m GC + G1 + G2 충족",
+                               "→  롱 진입", POSITIVE)
+                    _state_row(long_col, "G1 또는 G2 미충족",
                                "→  롱 엔진 대기", DIM_TEXT)
-                    _state_row(long_col, "4TF K<D 정렬 감지",
+                    _state_row(long_col, "15m K<D 베어 추세 감지",
                                "→  롱 엔진 잠금", NEGATIVE)
 
                 # ── 숏 포지션 컬럼 ──────────────────────────────────
@@ -730,27 +721,16 @@ class StrategyPopupMixin:
                              font=("Segoe UI", 9, "bold"),
                              justify="center").pack(anchor="center", expand=True)
                 else:
-                    _sec_hdr(short_col, "4TF 완전 정렬 조건  (모두 충족 시 숏 엔진 활성)")
-                    for tf in TF_KEYS:
-                        rw = tk.Frame(short_col, bg=DARK_PANEL, pady=4)
-                        rw.pack(fill="x")
-                        tk.Label(rw, text=f"  ●  {tf}",
-                                 bg=DARK_PANEL, fg=ACCENT_BLUE,
-                                 font=("Segoe UI", 8, "bold"),
-                                 width=7, anchor="w").pack(side="left", padx=(8, 2))
-                        tk.Label(rw, text="K < D",
-                                 bg=DARK_PANEL, fg=NEGATIVE,
-                                 font=("Consolas", 8, "bold")).pack(side="left")
-                        tk.Label(rw, text="  (베어리시 정렬)",
-                                 bg=DARK_PANEL, fg=DIM_TEXT,
-                                 font=("Segoe UI", 7)).pack(side="left")
-
-                    _sec_hdr(short_col, "진입 조건  (4TF 정렬 상태에서)")
+                    _sec_hdr(short_col, "M4 진입 조건  (모두 충족 시 숏 엔진 활성)")
                     _cond_row(short_col, "▶", NEGATIVE,
-                              f"5m  K > {cfg.k_short_min:.0f}", NEGATIVE,
-                              f"과매수 구간 진입 (K 하한 {cfg.k_short_min:.0f})")
+                              "5m  DC  (K ↓ D 하향 이탈)", NEGATIVE,
+                              "5m 데드크로스 발생  [G1]")
                     _cond_row(short_col, "▶", NEGATIVE,
-                              "K  ↓  D  하향 이탈", NEGATIVE, "K선 D선 하향 이탈 + 스프레드 ≥ 2.0")
+                              "5m  D − K  ≥ 10", NEGATIVE,
+                              f"G1 — K기울기 임계값 충족  (SLOPE_TH={params.m4_slope_th:.0f})")
+                    _cond_row(short_col, "▶", NEGATIVE,
+                              "15m  K < D  |  spread ≥ 2", NEGATIVE,
+                              "G2 — 15m 숏 추세 합의")
 
                     _sec_hdr(short_col, "모드별 추가 필터")
                     _extra_filter_row(short_col, "ATR% 범위",
@@ -775,11 +755,11 @@ class StrategyPopupMixin:
                               "K  ↑  D  상향 돌파", POSITIVE, "K선 D선 상향 돌파 → 익절")
 
                     _sec_hdr(short_col, "엔진 상태 전환")
-                    _state_row(short_col, "4TF K<D 정렬 감지",
-                               "→  숏 엔진 활성화", NEGATIVE)
-                    _state_row(short_col, "4TF 정렬 해제 시",
+                    _state_row(short_col, "5m DC + G1 + G2 충족",
+                               "→  숏 진입", NEGATIVE)
+                    _state_row(short_col, "G1 또는 G2 미충족",
                                "→  숏 엔진 대기", DIM_TEXT)
-                    _state_row(short_col, "4TF K>D 정렬 감지",
+                    _state_row(short_col, "15m K>D 불리시 추세 감지",
                                "→  숏 엔진 잠금", POSITIVE)
 
             # ── 초기 선택값: 중단 모듈의 현재 Sort by 모드와 동기화 ──────
@@ -796,7 +776,7 @@ class StrategyPopupMixin:
             notice.pack(fill="x", side="bottom")
             tk.Label(notice,
                      text="⚡  동시 거래 절대 금지  —  "
-                          "4TF 미정렬 시 양쪽 엔진 모두 대기",
+                          "M4 조건 미충족 시 양쪽 엔진 모두 대기",
                      bg="#1A1008", fg=YELLOW,
                      font=("Segoe UI", 8, "bold")).pack(anchor="center")
 
@@ -1083,17 +1063,17 @@ class StrategyPopupMixin:
             # ── 4TF 정렬 발생 통계 ──────────────────────────────────
             align_hdr = tk.Frame(inner, bg=DARK_HEADER, pady=5)
             align_hdr.pack(fill="x", pady=(8, 0))
-            tk.Label(align_hdr, text="  🔍  4TF 완전 정렬 발생 통계",
+            tk.Label(align_hdr, text="  🔍  M4 진입 신호 발생 통계",
                      bg=DARK_HEADER, fg=ACCENT_BLUE,
                      font=("Segoe UI", 9, "bold")).pack(side="left", padx=6)
 
             align_row1 = tk.Frame(inner, bg=DARK_PANEL, pady=6)
             align_row1.pack(fill="x")
             for txt, val, col in [
-                ("롱 정렬 발생",  f"{la_cnt}회",        POSITIVE),
-                ("숏 정렬 발생",  f"{sa_cnt}회",        NEGATIVE),
-                ("총 정렬 횟수",  f"{total_align}회",   ACCENT_BLUE),
-                ("일 평균 정렬",  f"{daily_avg:.2f}회", DIM_TEXT),
+                ("롱 진입 신호",  f"{la_cnt}회",        POSITIVE),
+                ("숏 진입 신호",  f"{sa_cnt}회",        NEGATIVE),
+                ("총 진입 횟수",  f"{total_align}회",   ACCENT_BLUE),
+                ("일 평균 진입",  f"{daily_avg:.2f}회", DIM_TEXT),
             ]:
                 seg = tk.Frame(align_row1, bg=DARK_PANEL)
                 seg.pack(side="left", expand=True)
@@ -1107,7 +1087,7 @@ class StrategyPopupMixin:
             align_row2 = tk.Frame(inner, bg="#1A1A10", pady=6)
             align_row2.pack(fill="x")
             tk.Label(align_row2,
-                     text=f"  ⏱  다음 4TF 정렬 예상  :  "
+                     text=f"  ⏱  다음 M4 진입 신호 예상  :  "
                           f"{next_est}  발생 예상",
                      bg="#1A1A10", fg=YELLOW,
                      font=("Segoe UI", 8, "bold")).pack(
@@ -1118,7 +1098,7 @@ class StrategyPopupMixin:
                 fill="x", pady=(10, 0))
             perf_hdr = tk.Frame(inner, bg=DARK_HEADER, pady=5)
             perf_hdr.pack(fill="x")
-            tk.Label(perf_hdr, text="  📊  거래 성과  (4TF 정렬 진입 기준)",
+            tk.Label(perf_hdr, text="  📊  거래 성과  (M4 진입 기준)",
                      bg=DARK_HEADER, fg=ACCENT_BLUE,
                      font=("Segoe UI", 9, "bold")).pack(side="left", padx=6)
             tk.Label(perf_hdr,
@@ -1315,7 +1295,7 @@ class StrategyPopupMixin:
                 try:
                     if _HAS_BACKTEST and BacktestRunner is not None:
                         period_key = _get_period_key(avail_days_ref[0])
-                        cmp_results = BacktestRunner.run_comparison(
+                        cmp_results = BacktestRunner.run_m4_slope_comparison(
                             sym, params, period_key)
                     else:
                         cmp_results = {}
@@ -1370,21 +1350,22 @@ class StrategyPopupMixin:
             # 헤더
             hdr_f = tk.Frame(inner, bg=DARK_HEADER, pady=5)
             hdr_f.pack(fill="x", pady=(8, 0))
-            tk.Label(hdr_f, text="  📊  전략 비교  (4/4 vs 3/4)",
+            tk.Label(hdr_f, text="  📊  M4 파라미터 비교  (SLOPE_TH 5 / 10 / 15)",
                      bg=DARK_HEADER, fg=ACCENT_BLUE,
                      font=("Segoe UI", 9, "bold")).pack(side="left", padx=6)
 
             # 컬럼 헤더
             col_hdr = tk.Frame(inner, bg="#252525", pady=4)
             col_hdr.pack(fill="x")
-            for txt, w in [("합의 모드", 10), ("적중도", 8), ("총 수익률", 10),
+            for txt, w in [("SLOPE_TH", 10), ("적중도", 8), ("총 수익률", 10),
                            ("MDD", 8), ("거래 횟수", 8), ("손익비", 8)]:
                 tk.Label(col_hdr, text=txt, bg="#252525", fg=ACCENT_BLUE,
                          font=("Segoe UI", 7, "bold"),
                          width=w, anchor="center").pack(side="left", padx=3)
 
-            # 최고 수익률 모드 파악
-            _MODES = ["4/4", "3/4"]
+            # 최고 수익률 SLOPE_TH 파악
+            _MODES = ["slope_5", "slope_10", "slope_15"]
+            _SLOPE_DISP = {"slope_5": "SLOPE=5", "slope_10": "SLOPE=10", "slope_15": "SLOPE=15"}
             best_mode = max(
                 (m for m in _MODES if m in cmp_results),
                 key=lambda m: cmp_results[m].total_return,
@@ -1407,7 +1388,7 @@ class StrategyPopupMixin:
                           if all_losses else 0)
                 rr_str = (f"{abs(avg_w/avg_l):.1f}:1" if avg_l != 0 else "—")
 
-                mode_label = f"{'★ ' if is_best else '   '}{mode}"
+                mode_label = f"{'★ ' if is_best else '   '}{_SLOPE_DISP[mode]}"
                 mode_fg    = YELLOW if is_best else DIM_TEXT
 
                 rw = tk.Frame(inner, bg=rbg, pady=6)
@@ -1445,13 +1426,13 @@ class StrategyPopupMixin:
                 kelly_hdr = tk.Frame(inner, bg=DARK_HEADER, pady=5)
                 kelly_hdr.pack(fill="x")
                 tk.Label(kelly_hdr,
-                         text="  📐  Kelly 리스크 분석  — 합의 모드별  (Fractional Kelly × 0.25)",
+                         text="  📐  Kelly 리스크 분석  — M4 SLOPE_TH별  (Fractional Kelly × 0.25)",
                          bg=DARK_HEADER, fg=ACCENT_BLUE,
                          font=("Segoe UI", 9, "bold")).pack(side="left", padx=6)
 
                 k_col_hdr = tk.Frame(inner, bg="#252525", pady=4)
                 k_col_hdr.pack(fill="x")
-                for _txt, _w in [("합의 모드", 10), ("Wilson 승률", 11),
+                for _txt, _w in [("SLOPE_TH", 10), ("Wilson 승률", 11),
                                   ("평균 수익", 10), ("평균 손실", 10), ("Kelly R%", 10)]:
                     tk.Label(k_col_hdr, text=_txt, bg="#252525", fg=ACCENT_BLUE,
                              font=("Segoe UI", 7, "bold"),
@@ -1467,7 +1448,7 @@ class StrategyPopupMixin:
 
                     _krw = tk.Frame(inner, bg=_rbg, pady=6)
                     _krw.pack(fill="x")
-                    tk.Label(_krw, text=f"  {_mode}", bg=_rbg, fg=DIM_TEXT,
+                    tk.Label(_krw, text=f"  {_SLOPE_DISP.get(_mode, _mode)}", bg=_rbg, fg=DIM_TEXT,
                              font=("Consolas", 8, "bold"),
                              width=10, anchor="center").pack(side="left", padx=3)
 
