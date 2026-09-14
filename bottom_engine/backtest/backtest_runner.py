@@ -965,7 +965,9 @@ class BacktestRunner:
         for slope in (5.0, 10.0, 15.0):
             _p = dataclasses.replace(params, m4_slope_th=slope)
             results[f"slope_{int(slope)}"] = cls.run(
-                symbol, _p, period, preloaded=preloaded, entry_variant="M4")
+                symbol, _p, period, preloaded=preloaded,
+                entry_variant="M4", exit_variant="M4",
+                m4_slope_th=slope)
         return results
 
     # ── 거래 비용 계산 ──────────────────────────────────────────

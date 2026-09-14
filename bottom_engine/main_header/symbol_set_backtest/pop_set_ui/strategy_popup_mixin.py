@@ -1225,8 +1225,8 @@ class StrategyPopupMixin:
                             sym, params, period_key)
                     else:
                         cmp_results = {}
-                except Exception:
-                    cmp_results = {}
+                except Exception as _exc:
+                    cmp_results = {"_error": str(_exc)}
                 cmp_results["sl_used"]    = _sl_used    # [C-2] 실제 적용 SL 표시용
                 cmp_results["trail_used"] = _trail_used # [C-2] 실제 적용 Trail 표시용
                 cmp_results["mmr_used"]   = params.mmr  # [C-2] 실제 적용 MMR 표시용
@@ -1337,16 +1337,19 @@ class StrategyPopupMixin:
                              width=w, anchor="center").pack(
                                  side="left", padx=3)
 
-            if not cmp_results:
+            if not any(k in cmp_results for k in _MODES):
                 note_row = tk.Frame(inner, bg=DARK_ROW_ODD, pady=8)
                 note_row.pack(fill="x")
+                _err = cmp_results.get("_error", "")
+                _note = (f"  오류 발생: {_err}" if _err
+                         else "  비교 결과 없음 — 데이터 로딩 후 재시도하세요.")
                 tk.Label(note_row,
-                         text="  비교 결과 없음 — 데이터 로딩 후 재시도하세요.",
+                         text=_note,
                          bg=DARK_ROW_ODD, fg=DIM_TEXT,
                          font=("Segoe UI", 8)).pack(side="left", padx=10)
 
             # ── Kelly 리스크 분석 — 모드별 ──────────────────────────
-            if cmp_results:
+            if any(k in cmp_results for k in _MODES):
                 tk.Frame(inner, bg="#2A2A2A", height=1).pack(
                     fill="x", pady=(12, 0))
                 kelly_hdr = tk.Frame(inner, bg=DARK_HEADER, pady=5)
