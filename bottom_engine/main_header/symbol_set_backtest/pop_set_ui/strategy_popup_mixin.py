@@ -215,6 +215,7 @@ class StrategyPopupMixin:
             font=("Segoe UI", 7),
         )
         _slope_cb.pack(side="left", padx=(8, 0), pady=(4, 0))
+        _slope_var.trace_add("write", lambda *_: _render_strategy_cols(_selected_sort_ref[0]))
 
         bt_btn = tk.Button(footer_row1, text="  ▶  백테스팅  ",
                            bg=DARK_PANEL, fg=ACCENT_BLUE,
@@ -646,8 +647,8 @@ class StrategyPopupMixin:
                               "5m  GC  (K ↑ D 상향 돌파)", POSITIVE,
                               "5m 골든크로스 발생  [G1]")
                     _cond_row(long_col, "▶", POSITIVE,
-                              "5m  K − D  ≥ 10", POSITIVE,
-                              f"G1 — K기울기 임계값 충족  (SLOPE_TH={params.m4_slope_th:.0f})")
+                              f"5m  K − D  ≥ {int(float(_slope_var.get()))}", POSITIVE,
+                              f"G1 — K기울기 임계값 충족  (SLOPE_TH={int(float(_slope_var.get()))})")
                     _cond_row(long_col, "▶", POSITIVE,
                               "15m  K > D  |  spread ≥ 2", POSITIVE,
                               "G2 — 15m 롱 추세 합의")
@@ -692,8 +693,8 @@ class StrategyPopupMixin:
                               "5m  DC  (K ↓ D 하향 이탈)", NEGATIVE,
                               "5m 데드크로스 발생  [G1]")
                     _cond_row(short_col, "▶", NEGATIVE,
-                              "5m  D − K  ≥ 10", NEGATIVE,
-                              f"G1 — K기울기 임계값 충족  (SLOPE_TH={params.m4_slope_th:.0f})")
+                              f"5m  D − K  ≥ {int(float(_slope_var.get()))}", NEGATIVE,
+                              f"G1 — K기울기 임계값 충족  (SLOPE_TH={int(float(_slope_var.get()))})")
                     _cond_row(short_col, "▶", NEGATIVE,
                               "15m  K < D  |  spread ≥ 2", NEGATIVE,
                               "G2 — 15m 숏 추세 합의")
