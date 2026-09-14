@@ -808,8 +808,8 @@ class BacktestRunner:
                     e50 = ema50_1h[pos_1h] if (ema50_1h and pos_1h < len(ema50_1h)) else 0.0
                     _gc = (_k5m_prev_bar <= _d5m_prev_bar) and (_k5m_cur > _d5m_cur)
                     _dc = (_k5m_prev_bar >= _d5m_prev_bar) and (_k5m_cur < _d5m_cur)
-                    _slope_long  = (_k5m_cur - _k5m_prev_bar) >= m4_slope_th
-                    _slope_short = (_k5m_prev_bar - _k5m_cur) >= m4_slope_th
+                    _slope_long  = (_k5m_cur - _d5m_cur) >= m4_slope_th
+                    _slope_short = (_d5m_cur - _k5m_cur) >= m4_slope_th
                     _trend_long  = (k15m > d15m) and ((k15m - d15m) >= 2.0)
                     _trend_short = (k15m < d15m) and ((d15m - k15m) >= 2.0)
                     _div_ok = True
