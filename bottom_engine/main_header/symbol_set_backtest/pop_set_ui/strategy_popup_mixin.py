@@ -201,7 +201,7 @@ class StrategyPopupMixin:
                             state="disabled")
         cmp_btn.pack(side="left", padx=(12, 0), pady=(4, 0))
 
-        # M4 SLOPE_TH 선택 — 비교 탭 전용 (실거래 params.m4_slope_th 변경 없음)
+        # M4 SLOPE_TH 선택 — 단건 백테스팅·비교 탭 공용 (실거래 params.m4_slope_th 변경 없음)
         _init_slope = str(int(
             self._applied_params.get("m4_slope_th", 10)
             if self._applied_params else 10
@@ -908,7 +908,12 @@ class StrategyPopupMixin:
                     if _HAS_BACKTEST and BacktestRunner is not None:
                         from bottom_engine.backtest.param_deriver import derive_params
                         period_key = _get_period_key(avail_days_ref[0])
-                        result_obj = BacktestRunner.run(sym, params, period_key, entry_variant="M4")
+                        result_obj = BacktestRunner.run(
+                            sym, params, period_key,
+                            entry_variant="M4",
+                            exit_variant="M4",
+                            m4_slope_th=float(_slope_var.get()),
+                        )
                         res = _backtest_result_to_dict(result_obj)
                         res["derived"] = derive_params(result_obj.trades)
                     else:
