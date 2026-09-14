@@ -80,6 +80,7 @@ class StrategyParams:
         p.prohibition    = ProhibitionFlags.from_dict(d.get("prohibited", {}))
         p.use_macro      = bool(d.get("use_macro", True))
         p.consensus_mode = str(d.get("consensus_mode", "4/4"))
+        p.m4_slope_th    = float(d.get("m4_slope_th", 10.0))
         return p
 
 

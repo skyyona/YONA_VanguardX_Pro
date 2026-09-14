@@ -375,7 +375,7 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
     # ─── 전략 확정 ───────────────────────────────────────────────
     def _confirm_strategy(self, win: tk.Toplevel,
                           sort_mode: str = "24h Ticker",
-                          consensus_mode: str = "4/4") -> None:
+                          m4_slope_th: float = 10.0) -> None:
         # ── 방안 A: 포지션 보유 중 전략 전체 재설정 차단 ──────────
         if self._engine is not None and self._engine.has_open_positions():
             from tkinter import messagebox as _mb
@@ -390,7 +390,7 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
                                 "sl": sl, "trail": trail,
                                 "use_macro": self._use_macro_var.get(),
                                 "prohibited": prohibited,
-                                "consensus_mode": consensus_mode}
+                                "m4_slope_th": m4_slope_th}
         self._applied_sort_mode = sort_mode
         self._strategy_ready = True
         self._strategy_msg.configure(

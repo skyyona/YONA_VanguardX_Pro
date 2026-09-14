@@ -29,6 +29,7 @@ class StrategyLoader:
             "prohibition":    params.prohibition.to_dict(),
             "use_macro":      params.use_macro,
             "consensus_mode": params.consensus_mode,  # [B-4]
+            "m4_slope_th":    params.m4_slope_th,
         }
         _save_raw(data)
 
@@ -48,6 +49,7 @@ class StrategyLoader:
         p.prohibition = ProhibitionFlags.from_dict(raw.get("prohibition", {}))
         p.use_macro      = bool(raw.get("use_macro", True))
         p.consensus_mode = str(raw.get("consensus_mode", "4/4"))  # [B-4]
+        p.m4_slope_th    = float(raw.get("m4_slope_th", 10.0))
         return p
 
     @staticmethod

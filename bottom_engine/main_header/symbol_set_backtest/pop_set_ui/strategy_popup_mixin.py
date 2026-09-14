@@ -118,7 +118,7 @@ class StrategyPopupMixin:
                   activebackground="#0A3A18", activeforeground=POSITIVE,
                   font=("Segoe UI", 9, "bold"), relief="flat", padx=14, pady=4,
                   cursor="hand2",
-                  command=lambda: self._confirm_strategy(win, _selected_sort_ref[0], "M4")
+                  command=lambda: self._confirm_strategy(win, _selected_sort_ref[0], float(_slope_var.get()))
                   ).pack(anchor="center", pady=(4, 0))
 
         # [중간] 백테스팅 결과 요약 (항상 표시 — 백테스팅 전: "—", 후: 실제값)
