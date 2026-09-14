@@ -103,6 +103,9 @@ class TradingEngine:
         self._last_time_sync:      float = 0.0
         # Binance 실제 포지션 동기화 타임스탬프 — 외부 강제 청산 감지
         self._last_pos_sync_ts:    float = 0.0
+        # K80-5M / K20-5M 익절용 직전 폴링 K값 추적
+        self._k5m_prev_long:  float = 50.0
+        self._k5m_prev_short: float = 50.0
 
     # ── 공개 인터페이스 ────────────────────────────────────────
     @property
@@ -129,6 +132,8 @@ class TradingEngine:
         self._profit_trigger_price_short = 0.0
         self._clear_p3_state("long")
         self._clear_p3_state("short")
+        self._k5m_prev_long  = 50.0
+        self._k5m_prev_short = 50.0
         # 레버리지 — 심볼·값 변경 시 Binance에 즉시 반영
         lev = params.leverage
         if symbol and (symbol != self._last_leverage_sym or lev != self._last_leverage_val):
@@ -553,14 +558,12 @@ class TradingEngine:
                                         else:
                                             with self._lock:
                                                 self._state.error_msg = "[경보] 롱 Trailing Stop 등록 실패 — Binance 연결 확인 필요"
-                            # KD 역전 익절 — 롱 (5m K80 하향 이탈)
+                            # K80-5M 익절 — 롱 (직전 K≥80 → 현재 K<80 하향 돌파)
                             if _ind_kd and not RiskManager.should_stop_loss(updated, mark):
                                 _tf5 = _ind_kd.get("tf5", {})
                                 _k5m = float(_tf5.get("k", 50.0))
-                                _d5m = float(_tf5.get("d", 50.0))
-                                _kd_spread = 5.0 if self._params.sort_mode == "Newly Listed" else 2.0
-                                if _k5m > 80.0 and _k5m < _d5m and (_d5m - _k5m) >= _kd_spread:
-                                    self._close_long("KD 역전 익절", mark)
+                                if self._k5m_prev_long >= 80.0 and _k5m < 80.0:
+                                    self._close_long("K80-5M 익절", mark)
                             if RiskManager.should_stop_loss(updated, mark):
                                 self._close_long("SL 도달", mark)
 
@@ -605,16 +608,20 @@ class TradingEngine:
                                         else:
                                             with self._lock:
                                                 self._state.error_msg = "[경보] 숏 Trailing Stop 등록 실패 — Binance 연결 확인 필요"
-                            # KD 역전 익절 — 숏 (5m K20 상향 돌파)
+                            # K20-5M 익절 — 숏 (직전 K≤20 → 현재 K>20 상향 돌파)
                             if _ind_kd and not RiskManager.should_stop_loss(updated, mark):
                                 _tf5 = _ind_kd.get("tf5", {})
                                 _k5m = float(_tf5.get("k", 50.0))
-                                _d5m = float(_tf5.get("d", 50.0))
-                                _kd_spread = 5.0 if self._params.sort_mode == "Newly Listed" else 2.0
-                                if _k5m < 20.0 and _k5m > _d5m and (_k5m - _d5m) >= _kd_spread:
-                                    self._close_short("KD 역전 익절", mark)
+                                if self._k5m_prev_short <= 20.0 and _k5m > 20.0:
+                                    self._close_short("K20-5M 익절", mark)
                             if RiskManager.should_stop_loss(updated, mark):
                                 self._close_short("SL 도달", mark)
+                        # K80/K20 돌파 감지용 직전 K값 업데이트
+                        if _ind_kd:
+                            _tf5_tick = _ind_kd.get("tf5", {})
+                            _k5m_tick = float(_tf5_tick.get("k", 50.0))
+                            self._k5m_prev_long  = _k5m_tick
+                            self._k5m_prev_short = _k5m_tick
                 # 포지션 없으면 API 호출 없이 1초 sleep 만 실행
 
             except Exception as e:
