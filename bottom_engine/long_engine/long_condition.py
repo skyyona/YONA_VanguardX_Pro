@@ -53,6 +53,10 @@ class LongCondition:
             return False, (
                 f"G1: 5m 기울기 부족 (K-D={k5 - d5:.1f} < SLOPE_TH={params.m4_slope_th})"
             )
+        if k5 >= cfg.k_long_max:
+            return False, (
+                f"G1: K 과매수 필터 (K={k5:.1f} >= k_long_max={cfg.k_long_max})"
+            )
 
         # ── G2: M4 15m 추세 합의 ───────────────────────────────
         tf15 = ind_data.get("tf15", {})
