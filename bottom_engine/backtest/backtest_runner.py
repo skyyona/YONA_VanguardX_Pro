@@ -806,8 +806,8 @@ class BacktestRunner:
                 if entry_variant == "M4":
                     k15m, d15m = tf_kd.get("15m", (50.0, 50.0))
                     e50 = ema50_1h[pos_1h] if (ema50_1h and pos_1h < len(ema50_1h)) else 0.0
-                    _gc = (_k5m_prev_bar <= _d5m_prev_bar) and (_k5m_cur > _d5m_cur)
-                    _dc = (_k5m_prev_bar >= _d5m_prev_bar) and (_k5m_cur < _d5m_cur)
+                    _gc = (_k5m_prev_bar < _d5m_prev_bar) and (_k5m_cur > _d5m_cur)
+                    _dc = (_k5m_prev_bar > _d5m_prev_bar) and (_k5m_cur < _d5m_cur)
                     _slope_long  = (_k5m_cur - _d5m_cur) >= m4_slope_th
                     _slope_short = (_d5m_cur - _k5m_cur) >= m4_slope_th
                     _trend_long  = (k15m > d15m) and ((k15m - d15m) >= 2.0)
