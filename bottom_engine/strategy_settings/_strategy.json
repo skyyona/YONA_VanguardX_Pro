@@ -106,6 +106,6 @@
       "short_long_open": true
     },
     "use_macro": false,
-    "consensus_mode": "M4"
+    "consensus_mode": "4/4"
   }
 }
