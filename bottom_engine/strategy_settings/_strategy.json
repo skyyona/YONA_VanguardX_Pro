@@ -57,7 +57,7 @@
     "use_macro": false,
     "consensus_mode": "4/4",
     "m4_slope_th": 5.0,
-    "m4_div_th": 2.0
+    "m4_div_th": null
   },
   "Newly Listed": {
     "funds_pct": 100,
