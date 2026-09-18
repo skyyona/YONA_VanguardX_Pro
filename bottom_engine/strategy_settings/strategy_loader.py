@@ -28,7 +28,6 @@ class StrategyLoader:
             "trail_stop":     params.trail_stop,
             "prohibition":    params.prohibition.to_dict(),
             "use_macro":      params.use_macro,
-            "consensus_mode": params.consensus_mode,  # [B-4]
             "m4_slope_th":    params.m4_slope_th,
             "m4_div_th":      params.m4_div_th,
         }
@@ -49,7 +48,6 @@ class StrategyLoader:
         from bottom_engine.models import ProhibitionFlags
         p.prohibition = ProhibitionFlags.from_dict(raw.get("prohibition", {}))
         p.use_macro      = bool(raw.get("use_macro", True))
-        p.consensus_mode = str(raw.get("consensus_mode", "4/4"))  # [B-4]
         p.m4_slope_th    = float(raw.get("m4_slope_th", 10.0))
         _raw_div = raw.get("m4_div_th", 2.0)
         p.m4_div_th = None if _raw_div is None else float(_raw_div)

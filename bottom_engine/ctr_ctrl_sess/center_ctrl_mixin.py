@@ -6,15 +6,8 @@ import threading as _threading
 
 try:
     from middle.widget.shared_context import get_ind
-    from bottom_engine.engine_core.fourtf_consensus import FourTFConsensus
 except ImportError:
     def get_ind(_s: str) -> dict: return {}                                # type: ignore[misc]
-    class FourTFConsensus:                           # type: ignore[misc]
-        @classmethod
-        def evaluate(cls, _d: dict):
-            from types import SimpleNamespace
-            return SimpleNamespace(long_consensus=False, short_consensus=False,
-                                   aligned_long=0, aligned_short=0, details={})
 
 try:
     from bottom_engine.models import PositionState
@@ -438,11 +431,7 @@ class CenterCtrlMixin:
             elif score <= -1: self._update_position_indicator(False)
             else:             self._update_position_indicator(None)
         else:
-            # 국지적 4TF 과반(3/4 이상) 합의로 롱/숏 결정
-            signal = FourTFConsensus.evaluate(ind)
-            if   signal.aligned_long  >= 3: self._update_position_indicator(True)
-            elif signal.aligned_short >= 3: self._update_position_indicator(False)
-            else:                           self._update_position_indicator(None)
+            self._update_position_indicator(None)
 
     def _poll_center(self) -> None:
         """0.5초 주기 중앙 컨트롤 세션 폴링 루프."""

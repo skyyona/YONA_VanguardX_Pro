@@ -63,7 +63,6 @@ class StrategyParams:
     trail_stop:     float = 1.5         # Trailing Stop (%)
     prohibition:    ProhibitionFlags = field(default_factory=ProhibitionFlags)
     use_macro:      bool             = True   # 거시적 추세(1H·4H·1D) 연동 여부
-    consensus_mode: str              = "4/4"  # 4TF 합의 모드 ("4/4" | "3/4")
     portfolio_usdt: float            = 1000.0 # [B-1] 백테스트 기준 자본금 (실잔고 주입)
     mmr:            float            = 0.004  # [C-2] 유지증거금률 — liq_safe 산출용 (실거래 get_mmr 주입)
     m4_slope_th:    float            = 10.0   # M4 5m K기울기 임계값 (K-D ≥ SLOPE_TH)
@@ -79,22 +78,10 @@ class StrategyParams:
         p.trail_stop     = float(d.get("trail", 1.5))
         p.prohibition    = ProhibitionFlags.from_dict(d.get("prohibited", {}))
         p.use_macro      = bool(d.get("use_macro", True))
-        p.consensus_mode = str(d.get("consensus_mode", "4/4"))
         p.m4_slope_th    = float(d.get("m4_slope_th", 10.0))
         _raw_div = d.get("m4_div_th", 2.0)
         p.m4_div_th = None if _raw_div is None else float(_raw_div)
         return p
-
-
-# ── 4TF 합의 신호 ─────────────────────────────────────────────────
-@dataclass
-class FourTFSignal:
-    """4TF 완전 합의 평가 결과."""
-    long_consensus:  bool  = False   # 4TF 전부 K > D (강세)
-    short_consensus: bool  = False   # 4TF 전부 K < D (약세)
-    aligned_long:    int   = 0       # 강세 일치 TF 수 (0~4)
-    aligned_short:   int   = 0       # 약세 일치 TF 수 (0~4)
-    details: dict[str, dict] = field(default_factory=dict)  # {tf: {k, d, dir}}
 
 
 # ── 주문 ─────────────────────────────────────────────────────────

@@ -15,7 +15,6 @@
       "short_long_open": true
     },
     "use_macro": true,
-    "consensus_mode": "3/4",
     "m4_slope_th": 10.0,
     "m4_div_th": 2.0
   },
@@ -35,7 +34,6 @@
       "short_long_open": true
     },
     "use_macro": true,
-    "consensus_mode": "3/4",
     "m4_slope_th": 10.0,
     "m4_div_th": 2.0
   },
@@ -55,7 +53,6 @@
       "short_long_open": true
     },
     "use_macro": false,
-    "consensus_mode": "4/4",
     "m4_slope_th": 5.0,
     "m4_div_th": null
   },
@@ -75,7 +72,6 @@
       "short_long_open": true
     },
     "use_macro": true,
-    "consensus_mode": "4/4",
     "m4_slope_th": 10.0,
     "m4_div_th": 2.0
   },
@@ -95,7 +91,6 @@
       "short_long_open": true
     },
     "use_macro": false,
-    "consensus_mode": "3/4",
     "m4_slope_th": 10.0,
     "m4_div_th": 2.0
   },
@@ -115,7 +110,6 @@
       "short_long_open": true
     },
     "use_macro": false,
-    "consensus_mode": "4/4",
     "m4_slope_th": 10.0,
     "m4_div_th": 2.0
   }

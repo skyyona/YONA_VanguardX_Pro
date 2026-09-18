@@ -23,17 +23,10 @@ except ImportError:
 
 try:
     from middle.widget.shared_context import get_ind, request_detail, generate_ohlcv
-    from bottom_engine.engine_core.fourtf_consensus import FourTFConsensus
 except ImportError:
     def get_ind(_s: str) -> dict: return {}                                # type: ignore[misc]
     def request_detail(_s: str) -> None: pass                              # type: ignore[misc]
     def generate_ohlcv(_s: str, n: int = 60, interval: str = "5m") -> list: return []  # type: ignore[misc]
-    class FourTFConsensus:                           # type: ignore[misc]
-        @classmethod
-        def evaluate(cls, _d: dict):
-            from types import SimpleNamespace
-            return SimpleNamespace(long_consensus=False, short_consensus=False,
-                                   aligned_long=0, aligned_short=0, details={})
 
 try:
     from bottom_engine.engine_core.trading_engine import TradingEngine
@@ -350,13 +343,13 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             self._center_running = False
             self._reset_center()
 
-    def _restore_strategy_vars(self, sort_mode: str) -> str | None:
-        """sort_mode에 저장된 전략 설정을 UI vars에 복원한다. consensus_mode 반환."""
+    def _restore_strategy_vars(self, sort_mode: str) -> None:
+        """sort_mode에 저장된 전략 설정을 UI vars에 복원한다."""
         if StrategyLoader is None:
-            return None
+            return
         loaded = StrategyLoader.load(sort_mode)
         if loaded is None:
-            return None
+            return
         self._funds_var.set(int(loaded.funds_pct))
         self._lev_var.set(int(loaded.leverage))
         self._sl_var.set(float(loaded.stop_loss))
@@ -367,7 +360,6 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
                 self._prohibited_vars[k].set(bool(v))
             else:
                 self._prohibited_vars[k] = tk.BooleanVar(value=bool(v))
-        return loaded.consensus_mode  # [B-4] 호출부에서 _consensus_var 갱신용
 
     # ══════════════════════════════════════════════════════════════
     # 전략 설정 & 백테스팅 팝업창 (단일 페이지)
@@ -386,17 +378,15 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             return
         funds, lev, sl, trail = self._current_params()
         prohibited = {k: v.get() for k, v in self._prohibited_vars.items()}
-        # m4_div_th·consensus_mode는 UI 위젯 없음 — 저장된 값 그대로 유지 (Confirm 시 리셋 방지)
-        _saved     = StrategyLoader.load(sort_mode) if StrategyLoader is not None else None
-        _m4_div    = _saved.m4_div_th      if _saved is not None else None
-        _consensus = _saved.consensus_mode if _saved is not None else "4/4"
+        # m4_div_th는 UI 위젯 없음 — 저장된 값 그대로 유지 (Confirm 시 리셋 방지)
+        _saved  = StrategyLoader.load(sort_mode) if StrategyLoader is not None else None
+        _m4_div = _saved.m4_div_th if _saved is not None else None
         self._applied_params = {"funds": funds, "leverage": lev,
                                 "sl": sl, "trail": trail,
                                 "use_macro": self._use_macro_var.get(),
                                 "prohibited": prohibited,
                                 "m4_slope_th":    m4_slope_th,
-                                "m4_div_th":      _m4_div,
-                                "consensus_mode": _consensus}
+                                "m4_div_th":      _m4_div}
         self._applied_sort_mode = sort_mode
         self._strategy_ready = True
         self._strategy_msg.configure(
@@ -1207,9 +1197,7 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
                 direction = ("long"  if score >= 1 else
                              "short" if score <= -1 else None)
             else:
-                sig       = FourTFConsensus.evaluate(ind)
-                direction = ("long"  if sig.aligned_long  >= 3 else
-                             "short" if sig.aligned_short >= 3 else None)
+                direction = None
 
         for side, panel in (("long", self._long_panel), ("short", self._short_panel)):
             if not panel:
@@ -1230,7 +1218,6 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
         """개별 엔진 패널 위젯 갱신."""
         tf1    = ind.get("tf1", {})
         k1, d1 = tf1.get("k", 50.0), tf1.get("d", 50.0)
-        # M4: 5m/15m 기반 상태 변수 — FourTFConsensus 루프 대신 직접 읽기
         _tf5m  = ind.get("tf5",  {}) if ind else {}
         _tf15m = ind.get("tf15", {}) if ind else {}
         _k5m   = float(_tf5m.get("k",  50.0));  _d5m  = float(_tf5m.get("d",  50.0))

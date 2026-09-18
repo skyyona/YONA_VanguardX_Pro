@@ -567,7 +567,7 @@ class StrategyPopupMixin:
 
             def _select_sort_item(mode: str) -> None:
                 _selected_sort_ref[0] = mode   # 전략 창 내 선택값 저장 → 백테스팅·확정에 전달
-                self._restore_strategy_vars(mode)  # M4: consensus_mode 복원 불필요, 반환값 무시
+                self._restore_strategy_vars(mode)
                 for opt, b in sort_btns.items():
                     sel = (opt == mode)
                     b.configure(
