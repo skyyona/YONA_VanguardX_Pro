@@ -35,9 +35,6 @@ _STOCH_P      = (14, 14, 3, 3)
 _MIN_BARS     = 50
 # K-D 최소 스프레드 (fourtf_consensus.py 동일)
 _MIN_SPREAD   = 2.0
-# 합의 모드 상수
-_CONSENSUS_4_4 = "4/4"       # 4개 TF 모두 합의 (4/4)
-_CONSENSUS_3_4 = "3/4"       # 3개 이상 TF 합의 (3/4 과반)
 # 1m 기준 웜업 봉 수 — 신호 수렴 대기
 _WARMUP_1M    = 200
 
@@ -131,8 +128,7 @@ class BacktestRunner:
             entry_variant: str = "M4",
             exit_variant:  str = "M4",
             m4_slope_th:   float = 10.0,
-            m4_div_th:     "float | None" = 2.0,
-            consensus_mode: str = _CONSENSUS_4_4) -> BacktestResult:
+            m4_div_th:     "float | None" = 2.0) -> BacktestResult:
         period_days = cls._days(period)
         bars_cfg    = _TF_BARS.get(period, _TF_BARS["7일"])
 
@@ -808,101 +804,6 @@ class BacktestRunner:
                         in_short = True; entry_price = close; entry_time = bar.open_time
                         entry_bar_i = i; phase = 1; trail_ref = close
 
-                # ── CURRENT 진입 분기 ─────────────────────────────
-                elif entry_variant == "CURRENT":
-                    long_v  = 0
-                    short_v = 0
-                    tf_dirs: dict[str, int] = {}
-                    k_5m    = 50.0
-                    for tf_key, (k, d) in tf_kd.items():
-                        spread = abs(k - d)
-                        if k > d and spread >= _MIN_SPREAD:
-                            long_v         += 1
-                            tf_dirs[tf_key] = 1
-                        elif k < d and spread >= _MIN_SPREAD:
-                            short_v        += 1
-                            tf_dirs[tf_key] = -1
-                        else:
-                            tf_dirs[tf_key] = 0
-                        if tf_key == "5m":
-                            k_5m = k
-                    _tf_min = 3
-                    can_long, can_short = cls._check_consensus(
-                        consensus_mode, long_v, short_v, tf_dirs, _tf_min)
-
-                    # ── 롱 진입 시도 (CURRENT) ────────────────────
-                    if (can_long
-                            and k_5m < cfg.k_long_max
-                            and cfg.direction_bias != "short_only"
-                            and atr_ok and vol_ok
-                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
-                            and fr_ok_long
-                            and liq_ok_long
-                            and _mac_ok_long):
-                        ema_ok = True
-                        if cfg.macro_ema and ema50_1h:
-                            e5  = ema5_1h[pos_1h]  if pos_1h < len(ema5_1h)  else 0.0
-                            e50 = ema50_1h[pos_1h] if pos_1h < len(ema50_1h) else 0.0
-                            ema_ok = (e5 > e50) if e50 > 0 else True
-                        swing_ok = (not cfg.requires_swing) or _sw_long
-                        if ema_ok and swing_ok:
-                            grade_ok = True
-                            if cfg.quality_grade_req is not None:
-                                _em_l = (t - _tf5_long_cross_t) / 60_000 if _tf5_long_cross_t > 0 else -1
-                                _el_l = _fmt_elapsed(_em_l)
-                                _ind_l = {
-                                    "tf1":  {"k": tf_kd.get("1m",  (50.0, 50.0))[0], "d": tf_kd.get("1m",  (50.0, 50.0))[1]},
-                                    "tf3":  {"k": tf_kd.get("3m",  (50.0, 50.0))[0], "d": tf_kd.get("3m",  (50.0, 50.0))[1]},
-                                    "tf5":  {"k": tf_kd.get("5m",  (50.0, 50.0))[0], "d": tf_kd.get("5m",  (50.0, 50.0))[1], "elapsed": _el_l},
-                                    "tf15": {"k": tf_kd.get("15m", (50.0, 50.0))[0], "d": tf_kd.get("15m", (50.0, 50.0))[1]},
-                                    "swing_bull": _sw_long,
-                                }
-                                _grd_l, _ = QualityGrader.grade(_ind_l, "long")
-                                grade_ok = _grade_ok(_grd_l, cfg.quality_grade_req)
-                            if grade_ok:
-                                in_long     = True
-                                entry_price = close
-                                entry_time  = bar.open_time
-                                entry_bar_i = i
-                                phase       = 1
-                                trail_ref   = close
-
-                    # ── 숏 진입 시도 ──────────────────────────────
-                    elif (can_short
-                            and k_5m > cfg.k_short_min
-                            and cfg.direction_bias != "long_only"
-                            and atr_ok and vol_ok
-                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
-                            and fr_ok_short
-                            and liq_ok_short
-                            and _mac_ok_short):
-                        ema_ok = True
-                        if cfg.macro_ema and ema50_1h:
-                            e5  = ema5_1h[pos_1h]  if pos_1h < len(ema5_1h)  else 0.0
-                            e50 = ema50_1h[pos_1h] if pos_1h < len(ema50_1h) else 0.0
-                            ema_ok = (e5 < e50) if e50 > 0 else True
-                        swing_ok = (not cfg.requires_swing) or _sw_short
-                        if ema_ok and swing_ok:
-                            grade_ok = True
-                            if cfg.quality_grade_req is not None:
-                                _em_s = (t - _tf5_short_cross_t) / 60_000 if _tf5_short_cross_t > 0 else -1
-                                _el_s = _fmt_elapsed(_em_s)
-                                _ind_s = {
-                                    "tf1":  {"k": tf_kd.get("1m",  (50.0, 50.0))[0], "d": tf_kd.get("1m",  (50.0, 50.0))[1]},
-                                    "tf3":  {"k": tf_kd.get("3m",  (50.0, 50.0))[0], "d": tf_kd.get("3m",  (50.0, 50.0))[1]},
-                                    "tf5":  {"k": tf_kd.get("5m",  (50.0, 50.0))[0], "d": tf_kd.get("5m",  (50.0, 50.0))[1], "elapsed": _el_s},
-                                    "tf15": {"k": tf_kd.get("15m", (50.0, 50.0))[0], "d": tf_kd.get("15m", (50.0, 50.0))[1]},
-                                    "swing_bear": _sw_short,
-                                }
-                                _grd_s, _ = QualityGrader.grade(_ind_s, "short")
-                                grade_ok = _grade_ok(_grd_s, cfg.quality_grade_req)
-                            if grade_ok:
-                                in_short    = True
-                                entry_price = close
-                                entry_time  = bar.open_time
-                                entry_bar_i = i
-                                phase       = 1
-                                trail_ref   = close
 
         from bottom_engine.backtest.result_summary import ResultSummary
         result = ResultSummary.build(symbol, params.sort_mode, period_days, trades)
@@ -914,28 +815,6 @@ class BacktestRunner:
             result.long_ratio_coverage = min(100.0, round(
                 _lr_in_range / max(1, period_days * 288) * 100.0, 1))
         return result
-
-    @classmethod
-    def run_comparison(
-        cls,
-        symbol: str,
-        params: StrategyParams,
-        period: str = "7일",
-    ) -> "dict[str, BacktestResult]":
-        """2가지 합의 모드 동시 비교 실행 — 봉 데이터 1회 로드 후 2모드 공유.
-
-        Returns
-        -------
-        dict: 모드별 BacktestResult
-            키: '4/4', '3/4'
-        """
-        preloaded = cls.load_tf_bars(symbol, period)
-        results: dict[str, BacktestResult] = {}
-        for mode in (_CONSENSUS_3_4, _CONSENSUS_4_4):
-            results[mode] = cls.run(symbol, params, period,
-                                    consensus_mode=mode, preloaded=preloaded,
-                                    entry_variant="CURRENT", exit_variant="CURRENT")
-        return results
 
     @classmethod
     def run_m4_slope_comparison(
@@ -960,17 +839,6 @@ class BacktestRunner:
                 entry_variant="M4", exit_variant="M4",
                 m4_slope_th=slope, m4_div_th=params.m4_div_th)
         return results
-
-    # ── 합의 모드 판정 ───────────────────────────────────────────
-    @staticmethod
-    def _check_consensus(mode: str, long_v: int, short_v: int,
-                         tf_dirs: dict, tf_min: int) -> "tuple[bool, bool]":
-        """합의 모드별 롱/숏 진입 가능 여부 반환."""
-        if mode == _CONSENSUS_4_4:
-            return long_v >= 4, short_v >= 4
-        if mode == _CONSENSUS_3_4:
-            return long_v >= tf_min, short_v >= tf_min
-        return False, False
 
     # ── 거래 비용 계산 ──────────────────────────────────────────
     @staticmethod

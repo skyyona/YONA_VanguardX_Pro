@@ -30,7 +30,6 @@ class StrategyLoader:
             "use_macro":      params.use_macro,
             "m4_slope_th":    params.m4_slope_th,
             "m4_div_th":      params.m4_div_th,
-            "consensus_mode": params.consensus_mode,  # [B-4]
         }
         _save_raw(data)
 
@@ -52,7 +51,6 @@ class StrategyLoader:
         p.m4_slope_th    = float(raw.get("m4_slope_th", 10.0))
         _raw_div = raw.get("m4_div_th", 2.0)
         p.m4_div_th = None if _raw_div is None else float(_raw_div)
-        p.consensus_mode = str(raw.get("consensus_mode", "4/4"))  # [B-4]
         return p
 
     @staticmethod
