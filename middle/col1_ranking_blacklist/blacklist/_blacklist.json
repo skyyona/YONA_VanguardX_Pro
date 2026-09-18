@@ -754,5 +754,23 @@
     "added_utc": "2026-08-10 11:16 UTC",
     "status": "SETTLING",
     "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "ICXUSDT",
+    "added_utc": "2026-09-05 11:51 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "SCRTUSDT",
+    "added_utc": "2026-09-05 11:51 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "STORJUSDT",
+    "added_utc": "2026-09-05 11:51 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
   }
 ]
