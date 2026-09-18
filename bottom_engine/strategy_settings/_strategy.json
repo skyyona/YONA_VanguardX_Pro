@@ -15,7 +15,9 @@
       "short_long_open": true
     },
     "use_macro": true,
-    "consensus_mode": "3/4"
+    "consensus_mode": "3/4",
+    "m4_slope_th": 10.0,
+    "m4_div_th": 2.0
   },
   "Sharp decline": {
     "funds_pct": 100,
@@ -33,7 +35,9 @@
       "short_long_open": true
     },
     "use_macro": true,
-    "consensus_mode": "3/4"
+    "consensus_mode": "3/4",
+    "m4_slope_th": 10.0,
+    "m4_div_th": 2.0
   },
   "24h Ticker": {
     "funds_pct": 100,
@@ -52,7 +56,8 @@
     },
     "use_macro": false,
     "consensus_mode": "4/4",
-    "m4_slope_th": 5.0
+    "m4_slope_th": 5.0,
+    "m4_div_th": 2.0
   },
   "Newly Listed": {
     "funds_pct": 100,
@@ -70,7 +75,9 @@
       "short_long_open": true
     },
     "use_macro": true,
-    "consensus_mode": "4/4"
+    "consensus_mode": "4/4",
+    "m4_slope_th": 10.0,
+    "m4_div_th": 2.0
   },
   "4TF Optimization": {
     "funds_pct": 100,
@@ -88,7 +95,9 @@
       "short_long_open": true
     },
     "use_macro": false,
-    "consensus_mode": "3/4"
+    "consensus_mode": "3/4",
+    "m4_slope_th": 10.0,
+    "m4_div_th": 2.0
   },
   "Volatility": {
     "funds_pct": 100,
@@ -106,6 +115,8 @@
       "short_long_open": true
     },
     "use_macro": false,
-    "consensus_mode": "4/4"
+    "consensus_mode": "4/4",
+    "m4_slope_th": 10.0,
+    "m4_div_th": 2.0
   }
 }
