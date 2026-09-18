@@ -57,6 +57,15 @@ class ShortCondition:
             return False, (
                 f"G1: K 과매도 필터 (K={k5:.1f} <= k_short_min={cfg.k_short_min})"
             )
+        if params.m4_div_th is not None:
+            _price = float(ind_data.get("base", 0.0))
+            _e50   = float(ind_data.get("e50",  0.0))
+            if _price > 0.0 and _e50 > 0.0:
+                _div_pct = abs(_price - _e50) / _e50 * 100.0
+                if _div_pct > params.m4_div_th:
+                    return False, (
+                        f"G1: 1h EMA50 이격도 과도 ({_div_pct:.1f}% > DIV_TH={params.m4_div_th})"
+                    )
 
         # ── G2: M4 15m 추세 합의 ───────────────────────────────
         tf15 = ind_data.get("tf15", {})

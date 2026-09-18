@@ -133,7 +133,7 @@ class BacktestRunner:
             entry_variant: str = "CURRENT",
             exit_variant:  str = "CURRENT",
             m4_slope_th:   float = 10.0,
-            m4_div_th:     "float | None" = 1.5) -> BacktestResult:
+            m4_div_th:     "float | None" = 2.0) -> BacktestResult:
         period_days = cls._days(period)
         bars_cfg    = _TF_BARS.get(period, _TF_BARS["7일"])
 
