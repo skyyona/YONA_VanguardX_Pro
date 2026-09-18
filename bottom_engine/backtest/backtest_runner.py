@@ -162,7 +162,7 @@ class BacktestRunner:
             if not ks:
                 return None
             offset = len(bars_list) - len(ks)
-            return ([b.open_time for b in bars_list], offset, ks, ds)
+            return ([b.close_time for b in bars_list], offset, ks, ds)
 
         tf_data = {
             "1m":  _make_tf(bars_1m),
@@ -216,7 +216,7 @@ class BacktestRunner:
                         [b.close for b in _tf_bars], *_MAC_KD_PARAMS)
                     if _tf_k:
                         _mac_tfs.append((
-                            [b.open_time for b in _tf_bars],
+                            [b.close_time for b in _tf_bars],
                             len(_tf_bars) - len(_tf_k),
                             _tf_k,
                             _tf_d,
@@ -340,7 +340,7 @@ class BacktestRunner:
             _1m_entry = tf_data.get("1m")
             if _1m_entry:
                 _1m_times, _1m_off, _1m_ks, _1m_ds = _1m_entry
-                _pos1 = bisect.bisect_left(_1m_times, t) - 1
+                _pos1 = bisect.bisect_right(_1m_times, t) - 1
                 _idx1 = _pos1 - _1m_off
                 if 0 <= _idx1 < len(_1m_ks):
                     _k1m, _d1m = _1m_ks[_idx1], _1m_ds[_idx1]
@@ -352,7 +352,7 @@ class BacktestRunner:
                 _5m_tf = tf_data.get("5m")
                 if _5m_tf:
                     _5m_t, _5m_o, _5m_ks, _5m_ds = _5m_tf
-                    _5m_pos = bisect.bisect_left(_5m_t, t) - 1
+                    _5m_pos = bisect.bisect_right(_5m_t, t) - 1
                     _5m_idx = _5m_pos - _5m_o
                     if 0 <= _5m_idx < len(_5m_ks):
                         _k5m_cur, _d5m_cur = _5m_ks[_5m_idx], _5m_ds[_5m_idx]
@@ -737,7 +737,7 @@ class BacktestRunner:
                 tf_kd: dict[str, tuple] = {}  # quality_grade_req 용 전 TF K/D
 
                 for tf_key, (tf_times, tf_off, tf_k, tf_d) in tf_data.items():
-                    pos_tf = bisect.bisect_left(tf_times, t) - 1
+                    pos_tf = bisect.bisect_right(tf_times, t) - 1
                     idx    = pos_tf - tf_off
                     if 0 <= idx < len(tf_k):
                         k, d = tf_k[idx], tf_d[idx]
@@ -759,7 +759,7 @@ class BacktestRunner:
                 if _mac_tfs:
                     _mac_score = 0
                     for _tf_times, _tf_off, _tf_k, _tf_d in _mac_tfs:
-                        _pos = bisect.bisect_left(_tf_times, t) - 1
+                        _pos = bisect.bisect_right(_tf_times, t) - 1
                         _idx = _pos - _tf_off
                         if 0 <= _idx < len(_tf_k):
                             _k = _tf_k[_idx]
