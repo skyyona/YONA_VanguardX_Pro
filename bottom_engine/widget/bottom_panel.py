@@ -386,15 +386,17 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             return
         funds, lev, sl, trail = self._current_params()
         prohibited = {k: v.get() for k, v in self._prohibited_vars.items()}
-        # m4_div_th는 UI 위젯 없음 — 저장된 값 그대로 유지 (Confirm 시 리셋 방지)
-        _saved = StrategyLoader.load(sort_mode) if StrategyLoader is not None else None
-        _m4_div = _saved.m4_div_th if _saved is not None else None
+        # m4_div_th·consensus_mode는 UI 위젯 없음 — 저장된 값 그대로 유지 (Confirm 시 리셋 방지)
+        _saved     = StrategyLoader.load(sort_mode) if StrategyLoader is not None else None
+        _m4_div    = _saved.m4_div_th      if _saved is not None else None
+        _consensus = _saved.consensus_mode if _saved is not None else "4/4"
         self._applied_params = {"funds": funds, "leverage": lev,
                                 "sl": sl, "trail": trail,
                                 "use_macro": self._use_macro_var.get(),
                                 "prohibited": prohibited,
-                                "m4_slope_th": m4_slope_th,
-                                "m4_div_th":   _m4_div}
+                                "m4_slope_th":    m4_slope_th,
+                                "m4_div_th":      _m4_div,
+                                "consensus_mode": _consensus}
         self._applied_sort_mode = sort_mode
         self._strategy_ready = True
         self._strategy_msg.configure(
