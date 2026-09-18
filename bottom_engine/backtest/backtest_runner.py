@@ -815,8 +815,10 @@ class BacktestRunner:
                     _div_ok = True
                     if m4_div_th is not None and e50 > 0.0:
                         _div_ok = abs(close - e50) / e50 * 100.0 <= m4_div_th
-                    m4_can_long  = _gc and _slope_long  and _trend_long  and _div_ok
-                    m4_can_short = _dc and _slope_short and _trend_short and _div_ok
+                    m4_can_long  = (_gc and _slope_long  and _trend_long  and _div_ok
+                                    and _k5m_cur < cfg.k_long_max)
+                    m4_can_short = (_dc and _slope_short and _trend_short and _div_ok
+                                    and _k5m_cur > cfg.k_short_min)
                     if (m4_can_long
                             and cfg.direction_bias != "short_only"
                             and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
