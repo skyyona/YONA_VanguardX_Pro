@@ -134,6 +134,8 @@ class TradingEngine:
         self._clear_p3_state("short")
         self._k5m_prev_long  = 50.0
         self._k5m_prev_short = 50.0
+        LongCondition._prev_k5m  = None   # 심볼 교체 시 이전 심볼 K값 잔존 방지
+        ShortCondition._prev_k5m = None
         # 레버리지 — 심볼·값 변경 시 Binance에 즉시 반영
         lev = params.leverage
         if symbol and (symbol != self._last_leverage_sym or lev != self._last_leverage_val):
