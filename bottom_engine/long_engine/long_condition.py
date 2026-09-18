@@ -11,6 +11,8 @@ bottom/long_engine/long_condition.py
 """
 from __future__ import annotations
 
+import time
+
 from bottom_engine.models import PositionSide, StrategyParams
 from bottom_engine.strategy_settings.realtrade_strategy_sort_by import get_mode_config
 from bottom_engine.prohibition_settings.prohibition_filter import ProhibitionFilter
@@ -20,7 +22,9 @@ from bottom_engine.engine_core.sl_calculator import SLCalculator
 class LongCondition:
     """롱 진입 조건 평가기 — M4 전략 (5m 에너지 + 15m 추세)."""
 
-    _prev_k5m: float | None = None  # 직전 5m K 값 — GC 크로스 감지용
+    _prev_k5m:   float | None = None  # 이전 5m 봉 K — GC 감지용 (봉 전환 시 갱신)
+    _last_k5m:   float | None = None  # 현재 5m 봉 K — 다음 전환 시 prev로 이동
+    _cur_bar_ts: int          = 0     # 현재 5m 봉 시작 시각(UTC 초) — 경계 감지용
 
     @classmethod
     def evaluate(
@@ -44,9 +48,15 @@ class LongCondition:
         tf5  = ind_data.get("tf5", {})
         k5   = float(tf5.get("k", 50.0))
         d5   = float(tf5.get("d", 50.0))
-        pk5  = cls._prev_k5m
-        cls._prev_k5m = k5
-        gc = (pk5 is not None and pk5 < d5 and k5 > d5)
+        # 5m 봉 경계에서만 _prev_k5m 갱신 (ohlcv_data는 닫힌 봉만 반환하므로
+        # tf5.k는 5분마다 한 번만 바뀜 — BT L809-810과 동일한 봉 단위 비교)
+        now_5m = int(time.time() // 300) * 300
+        if cls._cur_bar_ts != now_5m:
+            cls._prev_k5m   = cls._last_k5m
+            cls._last_k5m   = k5
+            cls._cur_bar_ts = now_5m
+        pk5 = cls._prev_k5m
+        gc  = (pk5 is not None and pk5 < d5 and k5 > d5)
         if not gc:
             return False, f"G1: 5m GC 미발생 (K={k5:.1f} D={d5:.1f} prevK={pk5})"
         if (k5 - d5) < params.m4_slope_th:
