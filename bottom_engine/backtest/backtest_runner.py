@@ -272,7 +272,6 @@ class BacktestRunner:
         _prev_tf5_short_ok: bool  = False
 
         _prev_k5m: float = 50.0  # M4 직전봉 5m K
-        _prev_d5m: float = 50.0  # M4 직전봉 5m D
 
         n_1m = len(bars_1m)
         for i in range(_WARMUP_1M, n_1m):
@@ -355,9 +354,7 @@ class BacktestRunner:
                         _k5m_cur, _d5m_cur = _5m_ks[_5m_idx], _5m_ds[_5m_idx]
             # prev 갱신 — continue 이전 선행 업데이트로 다음 봉 prev 보장
             _k5m_prev_bar = _prev_k5m
-            _d5m_prev_bar = _prev_d5m
             _prev_k5m = _k5m_cur
-            _prev_d5m = _d5m_cur
 
             # ── 롱 포지션 관리 ────────────────────────────────────
             if in_long:
@@ -779,8 +776,8 @@ class BacktestRunner:
                 if entry_variant == "M4":
                     k15m, d15m = tf_kd.get("15m", (50.0, 50.0))
                     e50 = ema50_1h[pos_1h] if (ema50_1h and pos_1h < len(ema50_1h)) else 0.0
-                    _gc = (_k5m_prev_bar < _d5m_prev_bar) and (_k5m_cur > _d5m_cur)
-                    _dc = (_k5m_prev_bar > _d5m_prev_bar) and (_k5m_cur < _d5m_cur)
+                    _gc = (_k5m_prev_bar < _d5m_cur) and (_k5m_cur > _d5m_cur)
+                    _dc = (_k5m_prev_bar > _d5m_cur) and (_k5m_cur < _d5m_cur)
                     _slope_long  = (_k5m_cur - _d5m_cur) >= m4_slope_th
                     _slope_short = (_d5m_cur - _k5m_cur) >= m4_slope_th
                     _trend_long  = (k15m > d15m) and ((k15m - d15m) >= 2.0)
@@ -795,13 +792,15 @@ class BacktestRunner:
                     if (m4_can_long
                             and cfg.direction_bias != "short_only"
                             and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
-                            and fr_ok_long and liq_ok_long):
+                            and fr_ok_long and liq_ok_long
+                            and _mac_ok_long):
                         in_long = True; entry_price = close; entry_time = bar.open_time
                         entry_bar_i = i; phase = 1; trail_ref = close
                     elif (m4_can_short
                             and cfg.direction_bias != "long_only"
                             and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
-                            and fr_ok_short and liq_ok_short):
+                            and fr_ok_short and liq_ok_short
+                            and _mac_ok_short):
                         in_short = True; entry_price = close; entry_time = bar.open_time
                         entry_bar_i = i; phase = 1; trail_ref = close
 
@@ -837,7 +836,7 @@ class BacktestRunner:
             results[f"slope_{int(slope)}"] = cls.run(
                 symbol, _p, period, preloaded=preloaded,
                 entry_variant="M4", exit_variant="M4",
-                m4_slope_th=slope)
+                m4_slope_th=slope, m4_div_th=params.m4_div_th)
         return results
 
     # ── 거래 비용 계산 ──────────────────────────────────────────

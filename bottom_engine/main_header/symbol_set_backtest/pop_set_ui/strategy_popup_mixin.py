@@ -914,6 +914,7 @@ class StrategyPopupMixin:
                             entry_variant="M4",
                             exit_variant="M4",
                             m4_slope_th=float(_slope_var.get()),
+                            m4_div_th=params.m4_div_th,
                         )
                         res = _backtest_result_to_dict(result_obj)
                         res["derived"] = derive_params(result_obj.trades)
