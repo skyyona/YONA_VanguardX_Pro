@@ -67,6 +67,7 @@ class StrategyParams:
     mmr:            float            = 0.004  # [C-2] 유지증거금률 — liq_safe 산출용 (실거래 get_mmr 주입)
     m4_slope_th:    float            = 10.0   # M4 5m K기울기 임계값 (K-D ≥ SLOPE_TH)
     m4_div_th:      float | None     = 2.0    # M4 1h EMA 이격도 임계값 (None=미사용)
+    consensus_mode: str              = "4/4"  # 4TF 합의 모드 ("4/4" | "3/4")
 
     @classmethod
     def from_applied_params(cls, d: dict, sort_mode: str = "24h Ticker") -> "StrategyParams":
@@ -82,6 +83,16 @@ class StrategyParams:
         _raw_div = d.get("m4_div_th", 2.0)
         p.m4_div_th = None if _raw_div is None else float(_raw_div)
         return p
+
+
+@dataclass
+class FourTFSignal:
+    """4TF 완전 합의 평가 결과."""
+    long_consensus:  bool  = False   # 4TF 전부 K > D (강세)
+    short_consensus: bool  = False   # 4TF 전부 K < D (약세)
+    aligned_long:    int   = 0       # 강세 일치 TF 수 (0~4)
+    aligned_short:   int   = 0       # 약세 일치 TF 수 (0~4)
+    details: dict[str, dict] = field(default_factory=dict)  # {tf: {k, d, dir}}
 
 
 # ── 주문 ─────────────────────────────────────────────────────────
