@@ -57,6 +57,7 @@ class SLCalculator:
         trail_stop: float,
         leverage:   int,
         mmr:        float = _MMR_APPROX,
+        trail_cap:  float = _TRAIL_CAP,
     ) -> tuple[float, float]:
         """사용자 설정값에 liq_safe 상한을 적용해 (sl_used, trail_used) 반환.
 
@@ -65,5 +66,5 @@ class SLCalculator:
         """
         liq_safe   = max(0.001, (1.0 / max(leverage, 1)) - mmr) * 100.0 * _LIQ_SAFETY
         sl_used    = max(_SL_MIN,   min(stop_loss,  liq_safe))
-        trail_used = max(_TRAIL_MIN, min(trail_stop, sl_used * _TRAIL_CAP))
+        trail_used = max(_TRAIL_MIN, min(trail_stop, sl_used * trail_cap))
         return round(sl_used, 1), round(trail_used, 1)

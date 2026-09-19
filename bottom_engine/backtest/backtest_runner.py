@@ -132,7 +132,10 @@ class BacktestRunner:
             exit_variant:  str = "M4",
             m4_slope_th:   float = 10.0,
             m4_div_th:     "float | None" = 2.0,
-            consensus_mode: str = _CONSENSUS_4_4) -> BacktestResult:
+            consensus_mode: str = _CONSENSUS_4_4,
+            kd_exit_enabled: bool = True,
+            max_r_pct:       float = 8.0,
+            trail_cap:       float = 0.6) -> BacktestResult:
         period_days = cls._days(period)
         bars_cfg    = _TF_BARS.get(period, _TF_BARS["7일"])
 
@@ -260,13 +263,14 @@ class BacktestRunner:
 
         # [C-2] SL/Trail 사전 계산 — liq_safe 상한 적용. leverage·mmr 불변 → 루프 전 1회 계산
         sl_used, trail_used = SLCalculator.clamp(
-            params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr)
+            params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr,
+            trail_cap=trail_cap)
 
         # [C-1] 유효 레버리지 사전 계산 — R-cap(8%) 반영 (결정2-a / 결정1-a)
         # P 소거 원리: mark=1.0 사용 가능 (mark 값에 관계없이 L_eff 동일)
         _alloc   = params.portfolio_usdt * params.funds_pct / 100.0
         _qty0    = _RM.calc_position_size(params, 1.0, params.portfolio_usdt)
-        _qty_cap = _RM.apply_r_cap(_qty0, 1.0, sl_used, params.portfolio_usdt)
+        _qty_cap = _RM.apply_r_cap(_qty0, 1.0, sl_used, params.portfolio_usdt, max_r_pct)
         _leff    = (_qty_cap / _alloc) if _alloc > 0 else float(params.leverage)
 
         # tf5 교차 시점 추적 — QualityGrader _duration_score 재현용
@@ -526,7 +530,7 @@ class BacktestRunner:
                             in_long = False; phase = 1; trail_ref = 0.0; profit_trigger_long = 0.0
                             continue
                     # [A-5][P8][P10] BEP/TRAIL이 없을 때만 KD 역전 익절 체크
-                    if _k1m > 80.0 and _k1m < _d1m and (_d1m - _k1m) >= (5.0 if params.sort_mode == "Newly Listed" else 2.0):
+                    if kd_exit_enabled and _k1m > 80.0 and _k1m < _d1m and (_d1m - _k1m) >= (5.0 if params.sort_mode == "Newly Listed" else 2.0):
                         cost = cls._cost(_leff, bars_held)
                         pnl  = (close - entry_price) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
@@ -708,7 +712,7 @@ class BacktestRunner:
                             in_short = False; phase = 1; trail_ref = 0.0; profit_trigger_short = 0.0
                             continue
                     # [A-5][P8][P10] BEP/TRAIL이 없을 때만 KD 역전 익절 체크
-                    if _k1m < 20.0 and _k1m > _d1m and (_k1m - _d1m) >= (5.0 if params.sort_mode == "Newly Listed" else 2.0):
+                    if kd_exit_enabled and _k1m < 20.0 and _k1m > _d1m and (_k1m - _d1m) >= (5.0 if params.sort_mode == "Newly Listed" else 2.0):
                         cost = cls._cost(_leff, bars_held)
                         pnl  = (entry_price - close) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
