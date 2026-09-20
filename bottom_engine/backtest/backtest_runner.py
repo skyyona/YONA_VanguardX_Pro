@@ -135,7 +135,9 @@ class BacktestRunner:
             consensus_mode: str = _CONSENSUS_4_4,
             kd_exit_enabled: bool = True,
             max_r_pct:       float = 8.0,
-            trail_cap:       float = 0.6) -> BacktestResult:
+            trail_cap:       float = 0.6,
+            bep_trigger_r:   float = 1.0,
+            bep_offset_r:    float = 0.0) -> BacktestResult:
         period_days = cls._days(period)
         bars_cfg    = _TF_BARS.get(period, _TF_BARS["7일"])
 
@@ -436,18 +438,19 @@ class BacktestRunner:
                         in_long = False; phase = 1; trail_ref = 0.0
                         continue
                     # [A-4] Phase1→2 intrabar: bar.high 기준 (실거래 Binance 서버측 체결 재현)
-                    if bar.high >= entry_price + R:
+                    if bar.high >= entry_price + R * bep_trigger_r:
                         phase = 2
 
                 elif phase == 2:
-                    # [P1] intrabar: bar.low ≤ entry_price → BEP STOP_MARKET 체결 재현
-                    if bar.low <= entry_price:
+                    # [P1] intrabar: bar.low ≤ BEP 청산가 → BEP STOP_MARKET 체결 재현
+                    _bep_exit_l = entry_price + R * bep_offset_r
+                    if bar.low <= _bep_exit_l:
                         cost = cls._cost(_leff, bars_held)
-                        pnl  = (entry_price - entry_price) / entry_price * 100.0 * _leff - cost
+                        pnl  = R * bep_offset_r / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
-                            side="long", entry_price=entry_price, exit_price=entry_price,
+                            side="long", entry_price=entry_price, exit_price=_bep_exit_l,
                             pnl_pct=round(pnl, 3),
                             pnl_usdt=_pnl_usdt_val,
                             exit_reason="BEP-SL",
@@ -618,18 +621,19 @@ class BacktestRunner:
                         in_short = False; phase = 1; trail_ref = 0.0
                         continue
                     # [A-4] Phase1→2 intrabar: bar.low 기준 (실거래 Binance 서버측 체결 재현)
-                    if bar.low <= entry_price - R:
+                    if bar.low <= entry_price - R * bep_trigger_r:
                         phase = 2
 
                 elif phase == 2:
-                    # [P1] intrabar: bar.high ≥ entry_price → BEP STOP_MARKET 체결 재현
-                    if bar.high >= entry_price:
+                    # [P1] intrabar: bar.high ≥ BEP 청산가 → BEP STOP_MARKET 체결 재현
+                    _bep_exit_s = entry_price - R * bep_offset_r
+                    if bar.high >= _bep_exit_s:
                         cost = cls._cost(_leff, bars_held)
-                        pnl  = (entry_price - entry_price) / entry_price * 100.0 * _leff - cost
+                        pnl  = R * bep_offset_r / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
-                            side="short", entry_price=entry_price, exit_price=entry_price,
+                            side="short", entry_price=entry_price, exit_price=_bep_exit_s,
                             pnl_pct=round(pnl, 3),
                             pnl_usdt=_pnl_usdt_val,
                             exit_reason="BEP-SL",
