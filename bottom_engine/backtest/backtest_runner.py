@@ -137,7 +137,11 @@ class BacktestRunner:
             max_r_pct:       float = 8.0,
             trail_cap:       float = 0.6,
             bep_trigger_r:   float = 1.0,
-            bep_offset_r:    float = 0.0) -> BacktestResult:
+            bep_offset_r:    float = 0.0,
+            m4_ablation:     int   = 6,
+            random_seed:     int   = 42,
+            random_n_long:   int   = 0,
+            random_n_short:  int   = 0) -> BacktestResult:
         period_days = cls._days(period)
         bars_cfg    = _TF_BARS.get(period, _TF_BARS["7일"])
 
@@ -284,6 +288,16 @@ class BacktestRunner:
         _prev_k5m: float = 50.0  # M4 직전봉 5m K
 
         n_1m = len(bars_1m)
+        # RANDOM 분기 전처리 — 무작위 진입 인덱스 사전 선택
+        import random as _random_mod
+        _rnd_long_set:  set = set()
+        _rnd_short_set: set = set()
+        if entry_variant == "RANDOM" and (random_n_long > 0 or random_n_short > 0):
+            _rng = _random_mod.Random(random_seed)
+            _all_idx = list(range(n_1m))
+            _rng.shuffle(_all_idx)
+            _rnd_long_set  = set(_all_idx[:random_n_long])
+            _rnd_short_set = set(_all_idx[random_n_long:random_n_long + random_n_short])
         for i in range(_WARMUP_1M, n_1m):
             bar   = bars_1m[i]
             close = bar.close
@@ -797,22 +811,36 @@ class BacktestRunner:
                     _div_ok = True
                     if m4_div_th is not None and e50 > 0.0:
                         _div_ok = abs(close - e50) / e50 * 100.0 <= m4_div_th
-                    m4_can_long  = (_gc and _slope_long  and _trend_long  and _div_ok
-                                    and _k5m_cur < cfg.k_long_max)
-                    m4_can_short = (_dc and _slope_short and _trend_short and _div_ok
-                                    and _k5m_cur > cfg.k_short_min)
-                    if (m4_can_long
-                            and cfg.direction_bias != "short_only"
-                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
-                            and fr_ok_long and liq_ok_long
-                            and _mac_ok_long):
+                    # ablation: 단계별 게이트 축적 (A1=gc, A2+slope, A3+trend, A4+div, A5+k_max)
+                    _abl_long  = _gc if m4_ablation >= 1 else False
+                    _abl_short = _dc if m4_ablation >= 1 else False
+                    if m4_ablation >= 2:
+                        _abl_long  = _abl_long  and _slope_long
+                        _abl_short = _abl_short and _slope_short
+                    if m4_ablation >= 3:
+                        _abl_long  = _abl_long  and _trend_long
+                        _abl_short = _abl_short and _trend_short
+                    if m4_ablation >= 4:
+                        _abl_long  = _abl_long  and _div_ok
+                        _abl_short = _abl_short and _div_ok
+                    if m4_ablation >= 5:
+                        _abl_long  = _abl_long  and (_k5m_cur < cfg.k_long_max)
+                        _abl_short = _abl_short and (_k5m_cur > cfg.k_short_min)
+                    # 공통 게이트 (A6; M4에는 atr_ok 없음)
+                    if m4_ablation >= 6:
+                        _gate_long  = (cfg.direction_bias != "short_only"
+                                       and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
+                                       and fr_ok_long and liq_ok_long and _mac_ok_long)
+                        _gate_short = (cfg.direction_bias != "long_only"
+                                       and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
+                                       and fr_ok_short and liq_ok_short and _mac_ok_short)
+                    else:
+                        _gate_long  = cfg.direction_bias != "short_only"
+                        _gate_short = cfg.direction_bias != "long_only"
+                    if _abl_long and _gate_long:
                         in_long = True; entry_price = close; entry_time = bar.open_time
                         entry_bar_i = i; phase = 1; trail_ref = close
-                    elif (m4_can_short
-                            and cfg.direction_bias != "long_only"
-                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
-                            and fr_ok_short and liq_ok_short
-                            and _mac_ok_short):
+                    elif _abl_short and _gate_short:
                         in_short = True; entry_price = close; entry_time = bar.open_time
                         entry_bar_i = i; phase = 1; trail_ref = close
 
@@ -911,6 +939,18 @@ class BacktestRunner:
                                 entry_bar_i = i
                                 phase       = 1
                                 trail_ref   = close
+
+                elif entry_variant == "RANDOM":
+                    if i in _rnd_long_set:
+                        in_long = True; entry_price = close; entry_time = bar.open_time
+                        entry_bar_i = i; phase = 1; trail_ref = close
+                    elif i in _rnd_short_set:
+                        in_short = True; entry_price = close; entry_time = bar.open_time
+                        entry_bar_i = i; phase = 1; trail_ref = close
+
+                elif entry_variant == "ALL":
+                    in_long = True; entry_price = close; entry_time = bar.open_time
+                    entry_bar_i = i; phase = 1; trail_ref = close
 
         from bottom_engine.backtest.result_summary import ResultSummary
         result = ResultSummary.build(symbol, params.sort_mode, period_days, trades)
