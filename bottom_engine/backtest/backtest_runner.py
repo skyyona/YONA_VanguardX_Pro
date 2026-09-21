@@ -141,7 +141,8 @@ class BacktestRunner:
             m4_ablation:     int   = 6,
             random_seed:     int   = 42,
             random_n_long:   int   = 0,
-            random_n_short:  int   = 0) -> BacktestResult:
+            random_n_short:  int   = 0,
+            atr_break_mult:  float = 0.5) -> BacktestResult:
         period_days = cls._days(period)
         bars_cfg    = _TF_BARS.get(period, _TF_BARS["7일"])
 
@@ -428,6 +429,41 @@ class BacktestRunner:
                         in_long = False; phase = 1; trail_ref = 0.0
                         continue
 
+                elif exit_variant == "SIMPLE_TP":
+                    tp_price = entry_price + R * 1.5
+                    if bar.low <= sl_phase1:
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (sl_phase1 - entry_price) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="long", entry_price=entry_price, exit_price=sl_phase1,
+                            pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="SL",
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val
+                        if pnl < 0:
+                            _consecutive_losses += 1
+                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
+                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _consecutive_losses = 0
+                        else:
+                            _consecutive_losses = 0
+                        in_long = False; phase = 1; trail_ref = 0.0
+                        continue
+                    if bar.high >= tp_price:
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (tp_price - entry_price) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="long", entry_price=entry_price, exit_price=tp_price,
+                            pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="TP",
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val
+                        _consecutive_losses = 0
+                        in_long = False; phase = 1; trail_ref = 0.0
+                        continue
+
                 elif phase == 1:
                     # [P1] intrabar: bar.low ≤ sl_phase1 → STOP_MARKET 체결 재현
                     if bar.low <= sl_phase1:
@@ -608,6 +644,41 @@ class BacktestRunner:
                                 _consecutive_losses = 0
                         else:
                             _consecutive_losses = 0
+                        in_short = False; phase = 1; trail_ref = 0.0
+                        continue
+
+                elif exit_variant == "SIMPLE_TP":
+                    tp_price = entry_price - R * 1.5
+                    if bar.high >= sl_phase1:
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (entry_price - sl_phase1) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="short", entry_price=entry_price, exit_price=sl_phase1,
+                            pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="SL",
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val
+                        if pnl < 0:
+                            _consecutive_losses += 1
+                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
+                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _consecutive_losses = 0
+                        else:
+                            _consecutive_losses = 0
+                        in_short = False; phase = 1; trail_ref = 0.0
+                        continue
+                    if bar.low <= tp_price:
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (entry_price - tp_price) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="short", entry_price=entry_price, exit_price=tp_price,
+                            pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="TP",
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val
+                        _consecutive_losses = 0
                         in_short = False; phase = 1; trail_ref = 0.0
                         continue
 
@@ -951,6 +1022,24 @@ class BacktestRunner:
                 elif entry_variant == "ALL":
                     in_long = True; entry_price = close; entry_time = bar.open_time
                     entry_bar_i = i; phase = 1; trail_ref = close
+
+                elif entry_variant == "ATR_BREAK":
+                    _prev_cl         = bars_1m[i - 1].close
+                    _chg_pct         = (close - _prev_cl) / _prev_cl * 100.0 if _prev_cl > 0 else 0.0
+                    _atr_break_long  = _chg_pct >= atr_pct * atr_break_mult
+                    _atr_break_short = _chg_pct <= -atr_pct * atr_break_mult
+                    if (_atr_break_long
+                            and cfg.direction_bias != "short_only"
+                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
+                            and fr_ok_long and liq_ok_long and _mac_ok_long):
+                        in_long = True; entry_price = close; entry_time = bar.open_time
+                        entry_bar_i = i; phase = 1; trail_ref = close
+                    elif (_atr_break_short
+                            and cfg.direction_bias != "long_only"
+                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
+                            and fr_ok_short and liq_ok_short and _mac_ok_short):
+                        in_short = True; entry_price = close; entry_time = bar.open_time
+                        entry_bar_i = i; phase = 1; trail_ref = close
 
         from bottom_engine.backtest.result_summary import ResultSummary
         result = ResultSummary.build(symbol, params.sort_mode, period_days, trades)
