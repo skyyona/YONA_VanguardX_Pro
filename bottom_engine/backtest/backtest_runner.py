@@ -28,6 +28,7 @@ from bottom_engine.engine_core.risk_manager import RiskManager as _RM
 from bottom_engine.engine_core.sl_calculator import SLCalculator
 from bottom_engine.strategy_settings.realtrade_strategy_sort_by import get_mode_config
 from bottom_engine.models import BacktestResult, BacktestTrade, StrategyParams
+from bottom_engine.strategy.m4_entry import M4Entry
 
 # 실거래 엔진과 동일한 표준 StochRSI 파라미터 (rsi_period, stoch_period, smooth_k, smooth_d)
 _STOCH_P      = (14, 14, 3, 3)
@@ -871,49 +872,84 @@ class BacktestRunner:
 
                 # ── M4 진입 분기 ─────────────────────────────────
                 if entry_variant == "M4":
-                    k15m, d15m = tf_kd.get("15m", (50.0, 50.0))
-                    e50 = ema50_1h[pos_1h] if (ema50_1h and pos_1h < len(ema50_1h)) else 0.0
-                    _gc = (_k5m_prev_bar < _d5m_cur) and (_k5m_cur > _d5m_cur)
-                    _dc = (_k5m_prev_bar > _d5m_cur) and (_k5m_cur < _d5m_cur)
-                    _slope_long  = (_k5m_cur - _d5m_cur) >= m4_slope_th
-                    _slope_short = (_d5m_cur - _k5m_cur) >= m4_slope_th
-                    _trend_long  = (k15m > d15m) and ((k15m - d15m) >= 2.0)
-                    _trend_short = (k15m < d15m) and ((d15m - k15m) >= 2.0)
-                    _div_ok = True
-                    if m4_div_th is not None and e50 > 0.0:
-                        _div_ok = abs(close - e50) / e50 * 100.0 <= m4_div_th
-                    # ablation: 단계별 게이트 축적 (A1=gc, A2+slope, A3+trend, A4+div, A5+k_max)
-                    _abl_long  = _gc if m4_ablation >= 1 else False
-                    _abl_short = _dc if m4_ablation >= 1 else False
-                    if m4_ablation >= 2:
-                        _abl_long  = _abl_long  and _slope_long
-                        _abl_short = _abl_short and _slope_short
-                    if m4_ablation >= 3:
-                        _abl_long  = _abl_long  and _trend_long
-                        _abl_short = _abl_short and _trend_short
-                    if m4_ablation >= 4:
-                        _abl_long  = _abl_long  and _div_ok
-                        _abl_short = _abl_short and _div_ok
-                    if m4_ablation >= 5:
-                        _abl_long  = _abl_long  and (_k5m_cur < cfg.k_long_max)
-                        _abl_short = _abl_short and (_k5m_cur > cfg.k_short_min)
-                    # 공통 게이트 (A6; M4에는 atr_ok 없음)
-                    if m4_ablation >= 6:
-                        _gate_long  = (cfg.direction_bias != "short_only"
-                                       and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
-                                       and fr_ok_long and liq_ok_long and _mac_ok_long)
-                        _gate_short = (cfg.direction_bias != "long_only"
-                                       and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
-                                       and fr_ok_short and liq_ok_short and _mac_ok_short)
+                    if m4_ablation == 6:
+                        # ─ 통일 경로: M4Entry.evaluate() (실거래와 동일 로직) ─
+                        k15m, d15m = tf_kd.get("15m", (50.0, 50.0))
+                        e50 = ema50_1h[pos_1h] if (ema50_1h and pos_1h < len(ema50_1h)) else 0.0
+                        # HTF K/D — G7.5 (use_macro) 용
+                        _mac_ind: dict = {}
+                        for _i_m, (_mt, _mo, _mk_s, _md_s) in enumerate(_mac_tfs):
+                            _pm = bisect.bisect_right(_mt, t) - 1 - _mo
+                            if 0 <= _pm < len(_mk_s):
+                                _mac_ind[("tf1h", "tf4h", "tf1d")[_i_m]] = {
+                                    "k": _mk_s[_pm], "d": _md_s[_pm],
+                                }
+                        # ProhibitionFilter G8 — 백테스트 계산값 역산
+                        _bt_fr = 0.0
+                        if not fr_ok_long:
+                            _bt_fr = 1.0    # > _FR_THRESHOLD → 롱 차단
+                        elif not fr_ok_short:
+                            _bt_fr = -1.0   # < -_FR_THRESHOLD → 숏 차단
+                        _bt_liq_l = -99.0 if liq_ok_long  else -0.1
+                        _bt_liq_s =  99.0 if liq_ok_short else  0.1
+                        _ind_bt = {
+                            "tf5":           {"k": _k5m_cur,  "d": _d5m_cur},
+                            "tf15":          {"k": k15m,       "d": d15m},
+                            "base":          close,
+                            "e50":           e50,
+                            "_prev_k5m":     _k5m_prev_bar,
+                            "funding_rate":  _bt_fr,
+                            "liq_long_pct":  _bt_liq_l,
+                            "liq_short_pct": _bt_liq_s,
+                            **_mac_ind,
+                        }
+                        _ok_l, _ = M4Entry.evaluate(
+                            "long",  _ind_bt, params,
+                            has_opposite_open=False, days_listed=_days_listed)
+                        _ok_s, _ = M4Entry.evaluate(
+                            "short", _ind_bt, params,
+                            has_opposite_open=False, days_listed=_days_listed)
+                        if _ok_l:
+                            in_long = True; entry_price = close; entry_time = bar.open_time
+                            entry_bar_i = i; phase = 1; trail_ref = close
+                        elif _ok_s:
+                            in_short = True; entry_price = close; entry_time = bar.open_time
+                            entry_bar_i = i; phase = 1; trail_ref = close
                     else:
+                        # ─ ablation 분석 경로 (m4_ablation 1~5): 기존 코드 유지 ─
+                        k15m, d15m = tf_kd.get("15m", (50.0, 50.0))
+                        e50 = ema50_1h[pos_1h] if (ema50_1h and pos_1h < len(ema50_1h)) else 0.0
+                        _gc = (_k5m_prev_bar < _d5m_cur) and (_k5m_cur > _d5m_cur)
+                        _dc = (_k5m_prev_bar > _d5m_cur) and (_k5m_cur < _d5m_cur)
+                        _slope_long  = (_k5m_cur - _d5m_cur) >= m4_slope_th
+                        _slope_short = (_d5m_cur - _k5m_cur) >= m4_slope_th
+                        _trend_long  = (k15m > d15m) and ((k15m - d15m) >= 2.0)
+                        _trend_short = (k15m < d15m) and ((d15m - k15m) >= 2.0)
+                        _div_ok = True
+                        if m4_div_th is not None and e50 > 0.0:
+                            _div_ok = abs(close - e50) / e50 * 100.0 <= m4_div_th
+                        _abl_long  = _gc if m4_ablation >= 1 else False
+                        _abl_short = _dc if m4_ablation >= 1 else False
+                        if m4_ablation >= 2:
+                            _abl_long  = _abl_long  and _slope_long
+                            _abl_short = _abl_short and _slope_short
+                        if m4_ablation >= 3:
+                            _abl_long  = _abl_long  and _trend_long
+                            _abl_short = _abl_short and _trend_short
+                        if m4_ablation >= 4:
+                            _abl_long  = _abl_long  and _div_ok
+                            _abl_short = _abl_short and _div_ok
+                        if m4_ablation >= 5:
+                            _abl_long  = _abl_long  and (_k5m_cur < cfg.k_long_max)
+                            _abl_short = _abl_short and (_k5m_cur > cfg.k_short_min)
                         _gate_long  = cfg.direction_bias != "short_only"
                         _gate_short = cfg.direction_bias != "long_only"
-                    if _abl_long and _gate_long:
-                        in_long = True; entry_price = close; entry_time = bar.open_time
-                        entry_bar_i = i; phase = 1; trail_ref = close
-                    elif _abl_short and _gate_short:
-                        in_short = True; entry_price = close; entry_time = bar.open_time
-                        entry_bar_i = i; phase = 1; trail_ref = close
+                        if _abl_long and _gate_long:
+                            in_long = True; entry_price = close; entry_time = bar.open_time
+                            entry_bar_i = i; phase = 1; trail_ref = close
+                        elif _abl_short and _gate_short:
+                            in_short = True; entry_price = close; entry_time = bar.open_time
+                            entry_bar_i = i; phase = 1; trail_ref = close
 
                 # ── CURRENT 진입 분기 ─────────────────────────────
                 elif entry_variant == "CURRENT":

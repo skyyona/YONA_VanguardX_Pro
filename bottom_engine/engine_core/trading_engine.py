@@ -21,12 +21,11 @@ from bottom_engine.models import (
 from bottom_engine.engine_core.risk_manager import RiskManager, MAX_PORTFOLIO_LOSS_PCT, MAX_DAILY_LOSS_PCT
 from bottom_engine.engine_core.daily_loss_tracker import DailyLossTracker
 from bottom_engine.engine_core.sl_calculator import SLCalculator
-from bottom_engine.long_engine.long_condition import LongCondition
 from bottom_engine.long_engine.long_order import LongOrder
 from bottom_engine.long_engine.long_position import LongPosition
-from bottom_engine.short_engine.short_condition import ShortCondition
 from bottom_engine.short_engine.short_order import ShortOrder
 from bottom_engine.short_engine.short_position import ShortPosition
+from bottom_engine.strategy.m4_entry import M4Entry
 
 _PROFIT_TRIGGER_PCT = 1.0  # Phase3 진입 후 trail 활성화까지 추가 수익 임계값 (%)
 _ENGINE_DIR = pathlib.Path(__file__).parent  # Phase3 상태 파일 저장 디렉터리
@@ -106,6 +105,10 @@ class TradingEngine:
         # K80-5M / K20-5M 익절용 직전 폴링 K값 추적
         self._k5m_prev_long:  float = 50.0
         self._k5m_prev_short: float = 50.0
+        # M4 진입 조건용 _prev_k5m (봉 경계마다 갱신 → ind_data에 주입)
+        self._k5m_entry_prev:   float | None = None
+        self._k5m_entry_last:   float | None = None
+        self._k5m_entry_bar_ts: int          = 0
 
     # ── 공개 인터페이스 ────────────────────────────────────────
     @property
@@ -134,12 +137,10 @@ class TradingEngine:
         self._clear_p3_state("short")
         self._k5m_prev_long  = 50.0
         self._k5m_prev_short = 50.0
-        LongCondition._prev_k5m   = None   # 심볼 교체 시 상태 초기화
-        LongCondition._last_k5m   = None
-        LongCondition._cur_bar_ts = 0
-        ShortCondition._prev_k5m  = None
-        ShortCondition._last_k5m  = None
-        ShortCondition._cur_bar_ts = 0
+        # 심볼 교체 시 M4 진입용 _prev_k5m 상태 초기화
+        self._k5m_entry_prev   = None
+        self._k5m_entry_last   = None
+        self._k5m_entry_bar_ts = 0
         # 레버리지 — 심볼·값 변경 시 Binance에 즉시 반영
         lev = params.leverage
         if symbol and (symbol != self._last_leverage_sym or lev != self._last_leverage_val):
@@ -687,10 +688,19 @@ class TradingEngine:
                         _blk_short = ""
                         _long_entered_this_cycle = False
 
+                        # _prev_k5m 봉 경계 갱신 → ind에 주입
+                        _now_5m = int(time.time() // 300) * 300
+                        _k5_cur = float(ind.get("tf5", {}).get("k", 50.0))
+                        if self._k5m_entry_bar_ts != _now_5m:
+                            self._k5m_entry_prev   = self._k5m_entry_last
+                            self._k5m_entry_last   = _k5_cur
+                            self._k5m_entry_bar_ts = _now_5m
+                        ind["_prev_k5m"] = self._k5m_entry_prev
+
                         if not has_long:
-                            ok, reason = LongCondition.evaluate(
-                                ind, self._params, has_short_open=has_short,
-                                days_listed=days)
+                            ok, reason = M4Entry.evaluate(
+                                "long", ind, self._params,
+                                has_opposite_open=has_short, days_listed=days)
                             if ok:
                                 if mark == 0.0:
                                     mark = self._client.get_mark_price(sym) or 0.0
@@ -713,9 +723,9 @@ class TradingEngine:
                                 _blk_long = reason
 
                         if not has_short and not _long_entered_this_cycle:
-                            ok, reason = ShortCondition.evaluate(
-                                ind, self._params, has_long_open=has_long,
-                                days_listed=days)
+                            ok, reason = M4Entry.evaluate(
+                                "short", ind, self._params,
+                                has_opposite_open=has_long, days_listed=days)
                             if ok:
                                 if mark == 0.0:
                                     mark = self._client.get_mark_price(sym) or 0.0
