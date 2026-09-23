@@ -32,7 +32,7 @@ from bottom_engine.strategy.m4_entry import M4Entry
 from bottom_engine.constants import (
     MAX_DAILY_LOSS_PCT, _TAKER_FEE_RATE, _FR_THRESHOLD, _NEW_DAYS_MIN,
     _LIQ_GAUGE_MAX, _LIQ_BASE_MULT, _LIQ_FR_BIAS,
-    _MAX_CONSECUTIVE_LOSSES, _PROFIT_TRIGGER_PCT, _MIN_SPREAD,
+    _MAX_CONSECUTIVE_LOSSES, _LOSS_COOLDOWN_SEC, _PROFIT_TRIGGER_PCT, _MIN_SPREAD,
 )
 
 # 실거래 엔진과 동일한 표준 StochRSI 파라미터 (rsi_period, stoch_period, smooth_k, smooth_d)
@@ -71,8 +71,8 @@ _GRADE_ORDER  = {"A": 0, "B": 1, "C": 2, "D": 3}
 # common_macro HTF StochRSI 파라미터 (실거래 엔진 동일)
 _MAC_KD_PARAMS = (14, 14, 3, 3)
 
-# [P9] 연패 쿨다운 — _MAX_CONSECUTIVE_LOSSES는 constants.py 참조
-_LOSS_COOLDOWN_BARS     = 5     # 쿨다운 지속 봉 수 (5분 = 5 × 1m봉)
+# [P9] 연패 쿨다운 — _MAX_CONSECUTIVE_LOSSES·_LOSS_COOLDOWN_SEC는 constants.py 참조
+# BT에서는 bar.open_time (Unix ms) 기준: _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
 
 # [P10] profit-trigger 지연 — _PROFIT_TRIGGER_PCT는 constants.py 참조
 # [B-6] 일일 손실 정지 — MAX_DAILY_LOSS_PCT는 constants.py 참조
@@ -255,7 +255,7 @@ class BacktestRunner:
 
         # [P9] 연패 쿨다운 상태 — 실거래 trading_engine.py 동일 설계
         _consecutive_losses = 0
-        _cooldown_until_bar = 0
+        _cooldown_until_ms = 0
 
         # [B-6] 일일 손실 정지 상태 — KST 일 경계 기준
         _daily_pnl_usdt = 0.0   # 당일 누적 PnL (USDT)
@@ -395,7 +395,7 @@ class BacktestRunner:
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
                                 _consecutive_losses = 0
                         else:
                             _consecutive_losses = 0
@@ -415,7 +415,7 @@ class BacktestRunner:
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
                                 _consecutive_losses = 0
                         else:
                             _consecutive_losses = 0
@@ -437,7 +437,7 @@ class BacktestRunner:
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
                                 _consecutive_losses = 0
                         else:
                             _consecutive_losses = 0
@@ -474,7 +474,7 @@ class BacktestRunner:
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
                                 _consecutive_losses = 0  # [A-2]
                         else:
                             _consecutive_losses = 0
@@ -502,7 +502,7 @@ class BacktestRunner:
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
                                 _consecutive_losses = 0  # [A-2]
                         else:
                             _consecutive_losses = 0
@@ -543,7 +543,7 @@ class BacktestRunner:
                             if pnl < 0:
                                 _consecutive_losses += 1
                                 if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                    _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                    _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
                                     _consecutive_losses = 0  # [A-2]
                             else:
                                 _consecutive_losses = 0
@@ -569,7 +569,7 @@ class BacktestRunner:
                             if pnl < 0:
                                 _consecutive_losses += 1
                                 if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                    _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                    _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
                                     _consecutive_losses = 0  # [A-2]
                             else:
                                 _consecutive_losses = 0
@@ -613,7 +613,7 @@ class BacktestRunner:
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
                                 _consecutive_losses = 0
                         else:
                             _consecutive_losses = 0
@@ -633,7 +633,7 @@ class BacktestRunner:
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
                                 _consecutive_losses = 0
                         else:
                             _consecutive_losses = 0
@@ -655,7 +655,7 @@ class BacktestRunner:
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
                                 _consecutive_losses = 0
                         else:
                             _consecutive_losses = 0
@@ -692,7 +692,7 @@ class BacktestRunner:
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
                                 _consecutive_losses = 0  # [A-2]
                         else:
                             _consecutive_losses = 0
@@ -720,7 +720,7 @@ class BacktestRunner:
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
                                 _consecutive_losses = 0  # [A-2]
                         else:
                             _consecutive_losses = 0
@@ -761,7 +761,7 @@ class BacktestRunner:
                             if pnl < 0:
                                 _consecutive_losses += 1
                                 if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                    _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                    _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
                                     _consecutive_losses = 0  # [A-2]
                             else:
                                 _consecutive_losses = 0
@@ -787,7 +787,7 @@ class BacktestRunner:
                             if pnl < 0:
                                 _consecutive_losses += 1
                                 if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                    _cooldown_until_bar = i + _LOSS_COOLDOWN_BARS
+                                    _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
                                     _consecutive_losses = 0  # [A-2]
                             else:
                                 _consecutive_losses = 0
@@ -816,7 +816,7 @@ class BacktestRunner:
                 if _daily_pnl_usdt / params.portfolio_usdt * 100.0 <= -MAX_DAILY_LOSS_PCT:
                     continue
                 # [P9] 연패 쿨다운 — _MAX_CONSECUTIVE_LOSSES 연속 손실 시 진입 억제
-                if i < _cooldown_until_bar:
+                if t < _cooldown_until_ms:
                     continue
 
                 # 4TF StochRSI K/D 산출 (bisect 시점 매핑)

@@ -26,13 +26,12 @@ from bottom_engine.long_engine.long_position import LongPosition
 from bottom_engine.short_engine.short_order import ShortOrder
 from bottom_engine.short_engine.short_position import ShortPosition
 from bottom_engine.strategy.m4_entry import M4Entry
-from bottom_engine.constants import _PROFIT_TRIGGER_PCT, _MAX_CONSECUTIVE_LOSSES
+from bottom_engine.constants import _PROFIT_TRIGGER_PCT, _MAX_CONSECUTIVE_LOSSES, _LOSS_COOLDOWN_SEC
 
 _ENGINE_DIR = pathlib.Path(__file__).parent  # Phase3 상태 파일 저장 디렉터리
 SL_INTERVAL_SEC  = 1   # SL/Trailing 체크 주기 — 포지션 보유 중
 _DATA_SETTLE_SEC = 2   # 봉 마감 후 API 갱신 완료 대기 (초) — 7TF 병렬화 후 실측 1초 내외
 _BALANCE_TTL_SEC    = 30  # 잔고 캐시 유효 시간 (초)
-_LOSS_COOLDOWN_SEC      = 300  # 쿨다운 지속 시간 (초) — 5분
 _POS_SYNC_INTERVAL_SEC  = 10   # Binance 실제 포지션 동기화 주기 (초) — 외부 강제 청산 감지
 _SLIPPAGE_WARN_PCT      = 2.0  # 진입 슬리피지 경고 임계값 (%) — 체결가 vs 마크가 괴리
 
