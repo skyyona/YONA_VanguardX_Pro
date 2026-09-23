@@ -6,11 +6,9 @@ bottom/engine_core/fourtf_consensus.py
 from __future__ import annotations
 
 from bottom_engine.models import FourTFSignal
+from bottom_engine.constants import _MIN_SPREAD
 
 TF_KEYS = ("1m", "3m", "5m", "15m")
-
-# StochRSI K-D 최소 스프레드 (크로스 강도 필터 — 너무 약한 신호 제외)
-MIN_SPREAD = 2.0
 
 
 class FourTFConsensus:
@@ -37,10 +35,10 @@ class FourTFConsensus:
             d = float(tf_dict.get("d", 50.0))
             spread = abs(k - d)
 
-            if k > d and spread >= MIN_SPREAD:
+            if k > d and spread >= _MIN_SPREAD:
                 direction = "▲"
                 long_count += 1
-            elif k < d and spread >= MIN_SPREAD:
+            elif k < d and spread >= _MIN_SPREAD:
                 direction = "▼"
                 short_count += 1
             else:

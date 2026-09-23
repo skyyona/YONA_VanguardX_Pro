@@ -8,15 +8,10 @@ from __future__ import annotations
 from bottom_engine.models import (
     Position, PositionSide, PositionState, RiskCheckResult, StrategyParams
 )
+from bottom_engine.constants import MAX_DAILY_LOSS_PCT, _MAX_R_PCT, _TAKER_FEE_RATE
 
 # 세션(엔진 start 시점) 기준 누적 손실 한도 (%). initial_balance 기준이므로 앱 재시작 시 리셋된다.
 MAX_PORTFOLIO_LOSS_PCT = 30.0
-# KST 자정 기준 일일 최대 실현 손실 한도 (%) — 재시작 내성 (DailyLossTracker 연동).
-# R=8% 기준 3연패(-22.1%)를 허용하고 5연패(-34.1%)에서 정지한다.
-# 20.0 이면 3연패에서 발동해 R=8% 정책과 충돌하므로 반드시 30.0을 유지할 것.
-MAX_DAILY_LOSS_PCT = 30.0
-# 단일 거래 최대 손실 비율 — SL 도달 시 손실이 이 값 초과 시 수량 상한 조정 (%)
-_MAX_R_PCT = 8.0
 # 엔진 레이어 하드 리밋: Binance Futures 절대 상한(125x). UI(AppliedLeverage: 1~20x)와 역할 다름.
 # UI를 우회하는 비정상 경로에 대한 최후 백스탑.
 MAX_LEVERAGE = 125
@@ -24,8 +19,6 @@ MAX_LEVERAGE = 125
 # 원웨이(One-way) 모드 강제 환경: 반대 방향 주문은 신규가 아니라 기존 포지션 상계(netting).
 # 2로 두면 앱 상태와 Binance 실제 포지션이 영구적으로 어긋난다.
 MAX_CONCURRENT_POSITIONS = 1
-# Binance Futures 테이커 수수료율 — 증거금+수수료 합산이 잔고 초과하는 -2019 방지
-_TAKER_FEE_RATE = 0.0004
 
 
 class RiskManager:

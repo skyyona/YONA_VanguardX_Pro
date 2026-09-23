@@ -29,13 +29,16 @@ from bottom_engine.engine_core.sl_calculator import SLCalculator
 from bottom_engine.strategy_settings.realtrade_strategy_sort_by import get_mode_config
 from bottom_engine.models import BacktestResult, BacktestTrade, StrategyParams
 from bottom_engine.strategy.m4_entry import M4Entry
+from bottom_engine.constants import (
+    MAX_DAILY_LOSS_PCT, _TAKER_FEE_RATE, _FR_THRESHOLD, _NEW_DAYS_MIN,
+    _LIQ_GAUGE_MAX, _LIQ_BASE_MULT, _LIQ_FR_BIAS,
+    _MAX_CONSECUTIVE_LOSSES, _PROFIT_TRIGGER_PCT, _MIN_SPREAD,
+)
 
 # 실거래 엔진과 동일한 표준 StochRSI 파라미터 (rsi_period, stoch_period, smooth_k, smooth_d)
 _STOCH_P      = (14, 14, 3, 3)
 # StochRSI 수렴 최소 봉 수 (rsi_p + stoch_p + sk + sd + 2 = 36 기준 + 여유)
 _MIN_BARS     = 50
-# K-D 최소 스프레드 (fourtf_consensus.py 동일)
-_MIN_SPREAD   = 2.0
 # 합의 모드 상수
 _CONSENSUS_4_4 = "4/4"       # 4개 TF 모두 합의 (4/4)
 _CONSENSUS_3_4 = "3/4"       # 3개 이상 TF 합의 (3/4 과반)
@@ -51,8 +54,7 @@ _TF_BARS: dict[str, dict[str, int]] = {
     "90일": {"1m":129600, "3m":43220, "5m":25960, "15m": 8680, "1h": 1500},
 }
 
-# 비용 상수 (거래별 레버리지 반영 PnL%에서 차감)
-_COMMISSION   = 0.0004    # 테이커 수수료 0.040% / 편도 (Binance USDT-M)
+# 비용 상수 (거래별 레버리지 반영 PnL%에서 차감) — _TAKER_FEE_RATE는 constants.py 참조
 _SLIPPAGE     = 0.00010   # 슬리피지 0.010% / 편도 (시장 충격 추정)
 _FUNDING_RATE = 0.0001    # 펀딩비 0.01% / 8시간 (표준 중립 추정)
 _FUNDING_BARS = 480       # 8시간 = 480개 1m봉
@@ -63,27 +65,17 @@ _EMA_LONG   = 50
 _ATR_PERIOD = 14
 _VOL_PERIOD = 20
 
-# Prohibition 임계값
-_FR_THRESHOLD = 0.05    # FR 임계값 (%) — prohibition_filter.py 동일
-_NEW_DAYS_BAN = 14
-# common_liq — liquidation_proximity.py 동일 상수
-_LIQ_GAUGE_MAX = 5.0    # LiquidationProximityPanel.GAUGE_MAX_PCT
-_LIQ_BASE_MULT = 2.0    # LiquidationProximityPanel.BASE_MULTIPLIER
-_LIQ_FR_BIAS   = 0.3    # LiquidationProximityPanel.FR_BIAS_FACTOR
+# Prohibition 임계값·청산 근접도 파라미터 — constants.py 참조
 # quality_grade_req 등급 서열 — A(0) 가장 엄격, D(3) 최완화
 _GRADE_ORDER  = {"A": 0, "B": 1, "C": 2, "D": 3}
 # common_macro HTF StochRSI 파라미터 (실거래 엔진 동일)
 _MAC_KD_PARAMS = (14, 14, 3, 3)
 
-# [P9] 연패 쿨다운 — 실거래 trading_engine.py 동일 설정
-_MAX_CONSECUTIVE_LOSSES = 3     # N연패 시 쿨다운 진입
+# [P9] 연패 쿨다운 — _MAX_CONSECUTIVE_LOSSES는 constants.py 참조
 _LOSS_COOLDOWN_BARS     = 5     # 쿨다운 지속 봉 수 (5분 = 5 × 1m봉)
 
-# [P10] profit-trigger 지연 — 실거래 trading_engine.py _PROFIT_TRIGGER_PCT 동일 설정
-_PROFIT_TRIGGER_PCT     = 1.0   # Phase3 trail 활성화 지연 임계값 (%)
-
-# [B-6] 일일 손실 정지 — risk_manager.py MAX_DAILY_LOSS_PCT 동일
-_MAX_DAILY_LOSS_PCT = 30.0           # 일일 최대 손실 한도 (%)
+# [P10] profit-trigger 지연 — _PROFIT_TRIGGER_PCT는 constants.py 참조
+# [B-6] 일일 손실 정지 — MAX_DAILY_LOSS_PCT는 constants.py 참조
 _KST_OFFSET_MS      = 9 * 3600 * 1000  # KST = UTC+9 (ms 단위)
 
 
@@ -209,7 +201,7 @@ class BacktestRunner:
         # ── common_new 상장 일수 ─────────────────────────────────
         _days_listed = 9999
         if params.prohibition.common_new:
-            _dlisted     = HistoricalDataLoader.load(symbol, "1d", _NEW_DAYS_BAN + 5)
+            _dlisted     = HistoricalDataLoader.load(symbol, "1d", _NEW_DAYS_MIN + 5)
             _days_listed = len(_dlisted)
 
         # ── common_macro·use_macro HTF StochRSI (기존 bisect 패턴 유지) ─
@@ -821,7 +813,7 @@ class BacktestRunner:
             # ── 신규 진입 (포지션 없을 때만) ─────────────────────
             if not in_long and not in_short:
                 # [B-6] 일일 손실 정지 — 당일 누적 PnL이 -30% 이하이면 진입 억제
-                if _daily_pnl_usdt / params.portfolio_usdt * 100.0 <= -_MAX_DAILY_LOSS_PCT:
+                if _daily_pnl_usdt / params.portfolio_usdt * 100.0 <= -MAX_DAILY_LOSS_PCT:
                     continue
                 # [P9] 연패 쿨다운 — _MAX_CONSECUTIVE_LOSSES 연속 손실 시 진입 억제
                 if i < _cooldown_until_bar:
@@ -941,7 +933,7 @@ class BacktestRunner:
                             and k_5m < cfg.k_long_max
                             and cfg.direction_bias != "short_only"
                             and atr_ok and vol_ok
-                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
+                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_MIN)
                             and fr_ok_long
                             and liq_ok_long
                             and _mac_ok_long):
@@ -978,7 +970,7 @@ class BacktestRunner:
                             and k_5m > cfg.k_short_min
                             and cfg.direction_bias != "long_only"
                             and atr_ok and vol_ok
-                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
+                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_MIN)
                             and fr_ok_short
                             and liq_ok_short
                             and _mac_ok_short):
@@ -1029,13 +1021,13 @@ class BacktestRunner:
                     _atr_break_short = _chg_pct <= -atr_pct * atr_break_mult
                     if (_atr_break_long
                             and cfg.direction_bias != "short_only"
-                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
+                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_MIN)
                             and fr_ok_long and liq_ok_long and _mac_ok_long):
                         in_long = True; entry_price = close; entry_time = bar.open_time
                         entry_bar_i = i; phase = 1; trail_ref = close
                     elif (_atr_break_short
                             and cfg.direction_bias != "long_only"
-                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_BAN)
+                            and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_MIN)
                             and fr_ok_short and liq_ok_short and _mac_ok_short):
                         in_short = True; entry_price = close; entry_time = bar.open_time
                         entry_bar_i = i; phase = 1; trail_ref = close
@@ -1112,7 +1104,7 @@ class BacktestRunner:
     @staticmethod
     def _cost(leverage: float, bars_held: int) -> float:
         """레버리지 반영 거래 비용 (수수료 + 슬리피지 + 펀딩비) — PnL%에서 차감할 값."""
-        round_trip = 2 * leverage * (_COMMISSION + _SLIPPAGE)
+        round_trip = 2 * leverage * (_TAKER_FEE_RATE + _SLIPPAGE)
         funding    = leverage * _FUNDING_RATE * (bars_held / _FUNDING_BARS)
         return round_trip + funding
 

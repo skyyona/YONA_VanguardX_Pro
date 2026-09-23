@@ -7,10 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from bottom_engine.models import PositionSide, ProhibitionFlags
-
-_FR_THRESHOLD     = 0.05   # FR 임계값 (%)
-_NEW_DAYS_MIN     = 14     # 신규 상장 최소 거래 가능 일수
-_LIQ_GAUGE_MAX    = 5.0    # liquidation_proximity.GAUGE_MAX_PCT 동기화 값
+from bottom_engine.constants import _FR_THRESHOLD, _NEW_DAYS_MIN, _LIQ_GAUGE_MAX
 
 
 @dataclass

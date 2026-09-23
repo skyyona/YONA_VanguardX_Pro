@@ -4,7 +4,8 @@ FourTFConsensus 합의 판정 단위 테스트
 """
 import pytest
 
-from bottom_engine.engine_core.fourtf_consensus import FourTFConsensus, MIN_SPREAD
+from bottom_engine.engine_core.fourtf_consensus import FourTFConsensus
+from bottom_engine.constants import _MIN_SPREAD as MIN_SPREAD
 
 
 # ── 헬퍼 ────────────────────────────────────────────────────────────────────
