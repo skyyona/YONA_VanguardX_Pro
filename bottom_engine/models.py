@@ -85,16 +85,6 @@ class StrategyParams:
         return p
 
 
-@dataclass
-class FourTFSignal:
-    """4TF 완전 합의 평가 결과."""
-    long_consensus:  bool  = False   # 4TF 전부 K > D (강세)
-    short_consensus: bool  = False   # 4TF 전부 K < D (약세)
-    aligned_long:    int   = 0       # 강세 일치 TF 수 (0~4)
-    aligned_short:   int   = 0       # 약세 일치 TF 수 (0~4)
-    details: dict[str, dict] = field(default_factory=dict)  # {tf: {k, d, dir}}
-
-
 # ── 주문 ─────────────────────────────────────────────────────────
 @dataclass
 class Order:

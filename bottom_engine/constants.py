@@ -40,5 +40,5 @@ _MAX_CONSECUTIVE_LOSSES = 3
 # 연패 쿨다운 지속 시간 (초) — trading_engine.py·backtest_runner.py 공유
 # BT에서는 bar.open_time (Unix ms) 기준이므로 * 1_000 변환 후 사용
 _LOSS_COOLDOWN_SEC      = 300
-# StochRSI K-D 최소 스프레드 — fourtf_consensus.py·backtest_runner.py 공유
+# StochRSI K-D 최소 스프레드 — backtest_runner.py 공유
 _MIN_SPREAD             = 2.0
