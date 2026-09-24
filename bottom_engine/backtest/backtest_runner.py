@@ -479,6 +479,22 @@ class BacktestRunner:
                     # [A-4] Phase1→2 intrabar: bar.high 기준 (실거래 Binance 서버측 체결 재현)
                     if bar.high >= entry_price + R:
                         phase = 2
+                    # [A-5] 5m K80 하향 돌파 익절 (LIVE: Phase 무관 체크)
+                    if _k5m_prev_bar >= 80.0 and _k5m_cur < 80.0:
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (close - entry_price) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="long", entry_price=entry_price, exit_price=close,
+                            pnl_pct=round(pnl, 3),
+                            pnl_usdt=_pnl_usdt_val,
+                            exit_reason="KD-EXIT",
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
+                        _consecutive_losses = 0
+                        in_long = False; phase = 1; trail_ref = 0.0
+                        continue
 
                 elif phase == 2:
                     # [P1] intrabar: bar.low ≤ BEP 청산가 → BEP STOP_MARKET 체결 재현
@@ -502,6 +518,22 @@ class BacktestRunner:
                                 _consecutive_losses = 0  # [A-2]
                         else:
                             _consecutive_losses = 0
+                        in_long = False; phase = 1; trail_ref = 0.0
+                        continue
+                    # [A-5] 5m K80 하향 돌파 익절 (LIVE: Phase 무관 체크)
+                    if _k5m_prev_bar >= 80.0 and _k5m_cur < 80.0:
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (close - entry_price) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="long", entry_price=entry_price, exit_price=close,
+                            pnl_pct=round(pnl, 3),
+                            pnl_usdt=_pnl_usdt_val,
+                            exit_reason="KD-EXIT",
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
+                        _consecutive_losses = 0
                         in_long = False; phase = 1; trail_ref = 0.0
                         continue
                     # [A-4][P5] Phase2→3 intrabar: bar.high 기준, trail_ref=트리거 가격
@@ -697,6 +729,22 @@ class BacktestRunner:
                     # [A-4] Phase1→2 intrabar: bar.low 기준 (실거래 Binance 서버측 체결 재현)
                     if bar.low <= entry_price - R:
                         phase = 2
+                    # [A-5] 5m K20 상향 돌파 익절 (LIVE: Phase 무관 체크)
+                    if _k5m_prev_bar <= 20.0 and _k5m_cur > 20.0:
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (entry_price - close) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="short", entry_price=entry_price, exit_price=close,
+                            pnl_pct=round(pnl, 3),
+                            pnl_usdt=_pnl_usdt_val,
+                            exit_reason="KD-EXIT",
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
+                        _consecutive_losses = 0
+                        in_short = False; phase = 1; trail_ref = 0.0
+                        continue
 
                 elif phase == 2:
                     # [P1] intrabar: bar.high ≥ BEP 청산가 → BEP STOP_MARKET 체결 재현
@@ -720,6 +768,22 @@ class BacktestRunner:
                                 _consecutive_losses = 0  # [A-2]
                         else:
                             _consecutive_losses = 0
+                        in_short = False; phase = 1; trail_ref = 0.0
+                        continue
+                    # [A-5] 5m K20 상향 돌파 익절 (LIVE: Phase 무관 체크)
+                    if _k5m_prev_bar <= 20.0 and _k5m_cur > 20.0:
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (entry_price - close) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="short", entry_price=entry_price, exit_price=close,
+                            pnl_pct=round(pnl, 3),
+                            pnl_usdt=_pnl_usdt_val,
+                            exit_reason="KD-EXIT",
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
+                        _consecutive_losses = 0
                         in_short = False; phase = 1; trail_ref = 0.0
                         continue
                     # [A-4][P5] Phase2→3 intrabar: bar.low 기준, trail_ref=트리거 가격
@@ -1081,7 +1145,7 @@ class BacktestRunner:
             _p = dataclasses.replace(params, m4_slope_th=slope)
             results[f"slope_{int(slope)}"] = cls.run(
                 symbol, _p, period, preloaded=preloaded,
-                entry_variant="M4", exit_variant="M4",
+                entry_variant="M4", exit_variant="CURRENT",
                 m4_slope_th=slope, m4_div_th=params.m4_div_th)
         return results
 
