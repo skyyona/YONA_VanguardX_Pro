@@ -912,7 +912,7 @@ class StrategyPopupMixin:
                         result_obj = BacktestRunner.run(
                             sym, params, period_key,
                             entry_variant="M4",
-                            exit_variant="M4",
+                            exit_variant="CURRENT",
                             m4_slope_th=float(_slope_var.get()),
                             m4_div_th=params.m4_div_th,
                         )
