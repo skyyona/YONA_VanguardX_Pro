@@ -126,7 +126,7 @@ class _Col3Mixin:
                 _warn_ico = "⚠"
                 _warn_ttl = f"D+{_days} Ultra New — 데이터 부족"
                 _valid    = "✅ 유효: 에너지·VSS·Player·OI·FR"
-                _invalid  = "❌ 제한: TF합의·추세·4TF·Macro"
+                _invalid  = "❌ 제한: M4 준비·추세·4TF·Macro"
             elif _days <= 30:
                 _warn_bg  = "#1A1400"
                 _warn_col = YELLOW

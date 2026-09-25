@@ -326,7 +326,7 @@ class _Col1Mixin:
                 self._hdr_labels[1].configure(text="Coin Symbol")
                 self._hdr_labels[2].configure(text="Change%",   anchor="e")
                 self._hdr_labels[3].configure(text="Cumulative",anchor="e")
-                self._hdr_labels[4].configure(text="TF합의")
+                self._hdr_labels[4].configure(text="M4 준비")
                 self._hdr_labels[5].configure(text="추세 단계", anchor="center")
         # Pending Listing: 데이터 로드 후 재빌드
         if mode == "Pending Listing":

@@ -838,24 +838,44 @@ class MiddleDataManager:
         ob   = self._onboard_map.get(sym, 0)
         days = NewlistedScorer.get_days_since_listing(ob) if ob else 0
 
-        # [2,3] TF 정렬 (캐시된 상세 데이터 있으면 사용)
+        # [2,3] M4 진입 준비 상태 (G2 15m추세 + G7.5 거시 점수)
         ind = self._ind_cache.get(sym)
         if ind:
-            dirs = [ind.get(k, {}).get("dir", "↔") for k in ("tf1","tf3","tf5","tf15","tf1h","tf4h","tf1d")]
-            up   = sum(1 for d in dirs if d == "▲")
-            dn   = sum(1 for d in dirs if d == "▼")
-            tot  = len(dirs)
-            if up >= dn and up > 0:
-                align_txt = f"↑  {up}/{tot}"
-                align_col = _POS if up == tot else _LGR
-            elif dn > up:
-                align_txt = f"↓  {dn}/{tot}"
-                align_col = _NEG
+            # G2: 15m 추세 합의 (M4Entry G2 게이트 동일 로직)
+            k15  = ind.get("tf15", {}).get("k", 50.0)
+            d15  = ind.get("tf15", {}).get("d", 50.0)
+            sp15 = k15 - d15
+            g2_long  = sp15 >= 2.0
+            g2_short = sp15 <= -2.0
+
+            # G7.5: 거시 추세 점수 -3~+3 (M4Entry G7.5 게이트 동일 로직)
+            macro_score = 0
+            for _tf in ("tf1h", "tf4h", "tf1d"):
+                _k  = ind.get(_tf, {}).get("k", 50.0)
+                _d  = ind.get(_tf, {}).get("d", 50.0)
+                _sp = _k - _d
+                if   _sp >=  2.0: macro_score += 1
+                elif _sp <= -2.0: macro_score -= 1
+
+            if g2_long:
+                if macro_score <= -1:
+                    align_txt = "▲ 거시차단"
+                    align_col = _ORA
+                else:
+                    align_txt = "▲ 롱 대기"
+                    align_col = _POS
+            elif g2_short:
+                if macro_score >= 1:
+                    align_txt = "▼ 거시차단"
+                    align_col = _YEL
+                else:
+                    align_txt = "▼ 숏 대기"
+                    align_col = _NEG
             else:
-                align_txt = f"↔  {tot//2}/{tot}"
-                align_col = _YEL
+                align_txt = "↔ 혼조"
+                align_col = _DIM
         else:
-            align_txt = "↔  —"
+            align_txt = "─ 로딩중"
             align_col = _DIM
 
         # [4,5] 24h 변동률

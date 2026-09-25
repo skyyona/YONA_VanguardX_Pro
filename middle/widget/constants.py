@@ -39,7 +39,7 @@ _COLS = [
     ("Coin Symbol", 170, "w"),
     ("Change%",      80, "e"),
     ("Cumulative",   78, "e"),
-    ("TF합의",         88, "center"),
+    ("M4 준비",         88, "center"),
     ("추세 단계",        0, "center"),
 ]
 
