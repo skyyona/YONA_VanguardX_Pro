@@ -137,7 +137,7 @@ def _eval_long(
     trail_active = (profit_trigger <= 0.0 or close >= profit_trigger)
     if trail_active:
         # trail_ref 갱신 (BT=close, LIVE=mark — 동일 코드, 미세 차이만 존재)
-        new_trail = max(trail_ref, close)
+        new_trail = max(trail_ref, close) if trail_ref > 0.0 else close
         trail_sl  = new_trail * (1.0 - trail_pct / 100.0)
         # [P1] TRAIL 도달 — bar.low ≤ trail_sl
         if lo <= trail_sl:
