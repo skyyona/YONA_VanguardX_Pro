@@ -29,6 +29,7 @@ from bottom_engine.engine_core.sl_calculator import SLCalculator
 from bottom_engine.strategy_settings.realtrade_strategy_sort_by import get_mode_config
 from bottom_engine.models import BacktestResult, BacktestTrade, StrategyParams
 from bottom_engine.strategy.m4_entry import M4Entry
+from bottom_engine.strategy.m4_exit import M4Exit
 from bottom_engine.constants import (
     MAX_DAILY_LOSS_PCT, _TAKER_FEE_RATE, _FR_THRESHOLD, _NEW_DAYS_MIN,
     _LIQ_GAUGE_MAX, _LIQ_BASE_MULT, _LIQ_FR_BIAS,
@@ -453,121 +454,37 @@ class BacktestRunner:
                         in_long = False; phase = 1; trail_ref = 0.0
                         continue
 
-                elif phase == 1:
-                    # [P1] intrabar: bar.low ≤ sl_phase1 → STOP_MARKET 체결 재현
-                    if bar.low <= sl_phase1:
+                else:  # CURRENT exit_variant — M4Exit 공통 판정
+                    dec = M4Exit.evaluate(
+                        side="LONG",
+                        phase=phase,
+                        entry_price=entry_price,
+                        sl_pct=sl_used,
+                        trail_pct=trail_used,
+                        trail_ref=trail_ref,
+                        profit_trigger=profit_trigger_long,
+                        hi=bar.high,
+                        lo=bar.low,
+                        close=close,
+                        k_prev=_k5m_prev_bar,
+                        k_cur=_k5m_cur,
+                    )
+                    if dec.reason:
                         cost = cls._cost(_leff, bars_held)
-                        pnl  = (sl_phase1 - entry_price) / entry_price * 100.0 * _leff - cost
-                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        pnl  = (dec.exit_price - entry_price) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(
+                            dec.qty_ratio * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
-                            side="long", entry_price=entry_price, exit_price=sl_phase1,
-                            pnl_pct=round(pnl, 3),
+                            side="long", entry_price=entry_price, exit_price=dec.exit_price,
+                            pnl_pct=round(dec.qty_ratio * pnl, 3),
                             pnl_usdt=_pnl_usdt_val,
-                            exit_reason="SL",
+                            exit_reason=dec.reason, qty_ratio=dec.qty_ratio,
                         ))
                         _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
-                        if pnl < 0:
-                            _consecutive_losses += 1
-                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
-                                _consecutive_losses = 0  # [A-2]
-                        else:
+                        if dec.reason in ("KD-EXIT", "PARTIAL"):
                             _consecutive_losses = 0
-                        in_long = False; phase = 1; trail_ref = 0.0
-                        continue
-                    # [A-4] Phase1→2 intrabar: bar.high 기준 (실거래 Binance 서버측 체결 재현)
-                    if bar.high >= entry_price + R:
-                        phase = 2
-                    # [A-5] 5m K80 하향 돌파 익절 (LIVE: Phase 무관 체크)
-                    if _k5m_prev_bar >= 80.0 and _k5m_cur < 80.0:
-                        cost = cls._cost(_leff, bars_held)
-                        pnl  = (close - entry_price) / entry_price * 100.0 * _leff - cost
-                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
-                        trades.append(BacktestTrade(
-                            entry_time=entry_time, exit_time=bar.close_time,
-                            side="long", entry_price=entry_price, exit_price=close,
-                            pnl_pct=round(pnl, 3),
-                            pnl_usdt=_pnl_usdt_val,
-                            exit_reason="KD-EXIT",
-                        ))
-                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
-                        _consecutive_losses = 0
-                        in_long = False; phase = 1; trail_ref = 0.0
-                        continue
-
-                elif phase == 2:
-                    # [P1] intrabar: bar.low ≤ BEP 청산가 → BEP STOP_MARKET 체결 재현
-                    _bep_exit_l = entry_price
-                    if bar.low <= _bep_exit_l:
-                        cost = cls._cost(_leff, bars_held)
-                        pnl  = 0.0 - cost
-                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
-                        trades.append(BacktestTrade(
-                            entry_time=entry_time, exit_time=bar.close_time,
-                            side="long", entry_price=entry_price, exit_price=_bep_exit_l,
-                            pnl_pct=round(pnl, 3),
-                            pnl_usdt=_pnl_usdt_val,
-                            exit_reason="BEP-SL",
-                        ))
-                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
-                        if pnl < 0:
-                            _consecutive_losses += 1
-                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
-                                _consecutive_losses = 0  # [A-2]
                         else:
-                            _consecutive_losses = 0
-                        in_long = False; phase = 1; trail_ref = 0.0
-                        continue
-                    # [A-5] 5m K80 하향 돌파 익절 (LIVE: Phase 무관 체크)
-                    if _k5m_prev_bar >= 80.0 and _k5m_cur < 80.0:
-                        cost = cls._cost(_leff, bars_held)
-                        pnl  = (close - entry_price) / entry_price * 100.0 * _leff - cost
-                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
-                        trades.append(BacktestTrade(
-                            entry_time=entry_time, exit_time=bar.close_time,
-                            side="long", entry_price=entry_price, exit_price=close,
-                            pnl_pct=round(pnl, 3),
-                            pnl_usdt=_pnl_usdt_val,
-                            exit_reason="KD-EXIT",
-                        ))
-                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
-                        _consecutive_losses = 0
-                        in_long = False; phase = 1; trail_ref = 0.0
-                        continue
-                    # [A-4][P5] Phase2→3 intrabar: bar.high 기준, trail_ref=트리거 가격
-                    if bar.high >= entry_price + R * 1.5:
-                        cost_p = cls._cost(_leff, bars_held)
-                        pnl_p  = R * 1.5 / entry_price * 100.0 * _leff - cost_p  # 트리거 가격 기준 (SL/TRAIL 패턴 통일)
-                        _pnl_usdt_val_p = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl_p / 100.0, 4)
-                        trades.append(BacktestTrade(
-                            entry_time=entry_time, exit_time=bar.close_time,
-                            side="long", entry_price=entry_price, exit_price=entry_price + R * 1.5,
-                            pnl_pct=round(0.5 * pnl_p, 3),  # [A-3] 50% 물량 가중
-                            pnl_usdt=_pnl_usdt_val_p,
-                            exit_reason="PARTIAL", qty_ratio=0.5,
-                        ))
-                        _daily_pnl_usdt += _pnl_usdt_val_p  # [B-6]
-                        _consecutive_losses = 0
-                        phase = 3; trail_ref = bar.high  # [A-4] 실제 돌파가 기준 (방안 A)
-                        profit_trigger_long = bar.high * (1.0 + _PROFIT_TRIGGER_PCT / 100.0)  # [P10]
-
-                elif phase == 3:
-                    if close < profit_trigger_long:
-                        # [P10] profit-trigger 미달 — BEP SL 유지 (실거래 동일: 트레일링 미등록)
-                        if bar.low <= entry_price:
-                            cost = cls._cost(_leff, bars_held)
-                            pnl  = (entry_price - entry_price) / entry_price * 100.0 * _leff - cost
-                            _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
-                            trades.append(BacktestTrade(
-                                entry_time=entry_time, exit_time=bar.close_time,
-                                side="long", entry_price=entry_price, exit_price=entry_price,
-                                pnl_pct=round(0.5 * pnl, 3),
-                                pnl_usdt=_pnl_usdt_val,
-                                exit_reason="BEP-SL", qty_ratio=0.5,
-                            ))
-                            _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
                             if pnl < 0:
                                 _consecutive_losses += 1
                                 if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
@@ -575,50 +492,21 @@ class BacktestRunner:
                                     _consecutive_losses = 0  # [A-2]
                             else:
                                 _consecutive_losses = 0
+                        if dec.reason == "PARTIAL":
+                            # 50% 부분 청산 후 Phase3 진입 — position 유지
+                            phase = dec.new_phase
+                            trail_ref = dec.new_trail_ref
+                            profit_trigger_long = dec.new_profit_trigger
+                        else:
                             in_long = False; phase = 1; trail_ref = 0.0; profit_trigger_long = 0.0
                             continue
                     else:
-                        # [A-5] profit-trigger 도달 — TRAIL 체크 먼저 (실거래: Binance TRAILING_STOP_MARKET 서버측 선행 체결)
-                        trail_ref = max(trail_ref, close)
-                        trail_sl  = trail_ref * (1.0 - trail_used / 100.0)
-                        # [P1] intrabar + [P5] 잔량 50%: bar.low ≤ trail_sl → trailing stop 체결 재현
-                        if bar.low <= trail_sl:
-                            cost = cls._cost(_leff, bars_held)
-                            pnl  = (trail_sl - entry_price) / entry_price * 100.0 * _leff - cost
-                            _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
-                            trades.append(BacktestTrade(
-                                entry_time=entry_time, exit_time=bar.close_time,
-                                side="long", entry_price=entry_price, exit_price=trail_sl,
-                                pnl_pct=round(0.5 * pnl, 3),  # [P5] 잔량 50% 가중
-                                pnl_usdt=_pnl_usdt_val,
-                                exit_reason="TRAIL", qty_ratio=0.5,
-                            ))
-                            _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
-                            if pnl < 0:
-                                _consecutive_losses += 1
-                                if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                    _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
-                                    _consecutive_losses = 0  # [A-2]
-                            else:
-                                _consecutive_losses = 0
-                            in_long = False; phase = 1; trail_ref = 0.0; profit_trigger_long = 0.0
-                            continue
-                    # [A-5][P8][P10] BEP/TRAIL이 없을 때만 5m K80 하향 돌파 익절 체크
-                    if _k5m_prev_bar >= 80.0 and _k5m_cur < 80.0:
-                        cost = cls._cost(_leff, bars_held)
-                        pnl  = (close - entry_price) / entry_price * 100.0 * _leff - cost
-                        _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
-                        trades.append(BacktestTrade(
-                            entry_time=entry_time, exit_time=bar.close_time,
-                            side="long", entry_price=entry_price, exit_price=close,
-                            pnl_pct=round(0.5 * pnl, 3),  # [P5] 잔량 50% 가중
-                            pnl_usdt=_pnl_usdt_val,
-                            exit_reason="KD-EXIT", qty_ratio=0.5,
-                        ))
-                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
-                        _consecutive_losses = 0
-                        in_long = False; phase = 1; trail_ref = 0.0; profit_trigger_long = 0.0
-                        continue
+                        # 청산 없음 — 상태만 갱신
+                        phase = dec.new_phase
+                        if dec.new_trail_ref > 0.0:
+                            trail_ref = dec.new_trail_ref
+                        if dec.new_profit_trigger > 0.0:
+                            profit_trigger_long = dec.new_profit_trigger
 
             # ── 숏 포지션 관리 ────────────────────────────────────
             elif in_short:
@@ -703,121 +591,37 @@ class BacktestRunner:
                         in_short = False; phase = 1; trail_ref = 0.0
                         continue
 
-                elif phase == 1:
-                    # [P1] intrabar: bar.high ≥ sl_phase1 → STOP_MARKET 체결 재현
-                    if bar.high >= sl_phase1:
+                else:  # CURRENT exit_variant — M4Exit 공통 판정
+                    dec = M4Exit.evaluate(
+                        side="SHORT",
+                        phase=phase,
+                        entry_price=entry_price,
+                        sl_pct=sl_used,
+                        trail_pct=trail_used,
+                        trail_ref=trail_ref,
+                        profit_trigger=profit_trigger_short,
+                        hi=bar.high,
+                        lo=bar.low,
+                        close=close,
+                        k_prev=_k5m_prev_bar,
+                        k_cur=_k5m_cur,
+                    )
+                    if dec.reason:
                         cost = cls._cost(_leff, bars_held)
-                        pnl  = (entry_price - sl_phase1) / entry_price * 100.0 * _leff - cost
-                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        pnl  = (entry_price - dec.exit_price) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(
+                            dec.qty_ratio * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
                             entry_time=entry_time, exit_time=bar.close_time,
-                            side="short", entry_price=entry_price, exit_price=sl_phase1,
-                            pnl_pct=round(pnl, 3),
+                            side="short", entry_price=entry_price, exit_price=dec.exit_price,
+                            pnl_pct=round(dec.qty_ratio * pnl, 3),
                             pnl_usdt=_pnl_usdt_val,
-                            exit_reason="SL",
+                            exit_reason=dec.reason, qty_ratio=dec.qty_ratio,
                         ))
                         _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
-                        if pnl < 0:
-                            _consecutive_losses += 1
-                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
-                                _consecutive_losses = 0  # [A-2]
-                        else:
+                        if dec.reason in ("KD-EXIT", "PARTIAL"):
                             _consecutive_losses = 0
-                        in_short = False; phase = 1; trail_ref = 0.0
-                        continue
-                    # [A-4] Phase1→2 intrabar: bar.low 기준 (실거래 Binance 서버측 체결 재현)
-                    if bar.low <= entry_price - R:
-                        phase = 2
-                    # [A-5] 5m K20 상향 돌파 익절 (LIVE: Phase 무관 체크)
-                    if _k5m_prev_bar <= 20.0 and _k5m_cur > 20.0:
-                        cost = cls._cost(_leff, bars_held)
-                        pnl  = (entry_price - close) / entry_price * 100.0 * _leff - cost
-                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
-                        trades.append(BacktestTrade(
-                            entry_time=entry_time, exit_time=bar.close_time,
-                            side="short", entry_price=entry_price, exit_price=close,
-                            pnl_pct=round(pnl, 3),
-                            pnl_usdt=_pnl_usdt_val,
-                            exit_reason="KD-EXIT",
-                        ))
-                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
-                        _consecutive_losses = 0
-                        in_short = False; phase = 1; trail_ref = 0.0
-                        continue
-
-                elif phase == 2:
-                    # [P1] intrabar: bar.high ≥ BEP 청산가 → BEP STOP_MARKET 체결 재현
-                    _bep_exit_s = entry_price
-                    if bar.high >= _bep_exit_s:
-                        cost = cls._cost(_leff, bars_held)
-                        pnl  = 0.0 - cost
-                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
-                        trades.append(BacktestTrade(
-                            entry_time=entry_time, exit_time=bar.close_time,
-                            side="short", entry_price=entry_price, exit_price=_bep_exit_s,
-                            pnl_pct=round(pnl, 3),
-                            pnl_usdt=_pnl_usdt_val,
-                            exit_reason="BEP-SL",
-                        ))
-                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
-                        if pnl < 0:
-                            _consecutive_losses += 1
-                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
-                                _consecutive_losses = 0  # [A-2]
                         else:
-                            _consecutive_losses = 0
-                        in_short = False; phase = 1; trail_ref = 0.0
-                        continue
-                    # [A-5] 5m K20 상향 돌파 익절 (LIVE: Phase 무관 체크)
-                    if _k5m_prev_bar <= 20.0 and _k5m_cur > 20.0:
-                        cost = cls._cost(_leff, bars_held)
-                        pnl  = (entry_price - close) / entry_price * 100.0 * _leff - cost
-                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
-                        trades.append(BacktestTrade(
-                            entry_time=entry_time, exit_time=bar.close_time,
-                            side="short", entry_price=entry_price, exit_price=close,
-                            pnl_pct=round(pnl, 3),
-                            pnl_usdt=_pnl_usdt_val,
-                            exit_reason="KD-EXIT",
-                        ))
-                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
-                        _consecutive_losses = 0
-                        in_short = False; phase = 1; trail_ref = 0.0
-                        continue
-                    # [A-4][P5] Phase2→3 intrabar: bar.low 기준, trail_ref=트리거 가격
-                    if bar.low <= entry_price - R * 1.5:
-                        cost_p = cls._cost(_leff, bars_held)
-                        pnl_p  = R * 1.5 / entry_price * 100.0 * _leff - cost_p  # 트리거 가격 기준 (SL/TRAIL 패턴 통일)
-                        _pnl_usdt_val_p = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl_p / 100.0, 4)
-                        trades.append(BacktestTrade(
-                            entry_time=entry_time, exit_time=bar.close_time,
-                            side="short", entry_price=entry_price, exit_price=entry_price - R * 1.5,
-                            pnl_pct=round(0.5 * pnl_p, 3),  # [A-3] 50% 물량 가중
-                            pnl_usdt=_pnl_usdt_val_p,
-                            exit_reason="PARTIAL", qty_ratio=0.5,
-                        ))
-                        _daily_pnl_usdt += _pnl_usdt_val_p  # [B-6]
-                        _consecutive_losses = 0
-                        phase = 3; trail_ref = bar.low  # [A-4] 실제 돌파가 기준 (방안 A)
-                        profit_trigger_short = bar.low * (1.0 - _PROFIT_TRIGGER_PCT / 100.0)  # [P10]
-
-                elif phase == 3:
-                    if close > profit_trigger_short:
-                        # [P10] profit-trigger 미달 — BEP SL 유지 (실거래 동일: 트레일링 미등록)
-                        if bar.high >= entry_price:
-                            cost = cls._cost(_leff, bars_held)
-                            pnl  = (entry_price - entry_price) / entry_price * 100.0 * _leff - cost
-                            _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
-                            trades.append(BacktestTrade(
-                                entry_time=entry_time, exit_time=bar.close_time,
-                                side="short", entry_price=entry_price, exit_price=entry_price,
-                                pnl_pct=round(0.5 * pnl, 3),
-                                pnl_usdt=_pnl_usdt_val,
-                                exit_reason="BEP-SL", qty_ratio=0.5,
-                            ))
-                            _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
                             if pnl < 0:
                                 _consecutive_losses += 1
                                 if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
@@ -825,50 +629,21 @@ class BacktestRunner:
                                     _consecutive_losses = 0  # [A-2]
                             else:
                                 _consecutive_losses = 0
+                        if dec.reason == "PARTIAL":
+                            # 50% 부분 청산 후 Phase3 진입 — position 유지
+                            phase = dec.new_phase
+                            trail_ref = dec.new_trail_ref
+                            profit_trigger_short = dec.new_profit_trigger
+                        else:
                             in_short = False; phase = 1; trail_ref = 0.0; profit_trigger_short = 0.0
                             continue
                     else:
-                        # [A-5] profit-trigger 도달 — TRAIL 체크 먼저 (실거래: Binance TRAILING_STOP_MARKET 서버측 선행 체결)
-                        trail_ref = min(trail_ref, close)
-                        trail_sl  = trail_ref * (1.0 + trail_used / 100.0)
-                        # [P1] intrabar + [P5] 잔량 50%: bar.high ≥ trail_sl → trailing stop 체결 재현
-                        if bar.high >= trail_sl:
-                            cost = cls._cost(_leff, bars_held)
-                            pnl  = (entry_price - trail_sl) / entry_price * 100.0 * _leff - cost
-                            _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
-                            trades.append(BacktestTrade(
-                                entry_time=entry_time, exit_time=bar.close_time,
-                                side="short", entry_price=entry_price, exit_price=trail_sl,
-                                pnl_pct=round(0.5 * pnl, 3),  # [P5] 잔량 50% 가중
-                                pnl_usdt=_pnl_usdt_val,
-                                exit_reason="TRAIL", qty_ratio=0.5,
-                            ))
-                            _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
-                            if pnl < 0:
-                                _consecutive_losses += 1
-                                if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                    _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
-                                    _consecutive_losses = 0  # [A-2]
-                            else:
-                                _consecutive_losses = 0
-                            in_short = False; phase = 1; trail_ref = 0.0; profit_trigger_short = 0.0
-                            continue
-                    # [A-5][P8][P10] BEP/TRAIL이 없을 때만 5m K20 상향 돌파 익절 체크
-                    if _k5m_prev_bar <= 20.0 and _k5m_cur > 20.0:
-                        cost = cls._cost(_leff, bars_held)
-                        pnl  = (entry_price - close) / entry_price * 100.0 * _leff - cost
-                        _pnl_usdt_val = round(0.5 * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
-                        trades.append(BacktestTrade(
-                            entry_time=entry_time, exit_time=bar.close_time,
-                            side="short", entry_price=entry_price, exit_price=close,
-                            pnl_pct=round(0.5 * pnl, 3),  # [P5] 잔량 50% 가중
-                            pnl_usdt=_pnl_usdt_val,
-                            exit_reason="KD-EXIT", qty_ratio=0.5,
-                        ))
-                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
-                        _consecutive_losses = 0
-                        in_short = False; phase = 1; trail_ref = 0.0; profit_trigger_short = 0.0
-                        continue
+                        # 청산 없음 — 상태만 갱신
+                        phase = dec.new_phase
+                        if dec.new_trail_ref > 0.0:
+                            trail_ref = dec.new_trail_ref
+                        if dec.new_profit_trigger > 0.0:
+                            profit_trigger_short = dec.new_profit_trigger
 
             # ── 신규 진입 (포지션 없을 때만) ─────────────────────
             if not in_long and not in_short:

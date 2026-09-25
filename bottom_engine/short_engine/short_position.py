@@ -14,6 +14,7 @@ from __future__ import annotations
 import time as _time
 
 from bottom_engine.models import Position, PositionSide, PositionState, StrategyParams
+from bottom_engine.strategy.m4_exit import M4Exit
 
 
 class ShortPosition:
@@ -54,35 +55,44 @@ class ShortPosition:
 
         Phase1 → Phase2: current_price ≤ entry − R  (BEP 이동)
         Phase2 → Phase3: current_price ≤ entry − 1.5R  (트레일링 활성)
+
+        M4Exit.evaluate()를 사용하여 BT와 동일한 Phase 전환 임계값 유지.
+        KD 익절(_sl_loop 담당)·profit_trigger(engine 담당)는 여기서 처리하지 않음.
         """
         if pos.state != PositionState.OPEN:
             return pos
 
-        R = pos.entry_price * pos.stop_loss_pct / 100.0
+        old_phase = pos.phase
+        dec = M4Exit.evaluate(
+            side="SHORT",
+            phase=pos.phase,
+            entry_price=pos.entry_price,
+            sl_pct=pos.stop_loss_pct,
+            trail_pct=pos.trail_stop_pct,
+            trail_ref=pos.trailing_low,
+            profit_trigger=0.0,   # LIVE: trail 즉시 활성 (_sl_loop이 profit_trigger 관리)
+            hi=current_price,
+            lo=current_price,
+            close=current_price,
+            k_prev=0.0,           # LIVE: KD 익절은 _sl_loop에서 직접 처리
+            k_cur=0.0,
+        )
 
-        if pos.phase == 1:
-            # Phase1: SL 고정 (초기 SL)
-            pos.current_sl = round(pos.entry_price * (1 + pos.stop_loss_pct / 100), 8)
-            if R > 0 and current_price <= pos.entry_price - R:
-                pos.phase     = 2
-                pos.current_sl = pos.entry_price   # BEP로 즉시 이동
+        # Phase 전환 적용
+        if dec.new_phase != pos.phase:
+            pos.phase = dec.new_phase
 
-        elif pos.phase == 2:
-            # Phase2: SL = entry (BEP 유지)
-            pos.current_sl = pos.entry_price
-            if R > 0 and current_price <= pos.entry_price - R * 1.5:
-                pos.phase        = 3
-                pos.trailing_low = current_price   # 트레일링 기준점 설정
-
-        elif pos.phase == 3:
-            # Phase3: 트레일링 SL (trailing_low 추적)
-            if pos.trailing_low > 0:
-                pos.trailing_low = min(pos.trailing_low, current_price)
+        # SL 갱신 — SHORT Phase3는 trail_sl 하락만 허용 (ratchet 반대 방향)
+        if dec.new_sl > 0.0:
+            if old_phase == 3:
+                prev_sl = pos.current_sl if pos.current_sl > 0 else dec.new_sl
+                pos.current_sl = min(prev_sl, round(dec.new_sl, 8))
             else:
-                pos.trailing_low = current_price
-            trail_sl = pos.trailing_low * (1 + pos.trail_stop_pct / 100)
-            prev_sl  = pos.current_sl if pos.current_sl > 0 else trail_sl
-            pos.current_sl = min(prev_sl, round(trail_sl, 8))
+                pos.current_sl = round(dec.new_sl, 8)
+
+        # trailing_low 갱신 (Phase3 전환 시 또는 Phase3 trail 업데이트)
+        if dec.new_trail_ref > 0.0:
+            pos.trailing_low = dec.new_trail_ref
 
         # PnL 계산 (수수료 추정 차감 — close()와 동일 수식)
         if pos.entry_price > 0:
