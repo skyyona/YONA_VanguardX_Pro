@@ -871,8 +871,14 @@ class MiddleDataManager:
                 else:
                     align_txt = "▼ 숏 대기"
                     align_col = _NEG
+            elif sp15 > 0:
+                align_txt = "↗ 롱 기울기"
+                align_col = _LGR
+            elif sp15 < 0:
+                align_txt = "↘ 숏 기울기"
+                align_col = "#b85070"
             else:
-                align_txt = "↔ 혼조"
+                align_txt = "↔ 중립"
                 align_col = _DIM
         else:
             align_txt = "─ 로딩중"
