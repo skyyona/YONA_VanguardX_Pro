@@ -805,9 +805,13 @@ class BacktestRunner:
     # ── 거래 비용 계산 ──────────────────────────────────────────
     @staticmethod
     def _cost(leverage: float, bars_held: int) -> float:
-        """레버리지 반영 거래 비용 (수수료 + 슬리피지 + 펀딩비) — PnL%에서 차감할 값."""
-        round_trip = 2 * leverage * (_TAKER_FEE_RATE + _SLIPPAGE)
-        funding    = leverage * _FUNDING_RATE * (bars_held / _FUNDING_BARS)
+        """레버리지 반영 거래 비용 (수수료 + 슬리피지 + 펀딩비) — PnL%에서 차감할 값.
+        PnL = price_change_ratio * 100 * leff 단위(자본 대비 %)이므로 cost도 동일 단위.
+        round_trip: 2 × leff × (fee + slip) × 100  (소수율 → % 변환)
+        funding:    leff × fund_rate × (bars/8h)  × 100
+        """
+        round_trip = 2 * leverage * (_TAKER_FEE_RATE + _SLIPPAGE) * 100
+        funding    = leverage * _FUNDING_RATE * (bars_held / _FUNDING_BARS) * 100
         return round_trip + funding
 
     # ── ATR% 시리즈 계산 ─────────────────────────────────────────
