@@ -67,6 +67,7 @@ class StrategyParams:
     mmr:            float            = 0.004  # [C-2] 유지증거금률 — liq_safe 산출용 (실거래 get_mmr 주입)
     m4_slope_th:    float            = 10.0   # M4 5m K기울기 임계값 (K-D ≥ SLOPE_TH)
     m4_div_th:      float | None     = 2.0    # M4 1h EMA 이격도 임계값 (None=미사용)
+    m4_g2_th:       float            = 2.0    # M4 G2 15m KD 스프레드 임계값
 
     @classmethod
     def from_applied_params(cls, d: dict, sort_mode: str = "24h Ticker") -> "StrategyParams":
@@ -81,6 +82,7 @@ class StrategyParams:
         p.m4_slope_th    = float(d.get("m4_slope_th", 10.0))
         _raw_div = d.get("m4_div_th", 2.0)
         p.m4_div_th = None if _raw_div is None else float(_raw_div)
+        p.m4_g2_th = float(d.get("m4_g2_th", 2.0))
         return p
 
 

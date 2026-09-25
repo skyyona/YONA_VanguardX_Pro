@@ -104,12 +104,12 @@ class M4Entry:
         d15  = float(tf15.get("d", 50.0))
         if ablation >= 3:
             if is_long:
-                if not (k15 > d15 and (k15 - d15) >= 2.0):
+                if not (k15 > d15 and (k15 - d15) >= params.m4_g2_th):
                     return False, (
                         f"G2: 15m 롱 추세 미합의 (K={k15:.1f} D={d15:.1f} spread={k15 - d15:.1f})"
                     )
             else:
-                if not (k15 < d15 and (d15 - k15) >= 2.0):
+                if not (k15 < d15 and (d15 - k15) >= params.m4_g2_th):
                     return False, (
                         f"G2: 15m 숏 추세 미합의 (K={k15:.1f} D={d15:.1f} spread={d15 - k15:.1f})"
                     )
