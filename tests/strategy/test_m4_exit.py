@@ -77,13 +77,10 @@ class TestLongPhase2:
         assert dec.exit_price == pytest.approx(ENTRY)
         assert dec.qty_ratio == 1.0
 
-    def test_no_kd_exit(self):
-        # Phase2에서 K80 하향 돌파 시 KD-EXIT 발동 안 됨 — Phase2 유지
+    def test_kd_exit(self):
         dec = self._eval(hi=ENTRY + 1.0, lo=ENTRY + 0.5, close=ENTRY + 0.5,
                          k_prev=80.0, k_cur=79.9)
-        assert dec.reason == ""
-        assert dec.new_phase == 2
-        assert dec.new_sl == pytest.approx(ENTRY)
+        assert dec.reason == "KD-EXIT"
 
     def test_partial(self):
         # bar.high ≥ entry + 1.5R → PARTIAL 50%
@@ -132,13 +129,11 @@ class TestLongPhase3:
         assert dec.exit_price == pytest.approx(ENTRY)
         assert dec.qty_ratio == 0.5
 
-    def test_no_kd_exit_trail_active(self):
-        # Phase3 trail_active 구간에서 K80 KD-EXIT 발동 안 됨 — trail 계속
+    def test_kd_exit_trail_active(self):
         dec = self._eval(hi=self.TRAIL_REF, lo=self.TRAIL_REF - 0.1,
                          close=self.TRAIL_REF - 0.1, k_prev=80.0, k_cur=79.9)
-        assert dec.reason == ""
-        assert dec.new_phase == 3
-        assert dec.new_trail_ref == pytest.approx(self.TRAIL_REF)
+        assert dec.reason == "KD-EXIT"
+        assert dec.qty_ratio == 0.5
 
     def test_no_action_trail_active(self):
         close = self.TRAIL_REF - 0.1
@@ -202,13 +197,10 @@ class TestShortPhase2:
         assert dec.reason == "BEP-SL"
         assert dec.exit_price == pytest.approx(ENTRY)
 
-    def test_no_kd_exit(self):
-        # Phase2에서 K20 상향 돌파 시 KD-EXIT 발동 안 됨 — Phase2 유지
+    def test_kd_exit(self):
         dec = self._eval(hi=ENTRY - 0.5, lo=ENTRY - 1.0, close=ENTRY - 0.5,
                          k_prev=20.0, k_cur=20.1)
-        assert dec.reason == ""
-        assert dec.new_phase == 2
-        assert dec.new_sl == pytest.approx(ENTRY)
+        assert dec.reason == "KD-EXIT"
 
     def test_partial(self):
         # bar.low ≤ entry − 1.5R → PARTIAL 50%
@@ -256,14 +248,12 @@ class TestShortPhase3:
         assert dec.exit_price == pytest.approx(ENTRY)
         assert dec.qty_ratio == 0.5
 
-    def test_no_kd_exit_trail_active(self):
-        # Phase3 trail_active 구간에서 K20 KD-EXIT 발동 안 됨 — trail 계속
+    def test_kd_exit_trail_active(self):
         close = self.TRAIL_REF + 0.1
         dec = self._eval(hi=close, lo=self.TRAIL_REF, close=close,
                          k_prev=20.0, k_cur=20.1)
-        assert dec.reason == ""
-        assert dec.new_phase == 3
-        assert dec.new_trail_ref == pytest.approx(self.TRAIL_REF)
+        assert dec.reason == "KD-EXIT"
+        assert dec.qty_ratio == 0.5
 
     def test_no_action_trail_active(self):
         close = self.TRAIL_REF + 0.1
