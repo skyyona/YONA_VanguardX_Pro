@@ -117,9 +117,6 @@ def _eval_long(
         # [P1] BEP-SL — bar.low ≤ entry
         if lo <= entry:
             return ExitDecision(reason="BEP-SL", exit_price=entry, qty_ratio=1.0, new_phase=1)
-        # [A-5] K80 하향 돌파 익절
-        if k_prev >= 80.0 and k_cur < 80.0:
-            return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=1.0, new_phase=1)
         # [A-4][P5] Phase2→3: bar.high ≥ entry+1.5R → 50% PARTIAL 익절
         if R > 0 and hi >= entry + R * 1.5:
             partial_price = entry + R * 1.5
@@ -142,16 +139,11 @@ def _eval_long(
         # [P1] TRAIL 도달 — bar.low ≤ trail_sl
         if lo <= trail_sl:
             return ExitDecision(reason="TRAIL", exit_price=trail_sl, qty_ratio=0.5, new_phase=1)
-        # [A-5][P8][P10] TRAIL 없을 때만 K80 체크
-        if k_prev >= 80.0 and k_cur < 80.0:
-            return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=0.5, new_phase=1)
         return ExitDecision(new_phase=3, new_trail_ref=new_trail, new_sl=trail_sl)
     else:
         # [P10] profit_trigger 미달 — BEP SL 유지
         if lo <= entry:
             return ExitDecision(reason="BEP-SL", exit_price=entry, qty_ratio=0.5, new_phase=1)
-        if k_prev >= 80.0 and k_cur < 80.0:
-            return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=0.5, new_phase=1)
         return ExitDecision(new_phase=3, new_sl=entry)
 
 
@@ -182,9 +174,6 @@ def _eval_short(
         # [P1] BEP-SL — bar.high ≥ entry
         if hi >= entry:
             return ExitDecision(reason="BEP-SL", exit_price=entry, qty_ratio=1.0, new_phase=1)
-        # [A-5] K20 상향 돌파 익절
-        if k_prev <= 20.0 and k_cur > 20.0:
-            return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=1.0, new_phase=1)
         # [A-4][P5] Phase2→3: bar.low ≤ entry−1.5R → 50% PARTIAL 익절
         if R > 0 and lo <= entry - R * 1.5:
             partial_price = entry - R * 1.5
@@ -207,14 +196,9 @@ def _eval_short(
         # [P1] TRAIL 도달 — bar.high ≥ trail_sl
         if hi >= trail_sl:
             return ExitDecision(reason="TRAIL", exit_price=trail_sl, qty_ratio=0.5, new_phase=1)
-        # [A-5][P8][P10] TRAIL 없을 때만 K20 체크
-        if k_prev <= 20.0 and k_cur > 20.0:
-            return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=0.5, new_phase=1)
         return ExitDecision(new_phase=3, new_trail_ref=new_trail, new_sl=trail_sl)
     else:
         # [P10] profit_trigger 미달 — BEP SL 유지
         if hi >= entry:
             return ExitDecision(reason="BEP-SL", exit_price=entry, qty_ratio=0.5, new_phase=1)
-        if k_prev <= 20.0 and k_cur > 20.0:
-            return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=0.5, new_phase=1)
         return ExitDecision(new_phase=3, new_sl=entry)
