@@ -4,6 +4,9 @@ M4 진입 판정 — 실거래·백테스트 공용 단일 소스.
 
 평가 순서:
   G0.  방향 편향 (Sort by 모드별 방향 허용 여부)
+  G4.  ATR% 범위 필터 (cfg.atr_min ~ cfg.atr_max, ablation >= 6)
+  G5.  거래량 배수 필터 (cfg.volume_mult, ablation >= 6)
+  G6.  Sort by 품질 등급 필터 (cfg.quality_grade_req, ablation >= 6)
   G1.  RSI 다이버전스 + 거래량 확인
          불리시 다이버전스: 가격 저점↓ + RSI 저점↑ (롱)
          베어리시 다이버전스: 가격 고점↑ + RSI 고점↓ (숏)
@@ -17,6 +20,11 @@ ind_data 표준 키:
   "rsi_div_bull" : bool    불리시 RSI 다이버전스 발생 여부 (G1, 사전 계산 주입)
   "rsi_div_bear" : bool    베어리시 RSI 다이버전스 발생 여부 (G1, 사전 계산 주입)
   "rsi_div_vol_ok": bool   거래량 확인 결과 (G1, 사전 계산 주입)
+  "atr_pct"     : float                      1h 기준 ATR% (G4, data_manager/backtest_runner 주입)
+  "volume_ratio": float                      최근봉 vol / 20봉 평균 비율 (G5, 없으면 미체크)
+  "tf1"/"tf3"   : {"k": float, "d": float}   1m/3m StochRSI (G6 QualityGrader 용)
+  "swing_bull"  : bool                       불리시 스윙 여부 (G6 QualityGrader 용)
+  "swing_bear"  : bool                       베어리시 스윙 여부 (G6 QualityGrader 용)
   "tf15"       : {"k": float, "d": float}   15m StochRSI (UI 표시용)
   "tf15_rsi"   : float                      15m RSI (G2 방향 확인, 사전 계산 주입)
   "tf1h"/"tf4h"/"tf1d": {"k", "d"}         HTF K/D (use_macro=True 시 G7.5)
@@ -35,6 +43,9 @@ from bottom_engine.models import PositionSide, StrategyParams
 from bottom_engine.strategy_settings.realtrade_strategy_sort_by import get_mode_config
 from bottom_engine.prohibition_settings.prohibition_filter import ProhibitionFilter
 from bottom_engine.engine_core.sl_calculator import SLCalculator
+from bottom_engine.engine_core.quality_grader import QualityGrader
+
+_GRADE_ORDER: dict[str, int] = {"A": 0, "B": 1, "C": 2, "D": 3}
 
 
 class M4Entry:
@@ -64,6 +75,28 @@ class M4Entry:
             return False, f"[{params.sort_mode}] 숏 전용 모드 — 롱 진입 불가"
         if not is_long and cfg.direction_bias == "long_only":
             return False, f"[{params.sort_mode}] 롱 전용 모드 — 숏 진입 불가"
+
+        # ── G4: ATR% 범위 필터 (ablation >= 6) ────────────────────
+        if ablation >= 6:
+            _atr_p = float(ind_data.get("atr_pct", 0.0))
+            if _atr_p > 0:
+                _sl_atr, _ = SLCalculator.clamp(
+                    params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr)
+                _atr_min_eff = max(cfg.atr_min, _sl_atr / 2.0)
+                if not (_atr_min_eff <= _atr_p <= cfg.atr_max):
+                    return False, f"G4: ATR {_atr_p:.2f}% 범위 외 ({_atr_min_eff:.2f}~{cfg.atr_max:.2f}%)"
+
+        # ── G5: 거래량 배수 필터 (ablation >= 6) ──────────────────
+        if ablation >= 6 and cfg.volume_mult is not None:
+            _vr = float(ind_data.get("volume_ratio", 1.0))
+            if _vr < cfg.volume_mult:
+                return False, f"G5: 거래량 부족 (ratio {_vr:.2f} < {cfg.volume_mult:.1f})"
+
+        # ── G6: quality_grade_req 등급 필터 (ablation >= 6) ──────
+        if ablation >= 6 and cfg.quality_grade_req is not None:
+            _grade, _ = QualityGrader.grade(ind_data, side)
+            if _GRADE_ORDER.get(_grade, 3) > _GRADE_ORDER.get(cfg.quality_grade_req, 3):
+                return False, f"G6: 품질 등급 미달 ({_grade} < {cfg.quality_grade_req}+)"
 
         # ── G1: RSI 다이버전스 + 거래량 확인 ──────────────────────
         if is_long:

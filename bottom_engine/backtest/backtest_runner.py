@@ -743,9 +743,16 @@ class BacktestRunner:
                         if _rsi15_list:
                             _tf15_rsi = _rsi15_list[-1]
 
+                    _k1m, _d1m = tf_kd.get("1m", (50.0, 50.0))
+                    _k3m, _d3m = tf_kd.get("3m", (50.0, 50.0))
+                    _vr_bt = (vol_ratio_1m[i]
+                              if vol_ratio_1m and i < len(vol_ratio_1m)
+                              else 1.0)
                     _ind_bt = {
-                        "tf5":            {"k": _k5m_cur,  "d": _d5m_cur},
-                        "tf15":           {"k": k15m,       "d": d15m},
+                        "tf1":            {"k": _k1m,       "d": _d1m},
+                        "tf3":            {"k": _k3m,       "d": _d3m},
+                        "tf5":            {"k": _k5m_cur,   "d": _d5m_cur},
+                        "tf15":           {"k": k15m,        "d": d15m},
                         "tf15_rsi":       _tf15_rsi,
                         "base":           close,
                         "e50":            e50,
@@ -756,6 +763,10 @@ class BacktestRunner:
                         "rsi_div_bull":   _rsi_div_bull,
                         "rsi_div_bear":   _rsi_div_bear,
                         "rsi_div_vol_ok": _rsi_div_vol,
+                        "atr_pct":        atr_pct,
+                        "volume_ratio":   _vr_bt,
+                        "swing_bull":     _sw_long,
+                        "swing_bear":     _sw_short,
                         **_mac_ind,
                     }
                     _ok_l, _ = M4Entry.evaluate(
