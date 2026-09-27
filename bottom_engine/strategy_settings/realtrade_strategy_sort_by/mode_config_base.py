@@ -12,5 +12,4 @@ class ModeConfig:
     volume_mult:       float | None  # 거래량 배수 요건 (None = 미적용)
     atr_min:           float       # ATR% 최소 — 너무 정적인 구간 필터
     atr_max:           float       # ATR% 최대 — 과변동 필터
-    requires_swing:    bool        # 15m 스윙 고저 구조 확인 여부
     macro_ema:         bool        # EMA5 > EMA50 (롱) / EMA5 < EMA50 (숏) 확인 여부

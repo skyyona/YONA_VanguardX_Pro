@@ -594,8 +594,6 @@ class StrategyPopupMixin:
                     _extra += f"  |  거래량 {cfg.volume_mult:.1f}x+"
                 if cfg.macro_ema:
                     _extra += "  |  EMA 거시"
-                if cfg.requires_swing:
-                    _extra += "  |  스윙 구조"
                 info_lbl.configure(
                     text=(f"ℹ️   [{mode}]  {_bias_str}"
                           f"  |  K롱<{cfg.k_long_max:.0f} · K숏>{cfg.k_short_min:.0f}"
@@ -654,9 +652,30 @@ class StrategyPopupMixin:
                               "G2 — 15m 롱 추세 합의")
 
                     _sec_hdr(long_col, "모드별 추가 필터")
-                    _cond_row(long_col, "ℹ", DIM_TEXT,
-                              "M4 — 추가 필터 없음", DIM_TEXT,
-                              "ATR·등급·거래량·EMA·스윙은 M4 미적용")
+                    _cond_row(long_col, "▶", POSITIVE,
+                              f"ATR  {cfg.atr_min:.1f}%~{cfg.atr_max:.1f}%", POSITIVE,
+                              "G4 — ATR% 범위 필터")
+                    _cond_row(long_col,
+                              "▶" if cfg.volume_mult else "ℹ",
+                              POSITIVE if cfg.volume_mult else DIM_TEXT,
+                              f"거래량 ≥ {cfg.volume_mult:.1f}×" if cfg.volume_mult else "G5 거래량 미적용",
+                              POSITIVE if cfg.volume_mult else DIM_TEXT,
+                              f"G5 — volume_mult={cfg.volume_mult:.1f}" if cfg.volume_mult else "이 모드는 거래량 필터 없음")
+                    _cond_row(long_col,
+                              "▶" if cfg.quality_grade_req else "ℹ",
+                              POSITIVE if cfg.quality_grade_req else DIM_TEXT,
+                              f"품질 등급 ≥ {cfg.quality_grade_req}" if cfg.quality_grade_req else "G6 등급 미적용",
+                              POSITIVE if cfg.quality_grade_req else DIM_TEXT,
+                              f"G6 — quality_grade_req={cfg.quality_grade_req}" if cfg.quality_grade_req else "이 모드는 등급 필터 없음")
+                    _cond_row(long_col, "▶", POSITIVE,
+                              f"롱 K ≤ {cfg.k_long_max:.0f}", POSITIVE,
+                              "G_K — 롱 진입 허용 최대 K값")
+                    _cond_row(long_col,
+                              "▶" if cfg.macro_ema else "ℹ",
+                              POSITIVE if cfg.macro_ema else DIM_TEXT,
+                              "EMA5 > EMA50" if cfg.macro_ema else "G_ema 미적용",
+                              POSITIVE if cfg.macro_ema else DIM_TEXT,
+                              "G_ema — 1h EMA 상승 방향 확인" if cfg.macro_ema else "이 모드는 EMA 필터 없음")
 
                     _sec_hdr(long_col, "익절 조건")
                     _cond_row(long_col, "◀", NEGATIVE,
@@ -700,9 +719,30 @@ class StrategyPopupMixin:
                               "G2 — 15m 숏 추세 합의")
 
                     _sec_hdr(short_col, "모드별 추가 필터")
-                    _cond_row(short_col, "ℹ", DIM_TEXT,
-                              "M4 — 추가 필터 없음", DIM_TEXT,
-                              "ATR·등급·거래량·EMA·스윙은 M4 미적용")
+                    _cond_row(short_col, "▶", NEGATIVE,
+                              f"ATR  {cfg.atr_min:.1f}%~{cfg.atr_max:.1f}%", NEGATIVE,
+                              "G4 — ATR% 범위 필터")
+                    _cond_row(short_col,
+                              "▶" if cfg.volume_mult else "ℹ",
+                              NEGATIVE if cfg.volume_mult else DIM_TEXT,
+                              f"거래량 ≥ {cfg.volume_mult:.1f}×" if cfg.volume_mult else "G5 거래량 미적용",
+                              NEGATIVE if cfg.volume_mult else DIM_TEXT,
+                              f"G5 — volume_mult={cfg.volume_mult:.1f}" if cfg.volume_mult else "이 모드는 거래량 필터 없음")
+                    _cond_row(short_col,
+                              "▶" if cfg.quality_grade_req else "ℹ",
+                              NEGATIVE if cfg.quality_grade_req else DIM_TEXT,
+                              f"품질 등급 ≥ {cfg.quality_grade_req}" if cfg.quality_grade_req else "G6 등급 미적용",
+                              NEGATIVE if cfg.quality_grade_req else DIM_TEXT,
+                              f"G6 — quality_grade_req={cfg.quality_grade_req}" if cfg.quality_grade_req else "이 모드는 등급 필터 없음")
+                    _cond_row(short_col, "▶", NEGATIVE,
+                              f"숏 K ≥ {cfg.k_short_min:.0f}", NEGATIVE,
+                              "G_K — 숏 진입 허용 최소 K값")
+                    _cond_row(short_col,
+                              "▶" if cfg.macro_ema else "ℹ",
+                              NEGATIVE if cfg.macro_ema else DIM_TEXT,
+                              "EMA5 < EMA50" if cfg.macro_ema else "G_ema 미적용",
+                              NEGATIVE if cfg.macro_ema else DIM_TEXT,
+                              "G_ema — 1h EMA 하락 방향 확인" if cfg.macro_ema else "이 모드는 EMA 필터 없음")
 
                     _sec_hdr(short_col, "익절 조건")
                     _cond_row(short_col, "◀", POSITIVE,
@@ -805,7 +845,20 @@ class StrategyPopupMixin:
                 }.get(cfg_ban.direction_bias, "양방향")
                 _auto_row("진입 방향", _bias_label, YELLOW)
 
-                _auto_row("추가 필터", "M4 — 미적용  (G0·G1·G2·G7.5만 적용)", DIM_TEXT)
+                _auto_row("G4 ATR",
+                          f"{cfg_ban.atr_min:.1f}%~{cfg_ban.atr_max:.1f}%", ACCENT_BLUE)
+                _auto_row("G5 거래량",
+                          f"≥{cfg_ban.volume_mult:.1f}×" if cfg_ban.volume_mult else "미적용",
+                          ACCENT_BLUE if cfg_ban.volume_mult else DIM_TEXT)
+                _auto_row("G6 등급",
+                          f"≥{cfg_ban.quality_grade_req}" if cfg_ban.quality_grade_req else "미적용",
+                          ACCENT_BLUE if cfg_ban.quality_grade_req else DIM_TEXT)
+                _auto_row("G_K 롱/숏",
+                          f"롱K≤{cfg_ban.k_long_max:.0f}  /  숏K≥{cfg_ban.k_short_min:.0f}",
+                          ACCENT_BLUE)
+                _auto_row("G_ema",
+                          "EMA방향 ON" if cfg_ban.macro_ema else "미적용",
+                          ACCENT_BLUE if cfg_ban.macro_ema else DIM_TEXT)
 
                 ban_canvas.configure(scrollregion=ban_canvas.bbox("all"))
 

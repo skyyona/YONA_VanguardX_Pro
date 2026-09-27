@@ -104,7 +104,7 @@ class TradingEngine:
         # K80-5M / K20-5M 익절용 직전 폴링 K값 추적
         self._k5m_prev_long:  float = 50.0
         self._k5m_prev_short: float = 50.0
-        # M4 진입 조건용 _prev_k5m (봉 경계마다 갱신 → ind_data에 주입)
+        # _prev_k5m: 봉 경계 기준 직전봉 5m K값 — ind_data 주입 전용 (현재 M4Entry 미소비)
         self._k5m_entry_prev:   float | None = None
         self._k5m_entry_last:   float | None = None
         self._k5m_entry_bar_ts: int          = 0
@@ -450,14 +450,14 @@ class TradingEngine:
         if lp and lp.state == PositionState.OPEN:
             with self._lock:
                 self._state.error_msg = ""
-            self._close_long("강제 청산", mark)
+            self._close_long("FORCE", mark)
             with self._lock:
                 results["long"] = "성공" if not self._state.error_msg else "실패"
 
         if sp and sp.state == PositionState.OPEN:
             with self._lock:
                 self._state.error_msg = ""
-            self._close_short("강제 청산", mark)
+            self._close_short("FORCE", mark)
             with self._lock:
                 results["short"] = "성공" if not self._state.error_msg else "실패"
 
@@ -570,9 +570,9 @@ class TradingEngine:
                                 _tf5 = _ind_kd.get("tf5", {})
                                 _k5m = float(_tf5.get("k", 50.0))
                                 if self._k5m_prev_long >= 80.0 and _k5m < 80.0:
-                                    self._close_long("K80-5M 익절", mark)
+                                    self._close_long("KD-EXIT", mark)
                             if RiskManager.should_stop_loss(updated, mark):
-                                self._close_long("SL 도달", mark)
+                                self._close_long("SL", mark)
 
                         if has_short:
                             old_phase_s = sp.phase
@@ -621,9 +621,9 @@ class TradingEngine:
                                 _tf5 = _ind_kd.get("tf5", {})
                                 _k5m = float(_tf5.get("k", 50.0))
                                 if self._k5m_prev_short <= 20.0 and _k5m > 20.0:
-                                    self._close_short("K20-5M 익절", mark)
+                                    self._close_short("KD-EXIT", mark)
                             if RiskManager.should_stop_loss(updated, mark):
-                                self._close_short("SL 도달", mark)
+                                self._close_short("SL", mark)
                         # K80/K20 돌파 감지용 직전 K값 업데이트
                         if _ind_kd:
                             _tf5_tick = _ind_kd.get("tf5", {})
@@ -940,8 +940,9 @@ class TradingEngine:
                 if sl_price >= mark:
                     with self._lock:
                         self._state.error_msg = (
-                            f"[경보] 롱 SL 등록 불가 — SL({sl_price:.4f}) ≥ 마크가({mark:.4f}): 수동 확인 필요")
-                    return True
+                            f"[경보] 롱 SL 등록 불가 — SL({sl_price:.4f}) ≥ 마크가({mark:.4f}): 즉시 청산")
+                    self._close_long("SL", mark)
+                    return False
                 oid = self._client.place_stop_market(sym, "SELL", sl_price)
                 self._sl_order_id_long = oid
                 if not oid:
@@ -1082,8 +1083,9 @@ class TradingEngine:
                 if sl_price <= mark:
                     with self._lock:
                         self._state.error_msg = (
-                            f"[경보] 숏 SL 등록 불가 — SL({sl_price:.4f}) ≤ 마크가({mark:.4f}): 수동 확인 필요")
-                    return True
+                            f"[경보] 숏 SL 등록 불가 — SL({sl_price:.4f}) ≤ 마크가({mark:.4f}): 즉시 청산")
+                    self._close_short("SL", mark)
+                    return False
                 oid = self._client.place_stop_market(sym, "BUY", sl_price)
                 self._sl_order_id_short = oid
                 if not oid:
@@ -1252,7 +1254,7 @@ class TradingEngine:
                 if actual is not None and float(actual.get("positionAmt", 1)) == 0.0:
                     with self._lock:
                         self._state.long_pos    = LongPosition.close(
-                            lp, exit_price=mark, exit_reason="Binance SL 발동")
+                            lp, exit_price=mark, exit_reason="SL")
                         self._state.last_signal = "롱 청산(Binance SL 발동)"
                     self._invalidate_balance()
                     self._sl_order_id_long = ""
@@ -1327,7 +1329,7 @@ class TradingEngine:
                 if actual is not None and float(actual.get("positionAmt", 1)) == 0.0:
                     with self._lock:
                         self._state.short_pos   = ShortPosition.close(
-                            sp, exit_price=mark, exit_reason="Binance SL 발동")
+                            sp, exit_price=mark, exit_reason="SL")
                         self._state.last_signal = "숏 청산(Binance SL 발동)"
                     self._invalidate_balance()
                     self._sl_order_id_short          = ""
@@ -1441,15 +1443,17 @@ class TradingEngine:
                 _bal    = self._get_balance()
                 if _bal and _bal > 0 and _unreal / _bal * 100.0 < -16.0:
                     _unreal_pct = _unreal / _bal * 100.0
+                    with self._lock:
+                        self._state.error_msg = f"[경보] 미실현 손실 {_unreal_pct:.1f}% — 백스탑 즉시 청산"
                     if lp and lp.state == PositionState.OPEN:
-                        self._close_long(f"미실현 {_unreal_pct:.1f}% 백스탑", mark)
+                        self._close_long("BACKSTOP", mark)
                     if sp and sp.state == PositionState.OPEN:
-                        self._close_short(f"미실현 {_unreal_pct:.1f}% 백스탑", mark)
+                        self._close_short("BACKSTOP", mark)
                     return
             if lp and lp.state == PositionState.OPEN and pos_amt == 0.0:
                 with self._lock:
                     self._state.long_pos    = LongPosition.close(
-                        lp, exit_price=mark, exit_reason="외부 강제 청산")
+                        lp, exit_price=mark, exit_reason="LIQD")
                     self._state.last_signal = "롱 강제 청산(외부)"
                 self._invalidate_balance()
                 if self._sl_order_id_long:
@@ -1461,7 +1465,7 @@ class TradingEngine:
             if sp and sp.state == PositionState.OPEN and pos_amt == 0.0:
                 with self._lock:
                     self._state.short_pos   = ShortPosition.close(
-                        sp, exit_price=mark, exit_reason="외부 강제 청산")
+                        sp, exit_price=mark, exit_reason="LIQD")
                     self._state.last_signal = "숏 강제 청산(외부)"
                 self._invalidate_balance()
                 if self._sl_order_id_short:

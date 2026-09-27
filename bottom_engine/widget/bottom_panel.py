@@ -13,15 +13,6 @@ import time
 from pathlib import Path
 
 try:
-    import matplotlib
-    matplotlib.use("TkAgg")
-    from matplotlib.figure import Figure
-    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-    HAS_MPL = True
-except ImportError:
-    HAS_MPL = False
-
-try:
     from middle.widget.shared_context import get_ind, request_detail, generate_ohlcv
 except ImportError:
     def get_ind(_s: str) -> dict: return {}                                # type: ignore[misc]
@@ -49,7 +40,7 @@ except ImportError:
         return SimpleNamespace(
             direction_bias="both", k_long_max=20.0, k_short_min=80.0,
             quality_grade_req=None, volume_mult=None,
-            atr_min=0.3, atr_max=8.0, requires_swing=False, macro_ema=False)
+            atr_min=0.3, atr_max=8.0, macro_ema=False)
 
 try:
     from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
@@ -123,6 +114,8 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
 
         # middle module 과 공유하는 Sort by 모드 변수 — 없으면 독립 동작
         self._shared_sort_mode = shared_sort_mode
+        if shared_sort_mode is not None:
+            shared_sort_mode.trace_add("write", self._on_sort_mode_changed)
 
         # ── 중앙 컨트롤 세션 — 실데이터 폴링 위젯 참조 ──────────
         self._pos_ind:        dict            = {}
@@ -343,6 +336,20 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             self._center_running = False
             self._reset_center()
 
+    def _on_sort_mode_changed(self, *_) -> None:
+        if not self._strategy_ready:
+            return
+        if self._strategy_msg is None:
+            return
+        self._strategy_ready = False
+        self._strategy_msg.configure(
+            text="  — Sort by 변경 — 재확정 필요 —  ", fg=NEGATIVE)
+        if self._trade_btn is not None:
+            self._trade_btn.configure(
+                state="disabled", cursor="arrow",
+                bg="#252525", fg="#888888",
+                activebackground="#303030", activeforeground=DARK_TEXT)
+
     def _restore_strategy_vars(self, sort_mode: str) -> None:
         """sort_mode에 저장된 전략 설정을 UI vars에 복원한다."""
         if StrategyLoader is None:
@@ -378,15 +385,29 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             return
         funds, lev, sl, trail = self._current_params()
         prohibited = {k: v.get() for k, v in self._prohibited_vars.items()}
-        # m4_div_th는 UI 위젯 없음 — 저장된 값 그대로 유지 (Confirm 시 리셋 방지)
-        _saved  = StrategyLoader.load(sort_mode) if StrategyLoader is not None else None
-        _m4_div = _saved.m4_div_th if _saved is not None else None
+        # UI 위젯 없는 파라미터 — 저장된 값 그대로 유지 (Confirm 시 리셋 방지)
+        _saved           = StrategyLoader.load(sort_mode) if StrategyLoader is not None else None
+        _m4_div          = _saved.m4_div_th          if _saved is not None else None
+        _m4_oversold     = _saved.m4_rsi_oversold    if _saved is not None else 30.0
+        _m4_overbought   = _saved.m4_rsi_overbought  if _saved is not None else 70.0
+        _m4_g2_th        = _saved.m4_g2_th           if _saved is not None else 2.0
+        _m4_rsi_lb       = _saved.m4_rsi_lookback    if _saved is not None else 20
+        _m4_rsi_pd       = _saved.m4_rsi_price_diff  if _saved is not None else 0.5
+        _m4_rsi_rd       = _saved.m4_rsi_rsi_diff    if _saved is not None else 3.0
+        _m4_rsi_vm       = _saved.m4_rsi_vol_mult    if _saved is not None else 1.5
         self._applied_params = {"funds": funds, "leverage": lev,
                                 "sl": sl, "trail": trail,
                                 "use_macro": self._use_macro_var.get(),
                                 "prohibited": prohibited,
-                                "m4_slope_th":    m4_slope_th,
-                                "m4_div_th":      _m4_div}
+                                "m4_slope_th":       m4_slope_th,
+                                "m4_div_th":         _m4_div,
+                                "m4_rsi_oversold":   _m4_oversold,
+                                "m4_rsi_overbought": _m4_overbought,
+                                "m4_g2_th":          _m4_g2_th,
+                                "m4_rsi_lookback":   _m4_rsi_lb,
+                                "m4_rsi_price_diff": _m4_rsi_pd,
+                                "m4_rsi_rsi_diff":   _m4_rsi_rd,
+                                "m4_rsi_vol_mult":   _m4_rsi_vm}
         self._applied_sort_mode = sort_mode
         self._strategy_ready = True
         self._strategy_msg.configure(
@@ -1638,94 +1659,6 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
                     self._redraw_price_chart(cv, ohlcv)
             except tk.TclError:
                 pass
-
-    # ──────────────────────────────────────────────────────────────
-    def _draw_chart(self, parent: tk.Frame, side: str, color: str) -> None:
-        if HAS_MPL:
-            self._draw_mpl_chart(parent, side, color)
-        else:
-            self._draw_canvas_chart(parent, side, color)
-
-    def _draw_mpl_chart(self, parent: tk.Frame, side: str, color: str) -> None:
-        random.seed(42 if side == "long" else 77)
-        n      = 40
-        trend  = 0.25 if side == "long" else -0.25
-        price  = 95000.0
-        candles = []
-        for _ in range(n):
-            op = price
-            cl = op + random.gauss(trend, 0.8) * (price * 0.0005)
-            hi = max(op, cl) + abs(random.gauss(0, 0.3)) * (price * 0.0003)
-            lo = min(op, cl) - abs(random.gauss(0, 0.3)) * (price * 0.0003)
-            candles.append((op, cl, hi, lo))
-            price = cl
-
-        dpi = 88
-        fig = Figure(figsize=(4, 2.5), dpi=dpi, facecolor="#0D0D0D")
-        ax  = fig.add_subplot(111)
-        ax.set_facecolor("#0D0D0D")
-        fig.subplots_adjust(left=0.02, right=0.90, top=0.92, bottom=0.06)
-        for sp in ax.spines.values():
-            sp.set_color("#2A2A2A")
-        ax.tick_params(colors="#555555", labelsize=6)
-        ax.yaxis.tick_right()
-        ax.grid(True, color="#1C1C1C", linewidth=0.4, linestyle="--", alpha=0.6)
-
-        w = 0.5
-        for i, (op, cl, hi, lo) in enumerate(candles):
-            c = POSITIVE if cl >= op else NEGATIVE
-            ax.plot([i, i], [lo, hi], color=c, linewidth=0.7, alpha=0.6)
-            bh = abs(cl - op) or abs(hi - lo) * 0.05
-            import matplotlib.patches as mptch
-            ax.add_patch(mptch.FancyBboxPatch(
-                (i - w/2, min(op, cl)), w, bh,
-                boxstyle="square,pad=0",
-                linewidth=0, facecolor=c, alpha=0.85))
-
-        ax.set_xlim(-1, n)
-        cv = FigureCanvasTkAgg(fig, master=parent)
-        cv.draw()
-        cv.get_tk_widget().pack(fill="both", expand=True)
-
-    def _draw_canvas_chart(self, parent: tk.Frame, side: str, color: str) -> None:
-        cv = tk.Canvas(parent, bg="#0D0D0D", highlightthickness=0)
-        cv.pack(fill="both", expand=True)
-        random.seed(42 if side == "long" else 77)
-
-        def _draw(e=None):
-            cv.delete("all")
-            W = cv.winfo_width();  H = cv.winfo_height()
-            if W < 20 or H < 20: return
-            n     = 35
-            trend = 0.25 if side == "long" else -0.25
-            price = 100.0
-            cands = []
-            for _ in range(n):
-                op = price
-                cl = op + random.gauss(trend, 1.0)
-                hi = max(op, cl) + abs(random.gauss(0, 0.4))
-                lo = min(op, cl) - abs(random.gauss(0, 0.4))
-                cands.append((op, cl, hi, lo))
-                price = cl
-
-            mn = min(c[3] for c in cands)
-            mx = max(c[2] for c in cands)
-            rng = mx - mn or 1
-            bw  = max(4, (W - 16) // n)
-
-            def py(p): return int(H * 0.92 - (p - mn) / rng * H * 0.82)
-
-            for i, (op, cl, hi, lo) in enumerate(cands):
-                x  = 8 + i * bw + bw // 2
-                c  = POSITIVE if cl >= op else NEGATIVE
-                cv.create_line(x, py(hi), x, py(lo), fill=c, width=1)
-                y1, y2 = sorted([py(op), py(cl)])
-                if y2 - y1 < 1: y2 = y1 + 1
-                cv.create_rectangle(x - bw//2 + 1, y1,
-                                    x + bw//2 - 1, y2, fill=c, outline="")
-
-        cv.bind("<Configure>", _draw)
-        cv.after(60, _draw)
 
 
 # ── Entry ─────────────────────────────────────────────────────────

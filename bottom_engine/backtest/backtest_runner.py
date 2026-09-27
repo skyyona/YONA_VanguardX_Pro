@@ -24,6 +24,7 @@ import dataclasses
 
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
 from bottom_engine.engine_core.quality_grader import QualityGrader
+from middle.col2_chart_indicators.divergence_detector import DivergenceDetector
 from bottom_engine.strategy.rsi_divergence import detect_rsi_divergence, calc_rsi_series
 from bottom_engine.engine_core.risk_manager import RiskManager as _RM
 from bottom_engine.engine_core.sl_calculator import SLCalculator
@@ -65,10 +66,15 @@ _ATR_PERIOD = 14
 _VOL_PERIOD = 20
 
 # Prohibition 임계값·청산 근접도 파라미터 — constants.py 참조
-# quality_grade_req 등급 서열 — A(0) 가장 엄격, D(3) 최완화
-_GRADE_ORDER  = {"A": 0, "B": 1, "C": 2, "D": 3}
 # common_macro HTF StochRSI 파라미터 (실거래 엔진 동일)
 _MAC_KD_PARAMS = (14, 14, 3, 3)
+
+
+def _bt_fmt_elapsed(seconds: float) -> str:
+    """BT elapsed 포맷 — data_manager._fmt_elapsed 동일 로직."""
+    if seconds < 60:   return "방금"
+    if seconds < 3600: return f"{int(seconds // 60)}분 전"
+    return f"{int(seconds // 3600)}시간 전"
 
 # [P9] 연패 쿨다운 — _MAX_CONSECUTIVE_LOSSES·_LOSS_COOLDOWN_SEC는 constants.py 참조
 # BT에서는 bar.open_time (Unix ms) 기준: _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
@@ -76,24 +82,6 @@ _MAC_KD_PARAMS = (14, 14, 3, 3)
 # [P10] profit-trigger 지연 — _PROFIT_TRIGGER_PCT는 constants.py 참조
 # [B-6] 일일 손실 정지 — MAX_DAILY_LOSS_PCT는 constants.py 참조
 _KST_OFFSET_MS      = 9 * 3600 * 1000  # KST = UTC+9 (ms 단위)
-
-
-def _fmt_elapsed(minutes: float) -> str | None:
-    """경과 분(minutes)을 한국어 경과 문자열로 변환. 음수면 None 반환."""
-    if minutes < 0:
-        return None
-    if minutes < 1:
-        return "방금"
-    if minutes < 60:
-        return f"{int(minutes)}분 전"
-    return f"{int(minutes // 60)}시간 전"
-
-
-def _grade_ok(computed: str, required: str | None) -> bool:
-    """computed 등급이 required 이상(더 엄격하거나 같음)인지 확인."""
-    if required is None:
-        return True
-    return _GRADE_ORDER.get(computed, 3) <= _GRADE_ORDER.get(required, 3)
 
 
 class BacktestRunner:
@@ -171,6 +159,10 @@ class BacktestRunner:
         if any(v is None for v in tf_data.values()):
             return BacktestResult(symbol=symbol, sort_mode=params.sort_mode,
                                   period_days=period_days)
+
+        _tf_bars_map = {
+            "1m": bars_1m, "3m": bars_3m, "5m": bars_5m, "15m": bars_15m,
+        }
 
         # ── Sort by 필터 설정 ──────────────────────────────────────
         cfg = get_mode_config(params.sort_mode)
@@ -652,7 +644,8 @@ class BacktestRunner:
                     continue
 
                 # 4TF StochRSI K/D 산출 (bisect 시점 매핑)
-                tf_kd: dict[str, tuple] = {}  # quality_grade_req 용 전 TF K/D
+                tf_kd: dict[str, tuple] = {}
+                _tf_pos: dict = {}
 
                 for tf_key, (tf_times, tf_off, tf_k, tf_d) in tf_data.items():
                     pos_tf = bisect.bisect_right(tf_times, t) - 1
@@ -660,6 +653,7 @@ class BacktestRunner:
                     if 0 <= idx < len(tf_k):
                         k, d = tf_k[idx], tf_d[idx]
                         tf_kd[tf_key] = (k, d)
+                        _tf_pos[tf_key] = (pos_tf, idx, tf_k)
 
                 # tf5 교차 추적 (QualityGrader _duration_score elapsed용)
                 _c5k, _c5d = tf_kd.get("5m", (50.0, 50.0))
@@ -671,6 +665,21 @@ class BacktestRunner:
                     _tf5_short_cross_t = t
                 _prev_tf5_long_ok  = _lo5
                 _prev_tf5_short_ok = _so5
+
+                # G6 QualityGrader BT↔LIVE 일치: div/elapsed 계산 후 _ind_bt 주입
+                _tf_div: dict[str, "str | None"] = {}
+                for _d_key, _d_bars in _tf_bars_map.items():
+                    if _d_key in _tf_pos:
+                        _d_pos, _d_idx, _d_ks = _tf_pos[_d_key]
+                        _tf_div[_d_key] = DivergenceDetector.detect(
+                            _d_bars[:_d_pos + 1], _d_ks[:_d_idx + 1]
+                        )
+
+                _tf5_elapsed: "str | None" = None
+                if _lo5 and _tf5_long_cross_t:
+                    _tf5_elapsed = _bt_fmt_elapsed((t - _tf5_long_cross_t) / 1000.0)
+                elif _so5 and _tf5_short_cross_t:
+                    _tf5_elapsed = _bt_fmt_elapsed((t - _tf5_short_cross_t) / 1000.0)
 
                 # G8: common_macro / use_macro 거시 추세 체크
                 _mac_ok_long = _mac_ok_short = True
@@ -750,14 +759,16 @@ class BacktestRunner:
                               if vol_ratio_1m and i < len(vol_ratio_1m)
                               else 1.0)
                     _ind_bt = {
-                        "tf1":            {"k": _k1m,       "d": _d1m},
-                        "tf3":            {"k": _k3m,       "d": _d3m},
-                        "tf5":            {"k": _k5m_cur,   "d": _d5m_cur},
-                        "tf15":           {"k": k15m,        "d": d15m},
+                        "tf1":  {"k": _k1m,     "d": _d1m,     "div": _tf_div.get("1m")},
+                        "tf3":  {"k": _k3m,     "d": _d3m,     "div": _tf_div.get("3m")},
+                        "tf5":  {"k": _k5m_cur, "d": _d5m_cur, "div": _tf_div.get("5m"),
+                                 "elapsed": _tf5_elapsed},
+                        "tf15": {"k": k15m,     "d": d15m,     "div": _tf_div.get("15m")},
                         "tf15_rsi":       _tf15_rsi,
                         "base":           close,
                         "e50":            e50,
                         "e5":             e5,
+                        # _prev_k5m: M4Entry 미소비 / KD-EXIT는 _k5m_prev_bar 로컬 변수를 직접 사용
                         "_prev_k5m":      _k5m_prev_bar,
                         "funding_rate":   _bt_fr,
                         "liq_long_pct":   _bt_liq_l,
@@ -769,6 +780,7 @@ class BacktestRunner:
                         "volume_ratio":   _vr_bt,
                         "swing_bull":     _sw_long,
                         "swing_bear":     _sw_short,
+                        "_player_tags":   [],
                         **_mac_ind,
                     }
                     _ok_l, _ = M4Entry.evaluate(

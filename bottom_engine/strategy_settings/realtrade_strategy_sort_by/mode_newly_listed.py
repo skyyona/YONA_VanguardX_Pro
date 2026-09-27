@@ -9,6 +9,5 @@ CONFIG = ModeConfig(
     volume_mult       = None,
     atr_min           = 1.25,
     atr_max           = 15.0,
-    requires_swing    = False,
     macro_ema         = False,
 )

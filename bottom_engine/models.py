@@ -93,6 +93,8 @@ class StrategyParams:
         p.m4_rsi_price_diff  = float(d.get("m4_rsi_price_diff", 0.5))
         p.m4_rsi_rsi_diff    = float(d.get("m4_rsi_rsi_diff", 3.0))
         p.m4_rsi_vol_mult    = float(d.get("m4_rsi_vol_mult", 1.5))
+        p.m4_rsi_oversold    = float(d.get("m4_rsi_oversold", 30.0))
+        p.m4_rsi_overbought  = float(d.get("m4_rsi_overbought", 70.0))
         return p
 
 
@@ -165,7 +167,7 @@ class BacktestTrade:
     exit_price:  float
     pnl_pct:     float
     pnl_usdt:    float
-    exit_reason: str    # "SL" | "BEP-SL" | "PARTIAL" | "TRAIL" | "KD-EXIT"
+    exit_reason: str    # "SL" | "BEP-SL" | "PARTIAL" | "TRAIL" | "KD-EXIT" | "LIQD" | "FORCE" | "BACKSTOP"
     qty_ratio:   float = 1.0  # 포지션 수량 비율 — 건수·승률 가중용 (pnl_pct에 재적용 금지)
 
 
