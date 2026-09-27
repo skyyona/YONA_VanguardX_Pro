@@ -22,15 +22,21 @@ class StrategyLoader:
         """현재 전략 설정을 Sort by 모드별로 JSON에 저장."""
         data = _load_raw()
         data[params.sort_mode] = {
-            "funds_pct":      params.funds_pct,
-            "leverage":       params.leverage,
-            "stop_loss":      params.stop_loss,
-            "trail_stop":     params.trail_stop,
-            "prohibition":    params.prohibition.to_dict(),
-            "use_macro":      params.use_macro,
-            "m4_slope_th":    params.m4_slope_th,
-            "m4_div_th":      params.m4_div_th,
-            "m4_g2_th":       params.m4_g2_th,
+            "funds_pct":          params.funds_pct,
+            "leverage":           params.leverage,
+            "stop_loss":          params.stop_loss,
+            "trail_stop":         params.trail_stop,
+            "prohibition":        params.prohibition.to_dict(),
+            "use_macro":          params.use_macro,
+            "m4_slope_th":        params.m4_slope_th,
+            "m4_div_th":          params.m4_div_th,
+            "m4_g2_th":           params.m4_g2_th,
+            "m4_rsi_lookback":    params.m4_rsi_lookback,
+            "m4_rsi_price_diff":  params.m4_rsi_price_diff,
+            "m4_rsi_rsi_diff":    params.m4_rsi_rsi_diff,
+            "m4_rsi_vol_mult":    params.m4_rsi_vol_mult,
+            "m4_rsi_oversold":    params.m4_rsi_oversold,
+            "m4_rsi_overbought":  params.m4_rsi_overbought,
         }
         _save_raw(data)
 
@@ -48,11 +54,17 @@ class StrategyLoader:
         p.trail_stop = float(raw.get("trail_stop", 1.5))
         from bottom_engine.models import ProhibitionFlags
         p.prohibition = ProhibitionFlags.from_dict(raw.get("prohibition", {}))
-        p.use_macro      = bool(raw.get("use_macro", True))
-        p.m4_slope_th    = float(raw.get("m4_slope_th", 10.0))
+        p.use_macro          = bool(raw.get("use_macro", True))
+        p.m4_slope_th        = float(raw.get("m4_slope_th", 10.0))
         _raw_div = raw.get("m4_div_th", 2.0)
-        p.m4_div_th = None if _raw_div is None else float(_raw_div)
-        p.m4_g2_th = float(raw.get("m4_g2_th", 2.0))
+        p.m4_div_th          = None if _raw_div is None else float(_raw_div)
+        p.m4_g2_th           = float(raw.get("m4_g2_th", 2.0))
+        p.m4_rsi_lookback    = int(raw.get("m4_rsi_lookback", 20))
+        p.m4_rsi_price_diff  = float(raw.get("m4_rsi_price_diff", 0.5))
+        p.m4_rsi_rsi_diff    = float(raw.get("m4_rsi_rsi_diff", 3.0))
+        p.m4_rsi_vol_mult    = float(raw.get("m4_rsi_vol_mult", 1.5))
+        p.m4_rsi_oversold    = float(raw.get("m4_rsi_oversold", 30.0))
+        p.m4_rsi_overbought  = float(raw.get("m4_rsi_overbought", 70.0))
         return p
 
     @staticmethod

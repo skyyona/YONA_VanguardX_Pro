@@ -17,7 +17,13 @@
     "use_macro": true,
     "m4_slope_th": 10.0,
     "m4_div_th": 2.0,
-    "m4_g2_th": 2.0
+    "m4_g2_th": 2.0,
+    "m4_rsi_lookback": 20,
+    "m4_rsi_price_diff": 0.5,
+    "m4_rsi_rsi_diff": 3.0,
+    "m4_rsi_vol_mult": 1.5,
+    "m4_rsi_oversold": 30.0,
+    "m4_rsi_overbought": 70.0
   },
   "Sharp decline": {
     "funds_pct": 100,
@@ -37,7 +43,13 @@
     "use_macro": true,
     "m4_slope_th": 10.0,
     "m4_div_th": 2.0,
-    "m4_g2_th": 2.0
+    "m4_g2_th": 2.0,
+    "m4_rsi_lookback": 20,
+    "m4_rsi_price_diff": 0.5,
+    "m4_rsi_rsi_diff": 3.0,
+    "m4_rsi_vol_mult": 1.5,
+    "m4_rsi_oversold": 30.0,
+    "m4_rsi_overbought": 70.0
   },
   "24h Ticker": {
     "funds_pct": 100,
@@ -57,7 +69,13 @@
     "use_macro": false,
     "m4_slope_th": 5.0,
     "m4_div_th": null,
-    "m4_g2_th": 2.0
+    "m4_g2_th": 2.0,
+    "m4_rsi_lookback": 20,
+    "m4_rsi_price_diff": 0.5,
+    "m4_rsi_rsi_diff": 3.0,
+    "m4_rsi_vol_mult": 1.5,
+    "m4_rsi_oversold": 30.0,
+    "m4_rsi_overbought": 70.0
   },
   "Newly Listed": {
     "funds_pct": 100,
@@ -77,7 +95,13 @@
     "use_macro": true,
     "m4_slope_th": 10.0,
     "m4_div_th": 2.0,
-    "m4_g2_th": 2.0
+    "m4_g2_th": 2.0,
+    "m4_rsi_lookback": 20,
+    "m4_rsi_price_diff": 0.5,
+    "m4_rsi_rsi_diff": 3.0,
+    "m4_rsi_vol_mult": 1.5,
+    "m4_rsi_oversold": 30.0,
+    "m4_rsi_overbought": 70.0
   },
   "4TF Optimization": {
     "funds_pct": 100,
@@ -97,7 +121,13 @@
     "use_macro": false,
     "m4_slope_th": 10.0,
     "m4_div_th": 2.0,
-    "m4_g2_th": 2.0
+    "m4_g2_th": 2.0,
+    "m4_rsi_lookback": 20,
+    "m4_rsi_price_diff": 0.5,
+    "m4_rsi_rsi_diff": 3.0,
+    "m4_rsi_vol_mult": 1.5,
+    "m4_rsi_oversold": 30.0,
+    "m4_rsi_overbought": 70.0
   },
   "Volatility": {
     "funds_pct": 100,
@@ -117,6 +147,12 @@
     "use_macro": false,
     "m4_slope_th": 10.0,
     "m4_div_th": 2.0,
-    "m4_g2_th": 2.0
+    "m4_g2_th": 2.0,
+    "m4_rsi_lookback": 20,
+    "m4_rsi_price_diff": 0.5,
+    "m4_rsi_rsi_diff": 3.0,
+    "m4_rsi_vol_mult": 1.5,
+    "m4_rsi_oversold": 30.0,
+    "m4_rsi_overbought": 70.0
   }
 }

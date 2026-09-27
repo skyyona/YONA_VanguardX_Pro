@@ -65,9 +65,15 @@ class StrategyParams:
     use_macro:      bool             = True   # 거시적 추세(1H·4H·1D) 연동 여부
     portfolio_usdt: float            = 1000.0 # [B-1] 백테스트 기준 자본금 (실잔고 주입)
     mmr:            float            = 0.004  # [C-2] 유지증거금률 — liq_safe 산출용 (실거래 get_mmr 주입)
-    m4_slope_th:    float            = 10.0   # M4 5m K기울기 임계값 (K-D ≥ SLOPE_TH)
-    m4_div_th:      float | None     = 2.0    # M4 1h EMA 이격도 임계값 (None=미사용)
-    m4_g2_th:       float            = 2.0    # M4 G2 15m KD 스프레드 임계값
+    m4_slope_th:    float            = 10.0   # M4 5m K기울기 임계값 (K-D ≥ SLOPE_TH) — 미사용(G1 교체)
+    m4_div_th:      float | None     = 2.0    # M4 1h EMA 이격도 임계값 (None=미사용) — 미사용(G1 교체)
+    m4_g2_th:       float            = 2.0    # M4 G2 15m KD 스프레드 임계값 — 미사용(G2 교체)
+    m4_rsi_lookback:   int           = 20     # G1 RSI 다이버전스 탐색 구간 (봉 수)
+    m4_rsi_price_diff: float         = 0.5    # G1 가격 저점·고점 편차 최소값 (%)
+    m4_rsi_rsi_diff:   float         = 3.0    # G1 RSI 편차 최소값 (pt)
+    m4_rsi_vol_mult:   float         = 1.5    # G1 거래량 확인 배수 (진입봉 vol ≥ avg × mult)
+    m4_rsi_oversold:   float         = 30.0   # G1 RSI 반전 — 과매도 임계값 (롱: lookback 내 RSI 최저값 < 이 값)
+    m4_rsi_overbought: float         = 70.0   # G1 RSI 반전 — 과매수 임계값 (숏: lookback 내 RSI 최고값 > 이 값)
 
     @classmethod
     def from_applied_params(cls, d: dict, sort_mode: str = "24h Ticker") -> "StrategyParams":
@@ -82,7 +88,11 @@ class StrategyParams:
         p.m4_slope_th    = float(d.get("m4_slope_th", 10.0))
         _raw_div = d.get("m4_div_th", 2.0)
         p.m4_div_th = None if _raw_div is None else float(_raw_div)
-        p.m4_g2_th = float(d.get("m4_g2_th", 2.0))
+        p.m4_g2_th           = float(d.get("m4_g2_th", 2.0))
+        p.m4_rsi_lookback    = int(d.get("m4_rsi_lookback", 20))
+        p.m4_rsi_price_diff  = float(d.get("m4_rsi_price_diff", 0.5))
+        p.m4_rsi_rsi_diff    = float(d.get("m4_rsi_rsi_diff", 3.0))
+        p.m4_rsi_vol_mult    = float(d.get("m4_rsi_vol_mult", 1.5))
         return p
 
 
