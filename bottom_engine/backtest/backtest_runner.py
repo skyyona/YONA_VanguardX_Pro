@@ -698,6 +698,7 @@ class BacktestRunner:
                 if entry_variant == "M4":
                     k15m, d15m = tf_kd.get("15m", (50.0, 50.0))
                     e50 = ema50_1h[pos_1h] if (ema50_1h and pos_1h < len(ema50_1h)) else 0.0
+                    e5  = ema5_1h[pos_1h]  if (ema5_1h  and pos_1h < len(ema5_1h))  else 0.0
                     _mac_ind: dict = {}
                     for _i_m, (_mt, _mo, _mk_s, _md_s) in enumerate(_mac_tfs):
                         _pm = bisect.bisect_right(_mt, t) - 1 - _mo
@@ -756,6 +757,7 @@ class BacktestRunner:
                         "tf15_rsi":       _tf15_rsi,
                         "base":           close,
                         "e50":            e50,
+                        "e5":             e5,
                         "_prev_k5m":      _k5m_prev_bar,
                         "funding_rate":   _bt_fr,
                         "liq_long_pct":   _bt_liq_l,

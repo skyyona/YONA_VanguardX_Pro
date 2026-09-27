@@ -7,6 +7,8 @@ M4 진입 판정 — 실거래·백테스트 공용 단일 소스.
   G4.  ATR% 범위 필터 (cfg.atr_min ~ cfg.atr_max, ablation >= 6)
   G5.  거래량 배수 필터 (cfg.volume_mult, ablation >= 6)
   G6.  Sort by 품질 등급 필터 (cfg.quality_grade_req, ablation >= 6)
+  G_K. tf5 K값 범위 게이트 (cfg.k_long_max / cfg.k_short_min, ablation >= 6)
+  G_ema. macro_ema 거시 EMA 방향 게이트 (EMA5 vs EMA50, ablation >= 6)
   G1.  RSI 다이버전스 + 거래량 확인
          불리시 다이버전스: 가격 저점↓ + RSI 저점↑ (롱)
          베어리시 다이버전스: 가격 고점↑ + RSI 고점↓ (숏)
@@ -25,6 +27,9 @@ ind_data 표준 키:
   "tf1"/"tf3"   : {"k": float, "d": float}   1m/3m StochRSI (G6 QualityGrader 용)
   "swing_bull"  : bool                       불리시 스윙 여부 (G6 QualityGrader 용)
   "swing_bear"  : bool                       베어리시 스윙 여부 (G6 QualityGrader 용)
+  "tf5"         : {"k": float, "d": float}   5m StochRSI (G_K K값 범위 게이트)
+  "e5"          : float                      1h EMA5 (G_ema, macro_ema=True 시 주입)
+  "e50"         : float                      1h EMA50 (G_ema, macro_ema=True 시 주입)
   "tf15"       : {"k": float, "d": float}   15m StochRSI (UI 표시용)
   "tf15_rsi"   : float                      15m RSI (G2 방향 확인, 사전 계산 주입)
   "tf1h"/"tf4h"/"tf1d": {"k", "d"}         HTF K/D (use_macro=True 시 G7.5)
@@ -97,6 +102,24 @@ class M4Entry:
             _grade, _ = QualityGrader.grade(ind_data, side)
             if _GRADE_ORDER.get(_grade, 3) > _GRADE_ORDER.get(cfg.quality_grade_req, 3):
                 return False, f"G6: 품질 등급 미달 ({_grade} < {cfg.quality_grade_req}+)"
+
+        # ── G_K: tf5 K값 범위 게이트 (ablation >= 6) ────────────
+        if ablation >= 6:
+            _k5 = float(ind_data.get("tf5", {}).get("k", 50.0))
+            if is_long and _k5 > cfg.k_long_max:
+                return False, f"G_K: tf5 K={_k5:.1f} > {cfg.k_long_max:.0f} — 과매수 진입 차단"
+            if not is_long and _k5 < cfg.k_short_min:
+                return False, f"G_K: tf5 K={_k5:.1f} < {cfg.k_short_min:.0f} — 과매도 진입 차단"
+
+        # ── G_ema: macro_ema 거시 EMA 방향 게이트 (ablation >= 6) ─
+        if ablation >= 6 and cfg.macro_ema:
+            _e5  = float(ind_data.get("e5",  0.0))
+            _e50 = float(ind_data.get("e50", 0.0))
+            if _e5 > 0 and _e50 > 0:
+                if is_long and _e5 <= _e50:
+                    return False, f"G_ema: EMA5({_e5:.4f}) ≤ EMA50({_e50:.4f}) — 상승추세 미확인"
+                if not is_long and _e5 >= _e50:
+                    return False, f"G_ema: EMA5({_e5:.4f}) ≥ EMA50({_e50:.4f}) — 하락추세 미확인"
 
         # ── G1: RSI 다이버전스 + 거래량 확인 ──────────────────────
         if is_long:
