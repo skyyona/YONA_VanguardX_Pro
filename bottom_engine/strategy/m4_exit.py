@@ -108,7 +108,7 @@ def _eval_long(
         # [A-4] Phase1→2: bar.high ≥ entry+R
         new_phase = 2 if (R > 0 and hi >= entry + R) else 1
         new_sl    = entry if new_phase == 2 else sl_p1
-        # [A-5] K80 하향 돌파 익절 — Phase 무관 체크
+        # [A-5] K80 하향 돌파 익절
         if k_prev >= 80.0 and k_cur < 80.0:
             return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=1.0, new_phase=1)
         return ExitDecision(new_phase=new_phase, new_sl=new_sl)
@@ -117,19 +117,19 @@ def _eval_long(
         # [P1] BEP-SL — bar.low ≤ entry
         if lo <= entry:
             return ExitDecision(reason="BEP-SL", exit_price=entry, qty_ratio=1.0, new_phase=1)
-        # [A-5] K80 하향 돌파 익절
-        if k_prev >= 80.0 and k_cur < 80.0:
-            return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=1.0, new_phase=1)
-        # [A-4][P5] Phase2→3: bar.high ≥ entry+1.5R → 50% PARTIAL 익절
+        # [A-4][P5] Phase2→3: bar.high ≥ entry+1.5R → 50% PARTIAL 익절 (KD-EXIT보다 우선)
         if R > 0 and hi >= entry + R * 1.5:
             partial_price = entry + R * 1.5
             new_trail     = hi
-            new_trigger   = hi * (1.0 + _PROFIT_TRIGGER_PCT / 100.0)
+            new_trigger   = 0.0 if _PROFIT_TRIGGER_PCT <= 0.0 else hi * (1.0 + _PROFIT_TRIGGER_PCT / 100.0)
             return ExitDecision(
                 reason="PARTIAL", exit_price=partial_price, qty_ratio=0.5,
                 new_phase=3, new_trail_ref=new_trail, new_profit_trigger=new_trigger,
                 new_sl=entry,
             )
+        # [A-5] K80 하향 돌파 익절 (PARTIAL 미충족 시에만 체크)
+        if k_prev >= 80.0 and k_cur < 80.0:
+            return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=1.0, new_phase=1)
         return ExitDecision(new_phase=2, new_sl=entry)
 
     # phase == 3
@@ -173,7 +173,7 @@ def _eval_short(
         # [A-4] Phase1→2: bar.low ≤ entry−R
         new_phase = 2 if (R > 0 and lo <= entry - R) else 1
         new_sl    = entry if new_phase == 2 else sl_p1
-        # [A-5] K20 상향 돌파 익절 — Phase 무관 체크
+        # [A-5] K20 상향 돌파 익절
         if k_prev <= 20.0 and k_cur > 20.0:
             return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=1.0, new_phase=1)
         return ExitDecision(new_phase=new_phase, new_sl=new_sl)
@@ -182,19 +182,19 @@ def _eval_short(
         # [P1] BEP-SL — bar.high ≥ entry
         if hi >= entry:
             return ExitDecision(reason="BEP-SL", exit_price=entry, qty_ratio=1.0, new_phase=1)
-        # [A-5] K20 상향 돌파 익절
-        if k_prev <= 20.0 and k_cur > 20.0:
-            return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=1.0, new_phase=1)
-        # [A-4][P5] Phase2→3: bar.low ≤ entry−1.5R → 50% PARTIAL 익절
+        # [A-4][P5] Phase2→3: bar.low ≤ entry−1.5R → 50% PARTIAL 익절 (KD-EXIT보다 우선)
         if R > 0 and lo <= entry - R * 1.5:
             partial_price = entry - R * 1.5
             new_trail     = lo
-            new_trigger   = lo * (1.0 - _PROFIT_TRIGGER_PCT / 100.0)
+            new_trigger   = 0.0 if _PROFIT_TRIGGER_PCT <= 0.0 else lo * (1.0 - _PROFIT_TRIGGER_PCT / 100.0)
             return ExitDecision(
                 reason="PARTIAL", exit_price=partial_price, qty_ratio=0.5,
                 new_phase=3, new_trail_ref=new_trail, new_profit_trigger=new_trigger,
                 new_sl=entry,
             )
+        # [A-5] K20 상향 돌파 익절 (PARTIAL 미충족 시에만 체크)
+        if k_prev <= 20.0 and k_cur > 20.0:
+            return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=1.0, new_phase=1)
         return ExitDecision(new_phase=2, new_sl=entry)
 
     # phase == 3

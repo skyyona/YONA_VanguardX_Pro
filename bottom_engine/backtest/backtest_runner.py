@@ -24,6 +24,7 @@ import dataclasses
 
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
 from bottom_engine.engine_core.quality_grader import QualityGrader
+from bottom_engine.strategy.rsi_divergence import detect_rsi_divergence, calc_rsi_series
 from bottom_engine.engine_core.risk_manager import RiskManager as _RM
 from bottom_engine.engine_core.sl_calculator import SLCalculator
 from bottom_engine.strategy_settings.realtrade_strategy_sort_by import get_mode_config
@@ -711,15 +712,50 @@ class BacktestRunner:
                         _bt_fr = -1.0   # < -_FR_THRESHOLD → 숏 차단
                     _bt_liq_l = -99.0 if liq_ok_long  else -0.1
                     _bt_liq_s =  99.0 if liq_ok_short else  0.1
+
+                    # G1 RSI 다이버전스 — 5m 봉 기준 bisect 현재 위치에서 슬라이스
+                    _rsi_div_bull = _rsi_div_bear = _rsi_div_vol = False
+                    _5m_rsi_tf = tf_data.get("5m")
+                    if _5m_rsi_tf:
+                        _5m_t_r, _, _, _ = _5m_rsi_tf
+                        _5m_pos_r = bisect.bisect_right(_5m_t_r, t) - 1
+                        _rsi_lb   = params.m4_rsi_lookback
+                        _rsi_need = _rsi_lb + 14 + 5
+                        if _5m_pos_r >= _rsi_need:
+                            _cls5 = [bars_5m[j].close  for j in range(_5m_pos_r - _rsi_need + 1, _5m_pos_r + 1)]
+                            _vls5 = [bars_5m[j].volume for j in range(_5m_pos_r - _rsi_need + 1, _5m_pos_r + 1)]
+                            _rsi_div_bull, _rsi_div_bear, _rsi_div_vol = detect_rsi_divergence(
+                                _cls5, _vls5,
+                                lookback       = _rsi_lb,
+                                price_min_diff = params.m4_rsi_price_diff,
+                                rsi_min_diff   = params.m4_rsi_rsi_diff,
+                                vol_mult       = params.m4_rsi_vol_mult,
+                                oversold_th    = params.m4_rsi_oversold,
+                                overbought_th  = params.m4_rsi_overbought,
+                            )
+
+                    # G2 RSI 50 레벨 — 15m 봉 기준 (이미 계산된 _pos_15m 재사용)
+                    _tf15_rsi = 50.0
+                    _rsi_need_15m = 14 + 5
+                    if _pos_15m >= _rsi_need_15m:
+                        _cls15 = [bars_15m[j].close for j in range(_pos_15m - _rsi_need_15m + 1, _pos_15m + 1)]
+                        _rsi15_list = calc_rsi_series(_cls15, period=14)
+                        if _rsi15_list:
+                            _tf15_rsi = _rsi15_list[-1]
+
                     _ind_bt = {
-                        "tf5":           {"k": _k5m_cur,  "d": _d5m_cur},
-                        "tf15":          {"k": k15m,       "d": d15m},
-                        "base":          close,
-                        "e50":           e50,
-                        "_prev_k5m":     _k5m_prev_bar,
-                        "funding_rate":  _bt_fr,
-                        "liq_long_pct":  _bt_liq_l,
-                        "liq_short_pct": _bt_liq_s,
+                        "tf5":            {"k": _k5m_cur,  "d": _d5m_cur},
+                        "tf15":           {"k": k15m,       "d": d15m},
+                        "tf15_rsi":       _tf15_rsi,
+                        "base":           close,
+                        "e50":            e50,
+                        "_prev_k5m":      _k5m_prev_bar,
+                        "funding_rate":   _bt_fr,
+                        "liq_long_pct":   _bt_liq_l,
+                        "liq_short_pct":  _bt_liq_s,
+                        "rsi_div_bull":   _rsi_div_bull,
+                        "rsi_div_bear":   _rsi_div_bear,
+                        "rsi_div_vol_ok": _rsi_div_vol,
                         **_mac_ind,
                     }
                     _ok_l, _ = M4Entry.evaluate(

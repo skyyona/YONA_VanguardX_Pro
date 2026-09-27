@@ -90,7 +90,7 @@ class TestLongPhase2:
         assert dec.qty_ratio == 0.5
         assert dec.new_phase == 3
         assert dec.new_trail_ref > 0.0
-        assert dec.new_profit_trigger > 0.0
+        assert dec.new_profit_trigger >= 0.0  # 0.0 = 즉시 trail 활성화 (_PROFIT_TRIGGER_PCT<=0 시)
 
     def test_no_action(self):
         dec = self._eval(hi=ENTRY + 1.0, lo=ENTRY + 0.5, close=ENTRY + 0.8)
@@ -210,7 +210,7 @@ class TestShortPhase2:
         assert dec.qty_ratio == 0.5
         assert dec.new_phase == 3
         assert dec.new_trail_ref > 0.0
-        assert dec.new_profit_trigger > 0.0
+        assert dec.new_profit_trigger >= 0.0  # 0.0 = 즉시 trail 활성화 (_PROFIT_TRIGGER_PCT<=0 시)
 
     def test_no_action(self):
         dec = self._eval(hi=ENTRY - 0.5, lo=ENTRY - 1.0, close=ENTRY - 0.8)

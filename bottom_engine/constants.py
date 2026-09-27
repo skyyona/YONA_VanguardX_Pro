@@ -19,8 +19,8 @@ _MAX_R_PCT              = 8.0
 _TAKER_FEE_RATE         = 0.0004
 
 # ── 거래 금지 필터 임계값 ────────────────────────────────────────────────────
-# FR 과밀/음수 임계값 (%)
-_FR_THRESHOLD           = 0.05
+# FR 과밀/음수 임계값 (%) — 0.05→0.20 완화(G8 최적화: 과도한 진입 차단 해소)
+_FR_THRESHOLD           = 0.20
 # 신규 상장 최소 거래 가능 일수
 _NEW_DAYS_MIN           = 14
 # 청산 근접도 게이지 최대 거리 (%) — liquidation_proximity.py GAUGE_MAX_PCT 동기화
@@ -34,7 +34,8 @@ _LIQ_FR_BIAS            = 0.3
 
 # ── 거래 로직 임계값 ─────────────────────────────────────────────────────────
 # Phase3 trail 활성화 지연 임계값 (%) — trading_engine.py·backtest_runner.py 공유
-_PROFIT_TRIGGER_PCT     = 1.0
+# 0.0 = 부분청산 시점 고/저가에서 즉시 trail 활성화 (1.0→0.0 개선: 조기 trail 허용)
+_PROFIT_TRIGGER_PCT     = 0.0
 # 연패 쿨다운 진입 N값 — trading_engine.py·backtest_runner.py 공유
 _MAX_CONSECUTIVE_LOSSES = 3
 # 연패 쿨다운 지속 시간 (초) — trading_engine.py·backtest_runner.py 공유

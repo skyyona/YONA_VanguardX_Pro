@@ -4,17 +4,21 @@ M4 진입 판정 — 실거래·백테스트 공용 단일 소스.
 
 평가 순서:
   G0.  방향 편향 (Sort by 모드별 방향 허용 여부)
-  G1.  M4 5m GC/DC 감지 + K기울기 ≥ SLOPE_TH + 극값 필터 + EMA50 이격도
-  G2.  M4 15m 추세 합의 (spread ≥ 2)
+  G1.  RSI 다이버전스 + 거래량 확인
+         불리시 다이버전스: 가격 저점↓ + RSI 저점↑ (롱)
+         베어리시 다이버전스: 가격 고점↑ + RSI 고점↓ (숏)
+         강도 임계값: 가격 편차 ≥ m4_rsi_price_diff%, RSI 편차 ≥ m4_rsi_rsi_diff
+         거래량 확인: 진입봉 vol ≥ 최근 20봉 평균 × m4_rsi_vol_mult
+  G2.  M4 15m RSI 50 레벨 방향 확인 (RSI ≥ 50 롱 / ≤ 50 숏)
   G7.5 use_macro 거시 추세 방향 연동 (tf1h/tf4h/tf1d K·D 점수)
-  G8.  절대 금지 필터 (ProhibitionFilter 11개 항목)
+  G8.  절대 금지 필터 (ProhibitionFilter 항목)
 
 ind_data 표준 키:
-  "tf5"        : {"k": float, "d": float}   5m StochRSI (G1)
-  "tf15"       : {"k": float, "d": float}   15m StochRSI (G2)
-  "_prev_k5m"  : float | None               직전 5m 봉 K — GC/DC 감지용
-  "base"       : float                      현재가격 (EMA50 이격도용, G1)
-  "e50"        : float                      1h EMA50 (이격도용, G1)
+  "rsi_div_bull" : bool    불리시 RSI 다이버전스 발생 여부 (G1, 사전 계산 주입)
+  "rsi_div_bear" : bool    베어리시 RSI 다이버전스 발생 여부 (G1, 사전 계산 주입)
+  "rsi_div_vol_ok": bool   거래량 확인 결과 (G1, 사전 계산 주입)
+  "tf15"       : {"k": float, "d": float}   15m StochRSI (UI 표시용)
+  "tf15_rsi"   : float                      15m RSI (G2 방향 확인, 사전 계산 주입)
   "tf1h"/"tf4h"/"tf1d": {"k", "d"}         HTF K/D (use_macro=True 시 G7.5)
   "funding_rate": float                     FR% (common_fr 판정, 없으면 0.0)
   "liq_long_pct": float                     롱 청산 거리% 음수 (없으면 -99.0)
@@ -22,8 +26,8 @@ ind_data 표준 키:
   "_player_tags": list                      Player Detection 태그 (없으면 [])
   "_days_listed": int                       상장일수 (days_listed 인자 대체 가능)
 
-실거래: trading_engine.py가 _prev_k5m을 봉 경계마다 갱신하여 ind_data에 주입
-백테스트: backtest_runner.py가 _k5m_prev_bar를 "_prev_k5m"으로 전달
+실거래: trading_engine.py가 5m 봉 조회 후 detect_rsi_divergence()로 계산하여 주입
+백테스트: backtest_runner.py가 사전 계산 후 ind_bt에 주입
 """
 from __future__ import annotations
 
@@ -49,7 +53,7 @@ class M4Entry:
 
         side: "long" | "short"
         ablation: 게이트 누적 단계 (1~6). 실거래·기본=6(전체).
-          1=GC/DC  2=+slope  3=+15m추세  4=+이격도  5=+극값필터  6=+G7.5+G8
+          1=RSI다이버전스  2=+거래량확인  3=+15m추세  4·5=3과동일  6=+G7.5+G8
         반환: (ok: bool, reason: str)
         """
         cfg     = get_mode_config(params.sort_mode)
@@ -61,58 +65,29 @@ class M4Entry:
         if not is_long and cfg.direction_bias == "long_only":
             return False, f"[{params.sort_mode}] 롱 전용 모드 — 숏 진입 불가"
 
-        # ── G1: M4 5m GC/DC 감지 + K기울기 + 극값 + 이격도 ────
-        tf5 = ind_data.get("tf5", {})
-        k5  = float(tf5.get("k", 50.0))
-        d5  = float(tf5.get("d", 50.0))
-        pk5 = ind_data.get("_prev_k5m")  # float | None
-
+        # ── G1: RSI 다이버전스 + 거래량 확인 ──────────────────────
         if is_long:
-            cross = (pk5 is not None and pk5 < d5 and k5 > d5)
-            if not cross:
-                return False, f"G1: 5m GC 미발생 (K={k5:.1f} D={d5:.1f} prevK={pk5})"
-            if ablation >= 2 and (k5 - d5) < params.m4_slope_th:
-                return False, (
-                    f"G1: 5m 기울기 부족 (K-D={k5 - d5:.1f} < SLOPE_TH={params.m4_slope_th})"
-                )
-            if ablation >= 5 and k5 >= cfg.k_long_max:
-                return False, f"G1: K 과매수 필터 (K={k5:.1f} >= k_long_max={cfg.k_long_max})"
+            if not ind_data.get("rsi_div_bull", False):
+                return False, "G1: RSI 불리시 다이버전스 미발생"
         else:
-            cross = (pk5 is not None and pk5 > d5 and k5 < d5)
-            if not cross:
-                return False, f"G1: 5m DC 미발생 (K={k5:.1f} D={d5:.1f} prevK={pk5})"
-            if ablation >= 2 and (d5 - k5) < params.m4_slope_th:
-                return False, (
-                    f"G1: 5m 기울기 부족 (D-K={d5 - k5:.1f} < SLOPE_TH={params.m4_slope_th})"
-                )
-            if ablation >= 5 and k5 <= cfg.k_short_min:
-                return False, f"G1: K 과매도 필터 (K={k5:.1f} <= k_short_min={cfg.k_short_min})"
+            if not ind_data.get("rsi_div_bear", False):
+                return False, "G1: RSI 베어리시 다이버전스 미발생"
 
-        if ablation >= 4 and params.m4_div_th is not None:
-            _price = float(ind_data.get("base", 0.0))
-            _e50   = float(ind_data.get("e50",  0.0))
-            if _price > 0.0 and _e50 > 0.0:
-                _div_pct = abs(_price - _e50) / _e50 * 100.0
-                if _div_pct > params.m4_div_th:
-                    return False, (
-                        f"G1: 1h EMA50 이격도 과도 ({_div_pct:.1f}% > DIV_TH={params.m4_div_th})"
-                    )
+        if ablation >= 2 and not ind_data.get("rsi_div_vol_ok", False):
+            return False, "G1: 거래량 미확인 (진입봉 vol < 평균 × m4_rsi_vol_mult)"
 
-        # ── G2: M4 15m 추세 합의 (ablation >= 3) ──────────────
-        tf15 = ind_data.get("tf15", {})
-        k15  = float(tf15.get("k", 50.0))
-        d15  = float(tf15.get("d", 50.0))
+        # ── G2: 15m RSI 50 레벨 방향 확인 (ablation >= 3) ─────
+        tf15  = ind_data.get("tf15", {})
+        k15   = float(tf15.get("k", 50.0))
+        d15   = float(tf15.get("d", 50.0))
+        rsi15 = float(ind_data.get("tf15_rsi", 50.0))
         if ablation >= 3:
-            if is_long:
-                if not (k15 > d15 and (k15 - d15) >= params.m4_g2_th):
-                    return False, (
-                        f"G2: 15m 롱 추세 미합의 (K={k15:.1f} D={d15:.1f} spread={k15 - d15:.1f})"
-                    )
-            else:
-                if not (k15 < d15 and (d15 - k15) >= params.m4_g2_th):
-                    return False, (
-                        f"G2: 15m 숏 추세 미합의 (K={k15:.1f} D={d15:.1f} spread={d15 - k15:.1f})"
-                    )
+            if "tf15_rsi" not in ind_data:
+                return False, "G2: 15m RSI 데이터 없음 — 진입 보류"
+            if is_long and rsi15 < 50.0:
+                return False, f"G2: 15m RSI {rsi15:.1f} < 50 — 롱 방향 미확인"
+            if not is_long and rsi15 > 50.0:
+                return False, f"G2: 15m RSI {rsi15:.1f} > 50 — 숏 방향 미확인"
 
         # ── G7.5: use_macro 거시 추세 방향 연동 (ablation >= 6) ─
         if ablation >= 6 and params.use_macro:
@@ -146,5 +121,5 @@ class M4Entry:
         direction = "롱" if is_long else "숏"
         return True, (
             f"M4 {direction} 진입 조건 충족 "
-            f"(5m K={k5:.1f} D={d5:.1f}, 15m K={k15:.1f} D={d15:.1f})"
+            f"(RSI다이버전스, 15m RSI={rsi15:.1f} K={k15:.1f} D={d15:.1f})"
         )

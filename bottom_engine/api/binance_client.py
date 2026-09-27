@@ -252,6 +252,31 @@ class BottomBinanceClient:
             pass
         return None
 
+    def get_klines(self, symbol: str, interval: str, limit: int = 50) -> list:
+        """공개 Futures klines 조회 (API 키 불필요).
+        반환: [{"open_time", "open", "high", "low", "close", "volume", "close_time"}, ...]
+        통신 오류 시 빈 리스트 반환.
+        """
+        try:
+            url = (f"{_FUTURES_BASE}/fapi/v1/klines"
+                   f"?symbol={symbol}&interval={interval}&limit={limit}")
+            with urllib.request.urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            return [
+                {
+                    "open_time":  int(d[0]),
+                    "open":       float(d[1]),
+                    "high":       float(d[2]),
+                    "low":        float(d[3]),
+                    "close":      float(d[4]),
+                    "volume":     float(d[5]),
+                    "close_time": int(d[6]),
+                }
+                for d in data
+            ]
+        except Exception:
+            return []
+
     def get_mark_price(self, symbol: str) -> float | None:
         """마크가격 조회 (SL/TP 평가용)."""
         try:
