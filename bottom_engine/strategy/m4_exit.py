@@ -78,7 +78,10 @@ class M4Exit:
         close: float,
         k_prev: float,
         k_cur: float,
+        exit_variant: str = "CURRENT",
     ) -> ExitDecision:
+        if exit_variant == "ENERGY":
+            return _eval_energy(side, entry_price, sl_pct, hi, lo, close, k_prev, k_cur)
         if side == "LONG":
             return _eval_long(
                 phase, entry_price, sl_pct, trail_pct,
@@ -218,3 +221,26 @@ def _eval_short(
         if k_prev <= 20.0 and k_cur > 20.0:
             return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=0.5, new_phase=1)
         return ExitDecision(new_phase=3, new_sl=entry)
+
+
+# ── ENERGY 청산 판정 ──────────────────────────────────────────────────────
+
+def _eval_energy(
+    side: str, entry: float, sl_pct: float,
+    hi: float, lo: float, close: float,
+    k_prev: float, k_cur: float,
+) -> ExitDecision:
+    """ENERGY exit — SL + K80/K20 전량 청산 (3-Phase 없음)."""
+    if side == "LONG":
+        sl_price = entry * (1.0 - sl_pct / 100.0)
+        if lo <= sl_price:
+            return ExitDecision(reason="SL", exit_price=sl_price, qty_ratio=1.0, new_phase=1)
+        if k_prev >= 80.0 and k_cur < 80.0:
+            return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=1.0, new_phase=1)
+    else:  # SHORT
+        sl_price = entry * (1.0 + sl_pct / 100.0)
+        if hi >= sl_price:
+            return ExitDecision(reason="SL", exit_price=sl_price, qty_ratio=1.0, new_phase=1)
+        if k_prev <= 20.0 and k_cur > 20.0:
+            return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=1.0, new_phase=1)
+    return ExitDecision()

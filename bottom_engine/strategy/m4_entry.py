@@ -64,6 +64,7 @@ class M4Entry:
         has_opposite_open: bool = False,
         days_listed:       int  = 9999,
         ablation:          int  = 6,
+        entry_variant:     str  = "M4",
     ) -> tuple[bool, str]:
         """M4 진입 가능 여부 판단.
 
@@ -74,6 +75,47 @@ class M4Entry:
         """
         cfg     = get_mode_config(params.sort_mode)
         is_long = (side == "long")
+
+        # ── ENERGY 진입 분기 ──────────────────────────────────────
+        if entry_variant == "ENERGY":
+            # G0: 방향 편향
+            if is_long and cfg.direction_bias == "short_only":
+                return False, f"[{params.sort_mode}] 숏 전용 모드 — 롱 진입 불가"
+            if not is_long and cfg.direction_bias == "long_only":
+                return False, f"[{params.sort_mode}] 롱 전용 모드 — 숏 진입 불가"
+            # G4: ATR% 범위 필터
+            _atr_p = float(ind_data.get("atr_pct", 0.0))
+            if _atr_p > 0:
+                _sl_a, _ = SLCalculator.clamp(
+                    params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr)
+                _atr_min_e = max(cfg.atr_min, _sl_a / 2.0)
+                if not (_atr_min_e <= _atr_p <= cfg.atr_max):
+                    return False, f"G4: ATR {_atr_p:.2f}% 범위 외 ({_atr_min_e:.2f}~{cfg.atr_max:.2f}%)"
+            # G8: 절대 금지 필터
+            _sl_e, _ = SLCalculator.clamp(
+                params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr)
+            _pos_e  = PositionSide.LONG if is_long else PositionSide.SHORT
+            _hl_e   = False if is_long else has_opposite_open
+            _hs_e   = has_opposite_open if is_long else False
+            _res_e  = ProhibitionFilter.check(
+                params.prohibition, _pos_e, ind_data,
+                has_long_open=_hl_e, has_short_open=_hs_e,
+                days_listed=days_listed, sl_used=_sl_e,
+            )
+            if _res_e.blocked:
+                return False, _res_e.reason
+            # ENERGY: BPR 에너지 소멸 허가
+            if is_long and not ind_data.get("bear_exhausted", False):
+                return False, "ENERGY: 약세 에너지 소멸 미확인"
+            if not is_long and not ind_data.get("bull_exhausted", False):
+                return False, "ENERGY: 강세 에너지 소멸 미확인"
+            # ENERGY: 1m Stoch RSI 트리거
+            if is_long and not ind_data.get("k_trigger_long", False):
+                return False, "ENERGY: 1m K 상향 돌파 트리거 미발생"
+            if not is_long and not ind_data.get("k_trigger_short", False):
+                return False, "ENERGY: 1m K 하향 돌파 트리거 미발생"
+            direction_e = "롱" if is_long else "숏"
+            return True, f"ENERGY {direction_e} 진입 조건 충족 (BPR 에너지 소멸 + 1m K 트리거)"
 
         # ── G0: 방향 편향 (항상 적용) ──────────────────────────
         if is_long and cfg.direction_bias == "short_only":
