@@ -32,7 +32,6 @@ from bottom_engine.strategy_settings.realtrade_strategy_sort_by import get_mode_
 from bottom_engine.models import BacktestResult, BacktestTrade, StrategyParams
 from bottom_engine.strategy.m4_entry import M4Entry
 from bottom_engine.strategy.m4_exit import M4Exit
-from bottom_engine.strategy.energy_exhaustion import EnergyExhaustion
 from bottom_engine.constants import (
     MAX_DAILY_LOSS_PCT, _TAKER_FEE_RATE, _FR_THRESHOLD, _NEW_DAYS_MIN,
     _LIQ_GAUGE_MAX, _LIQ_BASE_MULT, _LIQ_FR_BIAS,
@@ -269,13 +268,6 @@ class BacktestRunner:
 
         _prev_k5m: float = 50.0  # M4 직전봉 5m K
 
-        # ENERGY 진입 상태 — 5m봉 갱신 시 에너지 소멸 허가 초기화
-        _prev_k1m:          float = 50.0
-        _energy_perm_long:  bool  = False
-        _energy_perm_short: bool  = False
-        _energy_5m_idx:     int   = -1
-        _5m_pos:            int   = -1  # 5m 봉 bisect 위치 (ENERGY 분기용)
-
         n_1m = len(bars_1m)
         # RANDOM 분기 전처리 — 무작위 진입 인덱스 사전 선택
         import random as _random_mod
@@ -344,19 +336,6 @@ class BacktestRunner:
                 liq_ok_long    = liq_long_dist  >= liq_safe
                 liq_ok_short   = liq_short_dist >= liq_safe
 
-            # ── [P8] 1m TF K/D — KD 역전 익절 판정용 ───────────────
-            _k1m = _d1m = 50.0
-            _1m_entry = tf_data.get("1m")
-            if _1m_entry:
-                _1m_times, _1m_off, _1m_ks, _1m_ds = _1m_entry
-                _pos1 = bisect.bisect_right(_1m_times, t) - 1
-                _idx1 = _pos1 - _1m_off
-                if 0 <= _idx1 < len(_1m_ks):
-                    _k1m, _d1m = _1m_ks[_idx1], _1m_ds[_idx1]
-            # ENERGY 트리거용 직전봉 K 추적 (_prev_k5m 패턴 동일)
-            _k1m_prev_bar = _prev_k1m
-            _prev_k1m     = _k1m
-
             # 5m K/D 현재봉 조회 (진입·청산 공용 — 항상 실행)
             _k5m_cur: float = 50.0
             _d5m_cur: float = 50.0
@@ -377,39 +356,7 @@ class BacktestRunner:
                 R         = entry_price * sl_used / 100.0
                 sl_phase1 = entry_price * (1.0 - sl_used / 100.0)
 
-                if exit_variant == "ENERGY":
-                    _edec = M4Exit.evaluate(
-                        side="LONG", phase=1,
-                        entry_price=entry_price, sl_pct=sl_used,
-                        trail_pct=trail_used, trail_ref=0.0, profit_trigger=0.0,
-                        hi=bar.high, lo=bar.low, close=close,
-                        k_prev=_k1m_prev_bar, k_cur=_k1m,
-                        exit_variant="ENERGY",
-                    )
-                    if _edec.reason:
-                        cost = cls._cost(_leff, bars_held)
-                        pnl  = (_edec.exit_price - entry_price) / entry_price * 100.0 * _leff - cost
-                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
-                        trades.append(BacktestTrade(
-                            entry_time=entry_time, exit_time=bar.close_time,
-                            side="long", entry_price=entry_price, exit_price=_edec.exit_price,
-                            pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val,
-                            exit_reason=_edec.reason, qty_ratio=1.0,
-                        ))
-                        _daily_pnl_usdt += _pnl_usdt_val
-                        if pnl < 0:
-                            _consecutive_losses += 1
-                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
-                                _consecutive_losses = 0
-                        else:
-                            _consecutive_losses = 0
-                        in_long = False; phase = 1; trail_ref = 0.0
-                        # 진입 허가 리셋 (다음 5m봉에서 재판정)
-                        _energy_perm_long = False
-                        continue
-
-                elif exit_variant == "M4":
+                if exit_variant == "M4":
                     # SL (Phase 1 고정 — M4는 Phase 2/3 없음)
                     if bar.low <= sl_phase1:
                         cost = cls._cost(_leff, bars_held)
@@ -546,39 +493,7 @@ class BacktestRunner:
                 R         = entry_price * sl_used / 100.0
                 sl_phase1 = entry_price * (1.0 + sl_used / 100.0)
 
-                if exit_variant == "ENERGY":
-                    _edec = M4Exit.evaluate(
-                        side="SHORT", phase=1,
-                        entry_price=entry_price, sl_pct=sl_used,
-                        trail_pct=trail_used, trail_ref=0.0, profit_trigger=0.0,
-                        hi=bar.high, lo=bar.low, close=close,
-                        k_prev=_k1m_prev_bar, k_cur=_k1m,
-                        exit_variant="ENERGY",
-                    )
-                    if _edec.reason:
-                        cost = cls._cost(_leff, bars_held)
-                        pnl  = (entry_price - _edec.exit_price) / entry_price * 100.0 * _leff - cost
-                        _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
-                        trades.append(BacktestTrade(
-                            entry_time=entry_time, exit_time=bar.close_time,
-                            side="short", entry_price=entry_price, exit_price=_edec.exit_price,
-                            pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val,
-                            exit_reason=_edec.reason, qty_ratio=1.0,
-                        ))
-                        _daily_pnl_usdt += _pnl_usdt_val
-                        if pnl < 0:
-                            _consecutive_losses += 1
-                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
-                                _consecutive_losses = 0
-                        else:
-                            _consecutive_losses = 0
-                        in_short = False; phase = 1; trail_ref = 0.0
-                        # 진입 허가 리셋 (다음 5m봉에서 재판정)
-                        _energy_perm_short = False
-                        continue
-
-                elif exit_variant == "M4":
+                if exit_variant == "M4":
                     # SL (Phase 1 고정 — M4는 Phase 2/3 없음)
                     if bar.high >= sl_phase1:
                         cost = cls._cost(_leff, bars_held)
@@ -900,88 +815,6 @@ class BacktestRunner:
                             and cfg.direction_bias != "long_only"
                             and not (params.prohibition.common_new and _days_listed < _NEW_DAYS_MIN)
                             and fr_ok_short and liq_ok_short and _mac_ok_short):
-                        in_short = True; entry_price = close; entry_time = bar.open_time
-                        entry_bar_i = i; phase = 1; trail_ref = close
-
-                elif entry_variant == "ENERGY":
-                    # 5m 봉 인덱스 갱신 감지 → 에너지 소멸 재판정
-                    _cur_5m_idx = _5m_pos if _5m_tf else -1
-                    if _cur_5m_idx != _energy_5m_idx and _cur_5m_idx >= 0:
-                        _energy_5m_idx = _cur_5m_idx
-                        _energy_perm_long  = False
-                        _energy_perm_short = False
-                        _need_6 = 6  # BPR_PERIOD * 2
-                        if _cur_5m_idx >= _need_6:
-                            _bpr_slice = bars_5m[_cur_5m_idx - _need_6 + 1 : _cur_5m_idx + 1]
-                            _be, _bule = EnergyExhaustion.check_exhaustion(_bpr_slice)
-                            _energy_perm_long  = _be
-                            _energy_perm_short = _bule
-                    # G4+G8 판정용 ind_data 구성
-                    _bt_fr_e = 0.0
-                    if not fr_ok_long:
-                        _bt_fr_e = 1.0
-                    elif not fr_ok_short:
-                        _bt_fr_e = -1.0
-                    _ind_en = {
-                        "atr_pct":       atr_pct,
-                        "funding_rate":  _bt_fr_e,
-                        "liq_long_pct":  -99.0 if liq_ok_long  else -0.1,
-                        "liq_short_pct":  99.0 if liq_ok_short else  0.1,
-                        "_player_tags":  [],
-                        "bear_exhausted": _energy_perm_long,
-                        "bull_exhausted": _energy_perm_short,
-                        "k_trigger_long":  EnergyExhaustion.check_trigger(
-                            _k1m_prev_bar, _k1m, "long"),
-                        "k_trigger_short": EnergyExhaustion.check_trigger(
-                            _k1m_prev_bar, _k1m, "short"),
-                    }
-                    _ok_l, _ = M4Entry.evaluate(
-                        "long", _ind_en, params,
-                        has_opposite_open=False, days_listed=_days_listed,
-                        ablation=m4_ablation, entry_variant="ENERGY")
-                    _ok_s, _ = M4Entry.evaluate(
-                        "short", _ind_en, params,
-                        has_opposite_open=False, days_listed=_days_listed,
-                        ablation=m4_ablation, entry_variant="ENERGY")
-                    if _ok_l:
-                        in_long = True; entry_price = close; entry_time = bar.open_time
-                        entry_bar_i = i; phase = 1; trail_ref = close
-                        _energy_perm_long = False  # 허가 소비 (1회만)
-                    elif _ok_s:
-                        in_short = True; entry_price = close; entry_time = bar.open_time
-                        entry_bar_i = i; phase = 1; trail_ref = close
-                        _energy_perm_short = False  # 허가 소비 (1회만)
-
-                elif entry_variant == "STOCH_ONLY":
-                    # N3 대조군 — BPR 에너지 소멸 없이 1m Stoch RSI K 트리거만
-                    _bt_fr_s = 0.0
-                    if not fr_ok_long:
-                        _bt_fr_s = 1.0
-                    elif not fr_ok_short:
-                        _bt_fr_s = -1.0
-                    _ind_so = {
-                        "atr_pct":        atr_pct,
-                        "funding_rate":   _bt_fr_s,
-                        "liq_long_pct":  -99.0 if liq_ok_long  else -0.1,
-                        "liq_short_pct":  99.0 if liq_ok_short else  0.1,
-                        "_player_tags":  [],
-                        "k_trigger_long":  EnergyExhaustion.check_trigger(
-                            _k1m_prev_bar, _k1m, "long"),
-                        "k_trigger_short": EnergyExhaustion.check_trigger(
-                            _k1m_prev_bar, _k1m, "short"),
-                    }
-                    _ok_l, _ = M4Entry.evaluate(
-                        "long", _ind_so, params,
-                        has_opposite_open=False, days_listed=_days_listed,
-                        ablation=m4_ablation, entry_variant="STOCH_ONLY")
-                    _ok_s, _ = M4Entry.evaluate(
-                        "short", _ind_so, params,
-                        has_opposite_open=False, days_listed=_days_listed,
-                        ablation=m4_ablation, entry_variant="STOCH_ONLY")
-                    if _ok_l:
-                        in_long = True; entry_price = close; entry_time = bar.open_time
-                        entry_bar_i = i; phase = 1; trail_ref = close
-                    elif _ok_s:
                         in_short = True; entry_price = close; entry_time = bar.open_time
                         entry_bar_i = i; phase = 1; trail_ref = close
 
