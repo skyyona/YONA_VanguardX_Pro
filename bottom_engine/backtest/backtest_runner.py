@@ -952,6 +952,39 @@ class BacktestRunner:
                         entry_bar_i = i; phase = 1; trail_ref = close
                         _energy_perm_short = False  # 허가 소비 (1회만)
 
+                elif entry_variant == "STOCH_ONLY":
+                    # N3 대조군 — BPR 에너지 소멸 없이 1m Stoch RSI K 트리거만
+                    _bt_fr_s = 0.0
+                    if not fr_ok_long:
+                        _bt_fr_s = 1.0
+                    elif not fr_ok_short:
+                        _bt_fr_s = -1.0
+                    _ind_so = {
+                        "atr_pct":        atr_pct,
+                        "funding_rate":   _bt_fr_s,
+                        "liq_long_pct":  -99.0 if liq_ok_long  else -0.1,
+                        "liq_short_pct":  99.0 if liq_ok_short else  0.1,
+                        "_player_tags":  [],
+                        "k_trigger_long":  EnergyExhaustion.check_trigger(
+                            _k1m_prev_bar, _k1m, "long"),
+                        "k_trigger_short": EnergyExhaustion.check_trigger(
+                            _k1m_prev_bar, _k1m, "short"),
+                    }
+                    _ok_l, _ = M4Entry.evaluate(
+                        "long", _ind_so, params,
+                        has_opposite_open=False, days_listed=_days_listed,
+                        ablation=m4_ablation, entry_variant="STOCH_ONLY")
+                    _ok_s, _ = M4Entry.evaluate(
+                        "short", _ind_so, params,
+                        has_opposite_open=False, days_listed=_days_listed,
+                        ablation=m4_ablation, entry_variant="STOCH_ONLY")
+                    if _ok_l:
+                        in_long = True; entry_price = close; entry_time = bar.open_time
+                        entry_bar_i = i; phase = 1; trail_ref = close
+                    elif _ok_s:
+                        in_short = True; entry_price = close; entry_time = bar.open_time
+                        entry_bar_i = i; phase = 1; trail_ref = close
+
         from bottom_engine.backtest.result_summary import ResultSummary
         result = ResultSummary.build(symbol, params.sort_mode, period_days, trades)
         if params.prohibition.common_liq and _lr_times:

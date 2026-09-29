@@ -117,6 +117,42 @@ class M4Entry:
             direction_e = "롱" if is_long else "숏"
             return True, f"ENERGY {direction_e} 진입 조건 충족 (BPR 에너지 소멸 + 1m K 트리거)"
 
+        # ── STOCH_ONLY 진입 분기 (BPR 게이트 없음 — N3 대조군 전용) ─────
+        if entry_variant == "STOCH_ONLY":
+            # G0: 방향 편향
+            if is_long and cfg.direction_bias == "short_only":
+                return False, f"[{params.sort_mode}] 숏 전용 모드 — 롱 진입 불가"
+            if not is_long and cfg.direction_bias == "long_only":
+                return False, f"[{params.sort_mode}] 롱 전용 모드 — 숏 진입 불가"
+            # G4: ATR% 범위 필터
+            _atr_s = float(ind_data.get("atr_pct", 0.0))
+            if _atr_s > 0:
+                _sl_s, _ = SLCalculator.clamp(
+                    params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr)
+                _atr_min_s = max(cfg.atr_min, _sl_s / 2.0)
+                if not (_atr_min_s <= _atr_s <= cfg.atr_max):
+                    return False, f"G4: ATR {_atr_s:.2f}% 범위 외 ({_atr_min_s:.2f}~{cfg.atr_max:.2f}%)"
+            # G8: 절대 금지 필터
+            _sl_s2, _ = SLCalculator.clamp(
+                params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr)
+            _pos_s  = PositionSide.LONG if is_long else PositionSide.SHORT
+            _hl_s   = False if is_long else has_opposite_open
+            _hs_s   = has_opposite_open if is_long else False
+            _res_s  = ProhibitionFilter.check(
+                params.prohibition, _pos_s, ind_data,
+                has_long_open=_hl_s, has_short_open=_hs_s,
+                days_listed=days_listed, sl_used=_sl_s2,
+            )
+            if _res_s.blocked:
+                return False, _res_s.reason
+            # 1m Stoch RSI 트리거만 (BPR 게이트 없음)
+            if is_long and not ind_data.get("k_trigger_long", False):
+                return False, "STOCH_ONLY: 1m K 상향 돌파 트리거 미발생"
+            if not is_long and not ind_data.get("k_trigger_short", False):
+                return False, "STOCH_ONLY: 1m K 하향 돌파 트리거 미발생"
+            direction_s = "롱" if is_long else "숏"
+            return True, f"STOCH_ONLY {direction_s} 진입 조건 충족 (1m K 트리거)"
+
         # ── G0: 방향 편향 (항상 적용) ──────────────────────────
         if is_long and cfg.direction_bias == "short_only":
             return False, f"[{params.sort_mode}] 숏 전용 모드 — 롱 진입 불가"
