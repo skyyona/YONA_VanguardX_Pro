@@ -1,7 +1,7 @@
 """
 YONA VanguardX Pro — Bottom Engine Module
 Long Position Engine + Short Position Engine
-단일 API 키 · 추세 추종 전용 · Stoch RSI 신호 기반 자동 매매
+단일 API 키 · 추세 추종 전용 · RSI 다이버전스 신호 기반 자동 매매
 """
 from __future__ import annotations
 import json

@@ -62,7 +62,7 @@ class HeaderUiMixin:
 
         self._strategy_btn = tk.Button(
             inner,
-            text="  Selected Coin Symbol Stoch RSI Strategy  /  Applied Backtest  ",
+            text="  Selected Coin Symbol M4 Strategy  /  Applied Backtest  ",
             bg="#252525", fg="#888888",
             activebackground="#303030", activeforeground=DARK_TEXT,
             font=("Segoe UI", 8, "bold"), relief="flat", padx=8, pady=2,

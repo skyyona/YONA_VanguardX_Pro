@@ -121,7 +121,7 @@ class CenterCtrlMixin:
         # ── ④ 국지적 4TF Stoch RSI 헤더 ─────────────────────────
         stoch_hdr = tk.Frame(parent, bg=DARK_HEADER, pady=4)
         stoch_hdr.pack(fill="x")
-        tk.Label(stoch_hdr, text="  📈  Stoch RSI  모니터링  (M4 — 5m · 15m 기준)",
+        tk.Label(stoch_hdr, text="  📈  Stoch RSI  모니터링  (M4 — RSI 다이버전스 · 15m RSI 50)",
                  bg=DARK_HEADER, fg=ACCENT_BLUE,
                  font=("Segoe UI", 8, "bold")).pack(side="left", padx=(6, 0))
 

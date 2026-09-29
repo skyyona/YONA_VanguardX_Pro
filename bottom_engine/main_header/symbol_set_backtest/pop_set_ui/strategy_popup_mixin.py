@@ -95,7 +95,7 @@ class StrategyPopupMixin:
             return
 
         win = tk.Toplevel(self)
-        win.title(f"🧠  {sym} — M4 진입 전략 (5m GC/DC + 15m 추세) 설정 및 백테스팅")
+        win.title(f"🧠  {sym} — M4 진입 전략 (RSI 다이버전스 + 15m RSI 50) 설정 및 백테스팅")
         win.configure(bg=DARK_BG)
         win.geometry("1320x640")
         win.minsize(1200, 560)
@@ -302,7 +302,7 @@ class StrategyPopupMixin:
                       "font": ("Segoe UI", 8)}
 
         tab1_btn = tk.Button(tab_bar_f,
-                             text="  📋  M4 진입 전략 설정  (5m GC/DC + 15m 추세)  ",
+                             text="  📋  M4 진입 전략 설정  (RSI 다이버전스 + 15m RSI 50)  ",
                              relief="flat", padx=10, pady=6,
                              cursor="arrow", state="disabled",
                              **_TAB_DIS)
@@ -341,7 +341,7 @@ class StrategyPopupMixin:
         def _make_hint_lbl() -> None:
             lbl = tk.Label(tab1_frame,
                            text="[📥 데이터 로딩] 버튼을 클릭하면\n"
-                                "선택한 코인 심볼의 M4 진입 조건 (5m GC/DC + 15m 추세)을 분석합니다",
+                                "선택한 코인 심볼의 M4 진입 조건 (RSI 다이버전스 + 15m RSI 50)을 분석합니다",
                            bg=DARK_BG, fg=DIM_TEXT,
                            font=("Segoe UI", 10), justify="center")
             lbl.pack(expand=True)
@@ -523,7 +523,7 @@ class StrategyPopupMixin:
             tk.Checkbutton(
                 macro_bar,
                 text="  ☑  거시적 추세(1H · 4H · 1D) 방향 연동"
-                     "  —  체크 해제 시 5m GC/DC + 15m 로컬 추세 기준으로만 판단",
+                     "  —  체크 해제 시 RSI 다이버전스 + 15m RSI 50 기준으로만 판단",
                 variable=self._use_macro_var,
                 bg=DARK_HEADER, fg=DARK_TEXT,
                 activebackground=DARK_HEADER, activeforeground=DARK_TEXT,
@@ -642,8 +642,8 @@ class StrategyPopupMixin:
                 else:
                     _sec_hdr(long_col, "M4 진입 조건  (모두 충족 시 롱 엔진 활성)")
                     _cond_row(long_col, "▶", POSITIVE,
-                              "5m  GC  (K ↑ D 상향 돌파)", POSITIVE,
-                              "5m 골든크로스 발생  [G1]")
+                              "RSI 불리시 다이버전스", POSITIVE,
+                              "가격 저점↓ + RSI 저점↑  [G1]")
                     _cond_row(long_col, "▶", POSITIVE,
                               f"5m  K − D  ≥ {int(float(_slope_var.get()))}", POSITIVE,
                               f"G1 — K기울기 임계값 충족  (SLOPE_TH={int(float(_slope_var.get()))})")
@@ -683,7 +683,7 @@ class StrategyPopupMixin:
                               "5m K 80선 하향 돌파 시 즉시 익절  (K80-5M)")
 
                     _sec_hdr(long_col, "엔진 상태 전환")
-                    _state_row(long_col, "5m GC + G1 + G2 충족",
+                    _state_row(long_col, "RSI 다이버전스 + G1 + G2 충족",
                                "→  롱 진입", POSITIVE)
                     _state_row(long_col, "G1 또는 G2 미충족",
                                "→  롱 엔진 대기", DIM_TEXT)
@@ -709,8 +709,8 @@ class StrategyPopupMixin:
                 else:
                     _sec_hdr(short_col, "M4 진입 조건  (모두 충족 시 숏 엔진 활성)")
                     _cond_row(short_col, "▶", NEGATIVE,
-                              "5m  DC  (K ↓ D 하향 이탈)", NEGATIVE,
-                              "5m 데드크로스 발생  [G1]")
+                              "RSI 베어리시 다이버전스", NEGATIVE,
+                              "가격 고점↑ + RSI 고점↓  [G1]")
                     _cond_row(short_col, "▶", NEGATIVE,
                               f"5m  D − K  ≥ {int(float(_slope_var.get()))}", NEGATIVE,
                               f"G1 — K기울기 임계값 충족  (SLOPE_TH={int(float(_slope_var.get()))})")
@@ -750,7 +750,7 @@ class StrategyPopupMixin:
                               "5m K 20선 상향 돌파 시 즉시 익절  (K20-5M)")
 
                     _sec_hdr(short_col, "엔진 상태 전환")
-                    _state_row(short_col, "5m DC + G1 + G2 충족",
+                    _state_row(short_col, "RSI 다이버전스 + G1 + G2 충족",
                                "→  숏 진입", NEGATIVE)
                     _state_row(short_col, "G1 또는 G2 미충족",
                                "→  숏 엔진 대기", DIM_TEXT)
