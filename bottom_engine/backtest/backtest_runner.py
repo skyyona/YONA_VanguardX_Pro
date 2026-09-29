@@ -853,6 +853,71 @@ class BacktestRunner:
                 m4_slope_th=slope, m4_div_th=params.m4_div_th)
         return results
 
+    @classmethod
+    def run_g1_sweep(
+        cls,
+        symbols:       "list[str]",
+        base_params:   StrategyParams,
+        period:        str                = "90일",
+        rsi_min_diffs: "tuple[float, ...]" = (2.0, 3.0, 5.0),
+        vol_mults:     "tuple[float, ...]" = (1.0, 2.0),
+        lookbacks:     "tuple[int, ...]"   = (15, 30),
+    ) -> "list[dict]":
+        """G1 파라미터 sweep — rsi_min_diff × vol_mult × lookback 조합별 멀티심볼 집계.
+
+        심볼별 봉 데이터 1회 로드 후 모든 조합에 공유.
+        반환: EV(R) 내림차순 정렬된 조합별 dict 리스트
+              키: rsi_min_diff, vol_mult, lookback, n, wr, ev_r, pf
+        """
+        combos = [
+            (rmd, vm, lb)
+            for rmd in rsi_min_diffs
+            for vm  in vol_mults
+            for lb  in lookbacks
+        ]
+        sl_pct = base_params.stop_loss
+
+        buckets: list[dict] = [
+            {
+                "rsi_min_diff": rmd, "vol_mult": vm, "lookback": lb,
+                "n": 0.0, "wins": 0.0,
+                "sum_pos_pnl": 0.0, "sum_neg_pnl": 0.0, "sum_ev_r": 0.0,
+            }
+            for rmd, vm, lb in combos
+        ]
+
+        for sym in symbols:
+            preloaded = cls.load_tf_bars(sym, period)
+            for i, (rmd, vm, lb) in enumerate(combos):
+                _p = dataclasses.replace(
+                    base_params,
+                    m4_rsi_rsi_diff=rmd,
+                    m4_rsi_vol_mult=vm,
+                    m4_rsi_lookback=lb,
+                )
+                res = cls.run(sym, _p, period, preloaded=preloaded,
+                              entry_variant="M4", exit_variant="CURRENT")
+                bkt = buckets[i]
+                for t in res.trades:
+                    w = t.qty_ratio
+                    bkt["n"] += w
+                    r = (t.pnl_pct / sl_pct) if sl_pct > 0 else 0.0
+                    bkt["sum_ev_r"] += r * w
+                    if t.pnl_pct > 0:
+                        bkt["wins"]        += w
+                        bkt["sum_pos_pnl"] += t.pnl_pct * w
+                    else:
+                        bkt["sum_neg_pnl"] += abs(t.pnl_pct) * w
+
+        for bkt in buckets:
+            n = bkt["n"]
+            bkt["wr"]   = (bkt["wins"] / n * 100.0) if n > 0 else 0.0
+            bkt["ev_r"] = (bkt["sum_ev_r"] / n) if n > 0 else 0.0
+            bkt["pf"]   = (bkt["sum_pos_pnl"] / bkt["sum_neg_pnl"]
+                           if bkt["sum_neg_pnl"] > 0 else 0.0)
+
+        return sorted(buckets, key=lambda b: b["ev_r"], reverse=True)
+
     # ── 거래 비용 계산 ──────────────────────────────────────────
     @staticmethod
     def _cost(leverage: float, bars_held: int) -> float:
