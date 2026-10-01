@@ -886,7 +886,8 @@ class BacktestRunner:
             for rmd, vm, lb in combos
         ]
 
-        for sym in symbols:
+        for s_idx, sym in enumerate(symbols):
+            print(f"  [{s_idx+1}/{len(symbols)}] {sym} 로딩중...", flush=True)
             preloaded = cls.load_tf_bars(sym, period)
             for i, (rmd, vm, lb) in enumerate(combos):
                 _p = dataclasses.replace(
