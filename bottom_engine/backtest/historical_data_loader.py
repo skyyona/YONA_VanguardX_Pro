@@ -1,10 +1,11 @@
-﻿"""
+"""
 bottom/backtest/historical_data_loader.py
 백테스팅용 과거 OHLCV 데이터 로드 — Binance 공개 API 사용 (키 불필요)
 """
 from __future__ import annotations
 
 import json
+import threading
 import urllib.request
 from dataclasses import dataclass
 
@@ -36,6 +37,27 @@ class HistoricalBar:
     close_time: int
 
 
+def _fetch_url(url: str, wall_timeout: float = 30.0) -> "list | None":
+    """URL에서 JSON 배열을 로드. wall_timeout 초 이내 완료되지 않으면 None 반환.
+
+    urlopen timeout=30(소켓 레벨)만으로는 느린 스트리밍 응답에서 무한 대기가 되므로
+    threading을 이용한 벽시계 타임아웃(30초)을 이중 안전망으로 추가한다.
+    """
+    _result: list = [None]
+
+    def _fetch() -> None:
+        try:
+            with urllib.request.urlopen(url, timeout=30) as resp:
+                _result[0] = json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            pass
+
+    t = threading.Thread(target=_fetch, daemon=True)
+    t.start()
+    t.join(timeout=wall_timeout)
+    return _result[0]
+
+
 class HistoricalDataLoader:
     """Binance Futures 과거 OHLCV 데이터 로더."""
 
@@ -51,19 +73,17 @@ class HistoricalDataLoader:
         if end_time_ms is not None:
             qs += f"&endTime={end_time_ms}"
         url = f"{_FUTURES_BASE}/fapi/v1/klines?{qs}"
-        try:
-            with urllib.request.urlopen(url, timeout=10) as resp:
-                raw = json.loads(resp.read().decode("utf-8"))
-            return [
-                HistoricalBar(
-                    open_time=int(k[0]), open=float(k[1]), high=float(k[2]),
-                    low=float(k[3]), close=float(k[4]), volume=float(k[5]),
-                    close_time=int(k[6]),
-                )
-                for k in raw
-            ]
-        except Exception:
+        raw = _fetch_url(url)
+        if not raw:
             return []
+        return [
+            HistoricalBar(
+                open_time=int(k[0]), open=float(k[1]), high=float(k[2]),
+                low=float(k[3]), close=float(k[4]), volume=float(k[5]),
+                close_time=int(k[6]),
+            )
+            for k in raw
+        ]
 
     @staticmethod
     def load_bars(symbol: str, interval: str, total: int) -> list[HistoricalBar]:
@@ -147,20 +167,16 @@ class HistoricalDataLoader:
             if end_time_ms is not None:
                 qs += f"&endTime={end_time_ms}"
             url = f"{_FUTURES_BASE}/futures/data/globalLongShortAccountRatio?{qs}"
-            try:
-                with urllib.request.urlopen(url, timeout=10) as resp:
-                    raw = json.loads(resp.read().decode("utf-8"))
-                if not raw:
-                    break
-                t_list   = [int(r["timestamp"])              for r in raw]
-                pct_list = [float(r["longAccount"]) * 100.0  for r in raw]
-                pages_times.append(t_list)
-                pages_pct.append(pct_list)
-                if len(raw) < _LIMIT:   # 더 이전 데이터 없음
-                    break
-                end_time_ms = t_list[0] - 1  # 이전 배치 직전 ms 로 역방향 이동
-            except Exception:
-                break  # 부분 실패 시 수집분 반환
+            raw = _fetch_url(url)
+            if not raw:
+                break
+            t_list   = [int(r["timestamp"])              for r in raw]
+            pct_list = [float(r["longAccount"]) * 100.0  for r in raw]
+            pages_times.append(t_list)
+            pages_pct.append(pct_list)
+            if len(raw) < _LIMIT:   # 더 이전 데이터 없음
+                break
+            end_time_ms = t_list[0] - 1  # 이전 배치 직전 ms 로 역방향 이동
 
         # pages[0] = 최신 배치, pages[-1] = 가장 오래된 배치 → 역순 병합
         pages_times.reverse()
@@ -182,12 +198,9 @@ class HistoricalDataLoader:
         """
         url = (f"{_FUTURES_BASE}/fapi/v1/fundingRate"
                f"?symbol={symbol}&limit={limit}")
-        try:
-            with urllib.request.urlopen(url, timeout=10) as resp:
-                raw = json.loads(resp.read().decode("utf-8"))
-            times  = [int(r["fundingTime"])         for r in raw]
-            fr_pct = [float(r["fundingRate"]) * 100.0 for r in raw]
-            return times, fr_pct
-        except Exception:
+        raw = _fetch_url(url)
+        if not raw:
             return [], []
-
+        times  = [int(r["fundingTime"])           for r in raw]
+        fr_pct = [float(r["fundingRate"]) * 100.0 for r in raw]
+        return times, fr_pct
