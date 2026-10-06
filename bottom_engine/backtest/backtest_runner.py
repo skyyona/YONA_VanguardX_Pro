@@ -216,13 +216,19 @@ class BacktestRunner:
         _fr_times:    list[int]   = []
         _fr_pct_list: list[float] = []
         if params.prohibition.common_fr or params.prohibition.common_liq:
-            _fr_times, _fr_pct_list = HistoricalDataLoader.load_funding_rate(symbol)
+            if preloaded is not None and "fr" in preloaded:
+                _fr_times, _fr_pct_list = preloaded["fr"]
+            else:
+                _fr_times, _fr_pct_list = HistoricalDataLoader.load_funding_rate(symbol)
 
         # ── common_liq L/S ratio 이력 로드 ──────────────────────────
         _lr_times:    list[int]   = []
         _lr_long_pct: list[float] = []
         if params.prohibition.common_liq:
-            _lr_times, _lr_long_pct = HistoricalDataLoader.load_long_short_ratio(symbol, period_days)
+            if preloaded is not None and "liq" in preloaded:
+                _lr_times, _lr_long_pct = preloaded["liq"]
+            else:
+                _lr_times, _lr_long_pct = HistoricalDataLoader.load_long_short_ratio(symbol, period_days)
 
         # [P7] G7 Swing 구조 — 15m봉 기준 bisect용 시간 시리즈
         times_15m: list = [b.open_time for b in bars_15m]
@@ -886,9 +892,15 @@ class BacktestRunner:
             for rmd, vm, lb in combos
         ]
 
+        period_days = cls._days(period)
         for s_idx, sym in enumerate(symbols):
             print(f"  [{s_idx+1}/{len(symbols)}] {sym} 로딩중...", flush=True)
             preloaded = cls.load_tf_bars(sym, period)
+            # liq/fr 데이터 심볼당 1회 로드 → 4개 조합에 공유 (4회 재호출 방지)
+            if base_params.prohibition.common_fr or base_params.prohibition.common_liq:
+                preloaded["fr"] = HistoricalDataLoader.load_funding_rate(sym)
+            if base_params.prohibition.common_liq:
+                preloaded["liq"] = HistoricalDataLoader.load_long_short_ratio(sym, period_days)
             for i, (rmd, vm, lb) in enumerate(combos):
                 _p = dataclasses.replace(
                     base_params,
