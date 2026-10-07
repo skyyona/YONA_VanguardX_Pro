@@ -1,6 +1,8 @@
 """
-SL/Trail 비율 sweep — 44심볼 × 15조합 × 90일
-G1 파라미터 고정: rsi_min_diff=3.0, vol_mult=1.5, lookback=20
+SL 확장 sweep — 44심볼 × 3조합 × 90일
+현재 확정 파라미터(price_diff=0.3) 기준으로 SL=2.0/2.5/3.0 비교
+G1 파라미터 고정: rsi_min_diff=3.0, vol_mult=1.5, lookback=20, price_diff=0.3
+trail=0.4 고정 (SL sweep 선행 결과에서 trail=0.4가 모든 SL 구간에서 최우수)
 
 체크포인트 지원: 중단 후 재실행 시 완료된 심볼 자동 스킵
   checkpoint: sl_trail_sweep_checkpoint.json (자동 관리, 전체 완료 시 삭제)
@@ -52,21 +54,18 @@ BASE_PARAMS.m4_rsi_overbought = 70.0
 BASE_PARAMS.m4_rsi_lookback   = 20
 BASE_PARAMS.m4_rsi_rsi_diff   = 3.0
 BASE_PARAMS.m4_rsi_vol_mult   = 1.5
-BASE_PARAMS.m4_rsi_price_diff = 0.5
+BASE_PARAMS.m4_rsi_price_diff = 0.3
 
-# (stop_loss%, trail_stop%) — SLCalculator.clamp() 적용 후 의미 있는 범위만 포함
+# (stop_loss%, trail_stop%) — trail=0.4 고정, SL 확장 탐색
 # _TRAIL_CAP=0.6 제약: trail_used = min(trail_set, sl_used × 0.6)
-# SL=0.8% → trail 최대 0.5%
-# SL=1.0% → trail 최대 0.6%
-# SL=1.3% → trail 최대 0.8%
-# SL=1.5% → trail 최대 0.9%
-# SL=2.0% → trail 최대 1.2%
+# SL=2.0% → trail 최대 1.2% (trail=0.4 통과)
+# SL=2.5% → trail 최대 1.5% (trail=0.4 통과)
+# SL=3.0% → trail 최대 1.8% (trail=0.4 통과)
+# liq_safe (leverage=20, mmr=0.4%) = 3.68% → 세 조합 모두 안전
 SL_TRAIL_COMBOS = [
-    (0.8, 0.4),
-    (1.0, 0.4), (1.0, 0.6),
-    (1.3, 0.4), (1.3, 0.6), (1.3, 0.8),   # (1.3, 0.6) = 현재 기본값
-    (1.5, 0.4), (1.5, 0.6), (1.5, 0.8), (1.5, 0.9),
-    (2.0, 0.4), (2.0, 0.6), (2.0, 0.8), (2.0, 1.0), (2.0, 1.2),
+    (2.0, 0.4),   # 현재 기본값 (기준선)
+    (2.5, 0.4),   # 미탐색 — 비용 0.200R → 0.128R 예상
+    (3.0, 0.4),   # 미탐색 — 비용 0.200R → 0.089R 예상
 ]
 
 PERIOD           = "90일"
@@ -124,9 +123,9 @@ def main():
     combos = SL_TRAIL_COMBOS
     completed, buckets = _load_checkpoint(combos)
 
-    print(f"[SL/Trail sweep] {len(SYMBOLS)}심볼 × {len(combos)}조합 × {PERIOD}")
-    print(f"[고정] G1 기본값(rsi_diff=3.0, vol_mult=1.5, lb=20)")
-    print(f"[변동] SL={[c[0] for c in combos]}  trail={[c[1] for c in combos]}")
+    print(f"[SL 확장 sweep] {len(SYMBOLS)}심볼 × {len(combos)}조합 × {PERIOD}")
+    print(f"[고정] leverage=20  price_diff=0.3  rsi_diff=3.0  vol_mult=1.5  lb=20  trail=0.4")
+    print(f"[변동] SL={[c[0] for c in combos]}")
     if completed:
         print(f"[체크포인트] {len(completed)}/{len(SYMBOLS)} 완료, "
               f"{len(SYMBOLS) - len(completed)}개 이어서 실행")
@@ -180,7 +179,7 @@ def main():
 
     baseline = next(
         (r for r in results
-         if abs(r["sl_set"] - 1.3) < 0.01 and abs(r["trail_set"] - 0.6) < 0.01),
+         if abs(r["sl_set"] - 2.0) < 0.01 and abs(r["trail_set"] - 0.4) < 0.01),
         None,
     )
 
@@ -196,7 +195,7 @@ def main():
 
     for r in results:
         is_baseline = (
-            abs(r["sl_set"] - 1.3) < 0.01 and abs(r["trail_set"] - 0.6) < 0.01)
+            abs(r["sl_set"] - 2.0) < 0.01 and abs(r["trail_set"] - 0.4) < 0.01)
         diff_str = "(기준)" if is_baseline else (
             f"({r['ev_r'] - baseline['ev_r']:+.4f}R)" if baseline else "")
         flag = " ← 현재기본값" if is_baseline else ""
