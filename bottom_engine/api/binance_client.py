@@ -381,7 +381,7 @@ class BottomBinanceClient:
             }
             if order.order_type == OrderType.LIMIT and order.price:
                 params["price"]       = f"{order.price:.8f}"
-                params["timeInForce"] = "GTC"
+                params["timeInForce"] = "GTX"   # Post-Only: 즉시 Taker 체결 시 -2010 반환
             result = self._signed_post("/fapi/v1/order", params)
             if not result:
                 return OrderResult(False, error=self._last_api_error or "API 응답 없음")
@@ -392,6 +392,11 @@ class BottomBinanceClient:
                 fill = mark
             qty_filled = float(result.get("executedQty", order.quantity))
             if qty_filled <= 0:
+                if order.order_type == OrderType.LIMIT:
+                    oid = str(result.get("orderId", ""))
+                    if oid:
+                        self.cancel_order(order.symbol, oid)
+                    return OrderResult(False, error="LIMIT 미체결(GTX) — MARKET으로 재시도")
                 return OrderResult(False, error="executedQty=0 — 체결 수량 없음")
             return OrderResult(
                 success=True,

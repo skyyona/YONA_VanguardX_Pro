@@ -17,6 +17,8 @@ MAX_DAILY_LOSS_PCT      = 30.0
 _MAX_R_PCT              = 8.0
 # Binance USDT-M Futures 테이커 수수료율 (편도)
 _TAKER_FEE_RATE         = 0.0004
+# Binance USDT-M Futures 메이커 수수료율 (편도) — GTX(Post-Only) LIMIT 주문 체결 시 적용
+_MAKER_FEE_RATE         = 0.0002
 
 # ── 거래 금지 필터 임계값 ────────────────────────────────────────────────────
 # FR 과밀/음수 임계값 (%) — 0.05→0.20 완화(G8 최적화: 과도한 진입 차단 해소)

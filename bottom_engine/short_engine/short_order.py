@@ -8,7 +8,18 @@ class ShortOrder:
     def execute(client: BottomBinanceClient, symbol: str,
                 quantity: float, params: StrategyParams,
                 mark: float = 0.0) -> OrderResult:
-        order = Order(symbol=symbol, side=OrderSide.SELL, order_type=OrderType.MARKET,
-                      quantity=quantity, leverage=params.leverage,
-                      stop_loss_pct=params.stop_loss, trail_stop_pct=params.trail_stop)
-        return client.place_order(order, mark)
+        if mark > 0:
+            limit_order = Order(symbol=symbol, side=OrderSide.SELL,
+                                order_type=OrderType.LIMIT, quantity=quantity,
+                                price=mark, leverage=params.leverage,
+                                stop_loss_pct=params.stop_loss,
+                                trail_stop_pct=params.trail_stop)
+            result = client.place_order(limit_order, mark)
+            if result.success:
+                return result
+        market_order = Order(symbol=symbol, side=OrderSide.SELL,
+                             order_type=OrderType.MARKET, quantity=quantity,
+                             leverage=params.leverage,
+                             stop_loss_pct=params.stop_loss,
+                             trail_stop_pct=params.trail_stop)
+        return client.place_order(market_order, mark)
