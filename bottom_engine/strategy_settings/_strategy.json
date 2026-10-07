@@ -54,8 +54,8 @@
   "24h Ticker": {
     "funds_pct": 100,
     "leverage": 20,
-    "stop_loss": 1.3,
-    "trail_stop": 0.6,
+    "stop_loss": 2.7,
+    "trail_stop": 1.1,
     "prohibition": {
       "common_liq": true,
       "common_fr": true,
