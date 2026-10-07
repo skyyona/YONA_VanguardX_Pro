@@ -12,3 +12,4 @@ data/*
 .claude/
 .app.lock
 trade_history.json
+backtest_cache/

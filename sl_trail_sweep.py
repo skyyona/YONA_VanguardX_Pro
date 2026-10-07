@@ -14,6 +14,7 @@ G1 파라미터 고정: rsi_min_diff=3.0, vol_mult=1.5, lookback=20
 import sys
 import time
 import json
+import pickle
 import dataclasses
 import pathlib
 
@@ -24,6 +25,7 @@ from bottom_engine.backtest.backtest_runner import BacktestRunner
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
 from bottom_engine.engine_core.sl_calculator import SLCalculator
 from bottom_engine.models import StrategyParams, ProhibitionFlags
+from bottom_engine.constants import _NEW_DAYS_MIN
 
 SYMBOLS = [
     "QUSDT", "QNTUSDT", "USUSDT", "BTWUSDT",
@@ -138,10 +140,17 @@ def main():
             print(f"  [{s_idx+1}/{len(SYMBOLS)}] {sym} 스킵 (체크포인트)", flush=True)
             continue
 
-        print(f"  [{s_idx+1}/{len(SYMBOLS)}] {sym} 로딩중...", flush=True)
-        preloaded = BacktestRunner.load_tf_bars(sym, PERIOD)
-        preloaded["fr"]  = HistoricalDataLoader.load_funding_rate(sym)
-        preloaded["liq"] = HistoricalDataLoader.load_long_short_ratio(sym, _PERIOD_DAYS)
+        _cache_path = _ROOT / "backtest_cache" / PERIOD / f"{sym}.pkl"
+        if _cache_path.exists():
+            print(f"  [{s_idx+1}/{len(SYMBOLS)}] {sym} 캐시 로드", flush=True)
+            with open(_cache_path, "rb") as _f:
+                preloaded = pickle.load(_f)
+        else:
+            print(f"  [{s_idx+1}/{len(SYMBOLS)}] {sym} API 로딩중...", flush=True)
+            preloaded = BacktestRunner.load_tf_bars(sym, PERIOD)
+            preloaded["fr"]  = HistoricalDataLoader.load_funding_rate(sym)
+            preloaded["liq"] = HistoricalDataLoader.load_long_short_ratio(sym, _PERIOD_DAYS)
+            preloaded["1d"]  = HistoricalDataLoader.load(sym, "1d", _NEW_DAYS_MIN + 5)
 
         for i, (sl, trail) in enumerate(combos):
             _p = dataclasses.replace(BASE_PARAMS, stop_loss=sl, trail_stop=trail)

@@ -188,8 +188,11 @@ class BacktestRunner:
         # ── common_new 상장 일수 ─────────────────────────────────
         _days_listed = 9999
         if params.prohibition.common_new:
-            _dlisted     = HistoricalDataLoader.load(symbol, "1d", _NEW_DAYS_MIN + 5)
-            _days_listed = len(_dlisted)
+            if preloaded is not None and "1d" in preloaded:
+                _days_listed = len(preloaded["1d"])
+            else:
+                _dlisted     = HistoricalDataLoader.load(symbol, "1d", _NEW_DAYS_MIN + 5)
+                _days_listed = len(_dlisted)
 
         # ── common_macro·use_macro HTF StochRSI (기존 bisect 패턴 유지) ─
         _mac_tfs: list = []
