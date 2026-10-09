@@ -169,7 +169,7 @@ class BacktestRunner:
 
         # [P3] G4 ATR% — 1h봉 기준 (실거래 data_manager: AtrPercent.calculate(b1h) 동일)
         atr_pct_1h: list[float] = cls._calc_atr_series(bars_1h, _ATR_PERIOD) if bars_1h else []
-        times_1h:   list        = [b.open_time for b in bars_1h] if bars_1h else []
+        times_1h:   list        = [b.close_time for b in bars_1h] if bars_1h else []
 
         # [P6] G5 volume_ratio — 1m봉 기준 (실거래 data_manager: b1m_kr[-1].volume 동일)
         vol_ratio_1m: list[float] = []
@@ -234,7 +234,7 @@ class BacktestRunner:
                 _lr_times, _lr_long_pct = HistoricalDataLoader.load_long_short_ratio(symbol, period_days)
 
         # [P7] G7 Swing 구조 — 15m봉 기준 bisect용 시간 시리즈
-        times_15m: list = [b.open_time for b in bars_15m]
+        times_15m: list = [b.close_time for b in bars_15m]
 
         # ── 메인 루프 상태 초기화 ──────────────────────────────────
         trades:     list[BacktestTrade] = []
@@ -300,7 +300,7 @@ class BacktestRunner:
                 _daily_date_key = _bar_day
 
             # ── [P3] 1h 기준 ATR% bisect 조회 ──────────────────────
-            pos_1h  = max(0, bisect.bisect_left(times_1h, t) - 1) if times_1h else 0
+            pos_1h  = max(0, bisect.bisect_right(times_1h, t) - 1) if times_1h else 0
             atr_pct = atr_pct_1h[pos_1h] if (times_1h and pos_1h < len(atr_pct_1h)) else 0.0
             atr_ok  = max(cfg.atr_min, sl_used / 2.0) <= atr_pct <= cfg.atr_max
 
@@ -341,7 +341,7 @@ class BacktestRunner:
                 liq_short_dist = max(0.5, min(_LIQ_GAUGE_MAX,
                                      _liq_base - (abs(_liq_fr_val) * _LIQ_FR_BIAS if _liq_fr_val < 0 else 0.0)
                                      - _short_excess * _liq_base * 0.5))
-                liq_safe       = min(sl_used, _LIQ_GAUGE_MAX * 0.95)
+                liq_safe       = min(sl_used * 0.75, _LIQ_GAUGE_MAX * 0.95)
                 liq_ok_long    = liq_long_dist  >= liq_safe
                 liq_ok_short   = liq_short_dist >= liq_safe
 
@@ -698,7 +698,7 @@ class BacktestRunner:
                     _mac_ok_short = (_mac_score <  1)
 
                 # [P7] G7 Swing — 15m봉 기준 bisect (실거래 data_manager: b15m_kr[-6:] 동일)
-                _pos_15m  = max(0, bisect.bisect_left(times_15m, t) - 1)
+                _pos_15m  = max(0, bisect.bisect_right(times_15m, t) - 1)
                 _sw_long  = cls._swing_bull(bars_15m, _pos_15m)
                 _sw_short = cls._swing_bear(bars_15m, _pos_15m)
 
