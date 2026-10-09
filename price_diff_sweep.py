@@ -1,12 +1,9 @@
 """
-price_diff_sweep.py — m4_rsi_price_diff 7조합 × 44심볼 × 90일
-leverage=20, SL=2.0%, trail=0.4% 고정 (SL/trail sweep 최우수 조합)
-G1 파라미터 고정: rsi_min_diff=3.0, vol_mult=1.5, lookback=20
-  price_diff=0.0 → 조건 비활성(하위 호환)
-  price_diff=0.5 → 현재 기본값
+price_diff sweep — 150심볼 × 4조합 × 90일
+G1 RSI 다이버전스 가격 반등 강도 임계값(price_min_diff) 효과 검증
 
-체크포인트 지원: 중단 후 재실행 시 완료된 심볼 자동 스킵
-  checkpoint: price_diff_sweep_checkpoint.json (자동 관리, 전체 완료 시 삭제)
+비교 조합:
+  0.3% → 0.2% → 0.1% → 0.0% (가격 조건 면제)
 
 결과 저장: price_diff_sweep_result.json (프로젝트 루트)
 
@@ -18,7 +15,6 @@ import sys
 import time
 import json
 import pickle
-import dataclasses
 import pathlib
 
 _ROOT = pathlib.Path(__file__).parent
@@ -26,184 +22,166 @@ sys.path.insert(0, str(_ROOT))
 
 from bottom_engine.backtest.backtest_runner import BacktestRunner
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
+from bottom_engine.engine_core.sl_calculator import SLCalculator
 from bottom_engine.models import StrategyParams, ProhibitionFlags
 from bottom_engine.constants import _NEW_DAYS_MIN
 
 SYMBOLS = [
-    "QUSDT", "QNTUSDT", "USUSDT", "BTWUSDT",
-    "RAREUSDT", "ONEUSDT", "MARSCOINUSDT", "MUBARAKUSDT", "GRASSUSDT",
-    "INXUSDT", "AZTECUSDT", "GRTUSDT", "ARXUSDT", "NILUSDT",
-    "LYNUSDT", "SAGAUSDT", "PHAROSUSDT", "IRYSUSDT", "PHAUSDT",
-    "NOMUSDT", "AKEUSDT", "NMRUSDT", "ONDOUSDT", "CCUSDT",
-    "WUSDT", "PUMPUSDT", "ZROUSDT", "MONUSDT", "BULLAUSDT",
-    "HBARUSDT", "FLOCKUSDT", "SEIUSDT", "TAKEUSDT", "AIOTUSDT",
-    "JASMYUSDT", "ARKUSDT", "USELESSUSDT", "PONSUSDT", "HUMAUSDT",
-    "METUSDT", "IOTAUSDT", "TRIAUSDT", "LSKUSDT", "PTBUSDT",
+    "BTCUSDT", "ETHUSDT", "SOLUSDT", "ZECUSDT", "XRPUSDT",
+    "RLCUSDT", "NEARUSDT", "DOGEUSDT", "HYPEUSDT", "BRUSDT",
+    "ORCAUSDT", "NMRUSDT", "SUIUSDT", "BNBUSDT", "UNIUSDT",
+    "PUMPUSDT", "ADAUSDT", "QNTUSDT", "AVAXUSDT", "WLDUSDT",
+    "ENAUSDT", "SANDUSDT", "TAOUSDT", "1000PEPEUSDT", "CAPUSDT",
+    "FILUSDT", "AAVEUSDT", "ONDOUSDT", "LINKUSDT", "USUSDT",
+    "GTCUSDT", "TRUMPUSDT", "INJUSDT", "ARBUSDT", "PENGUUSDT",
+    "ZROUSDT", "MINAUSDT", "LTCUSDT", "API3USDT", "ASTERUSDT",
+    "FETUSDT", "DOTUSDT", "GRIFFAINUSDT", "BCHUSDT", "PAXGUSDT",
+    "XLMUSDT", "APTUSDT", "MOVRUSDT", "LITUSDT", "ETHFIUSDT",
+    "TRBUSDT", "PROMUSDT", "TIAUSDT", "RENDERUSDT", "LYNUSDT",
+    "RAYSOLUSDT", "XAUTUSDT", "BTWUSDT", "1000SHIBUSDT", "HBARUSDT",
+    "XPLUSDT", "DASHUSDT", "MONUSDT", "OPUSDT", "ICPUSDT",
+    "AINUSDT", "TRXUSDT", "XMRUSDT", "PARTIUSDT", "METUSDT",
+    "VIRTUALUSDT", "JUPUSDT", "NILUSDT", "MUBARAKUSDT", "EDUUSDT",
+    "USELESSUSDT", "STRKUSDT", "ETCUSDT", "FARTCOINUSDT", "MAGICUSDT",
+    "CRVUSDT", "C98USDT", "VVVUSDT", "JTOUSDT", "GRASSUSDT",
+    "AEROUSDT", "PENDLEUSDT", "1000BONKUSDT", "LDOUSDT", "VTHOUSDT",
+    "ACEUSDT", "SEIUSDT", "POLUSDT", "WLFIUSDT", "STXUSDT",
+    "SYNUSDT", "RESOLVUSDT", "AKEUSDT", "WIFUSDT", "AXSUSDT",
+    "CHIPUSDT", "LSKUSDT", "NIGHTUSDT", "ORDIUSDT", "GRAMUSDT",
+    "ATOMUSDT", "BULLAUSDT", "ONEUSDT", "ARUSDT", "SKYUSDT",
+    "PYTHUSDT", "MANAUSDT", "HEMIUSDT", "GALAUSDT", "BOMEUSDT",
+    "UMAUSDT", "ARKUSDT", "ALGOUSDT", "MAGMAUSDT", "ZAMAUSDT",
+    "EIGENUSDT", "FLUXUSDT", "OGNUSDT", "SAGAUSDT", "CAKEUSDT",
+    "ZENUSDT", "VELVETUSDT", "LPTUSDT", "HUMAUSDT", "PHAUSDT",
+    "BIOUSDT", "MIRAUSDT", "COTIUSDT", "AIAUSDT", "LABUSDT",
+    "SOONUSDT", "0GUSDT", "ALICEUSDT", "MORPHOUSDT", "1000FLOKIUSDT",
+    "ESPUSDT", "CLOUSDT", "4USDT", "FLUIDUSDT", "DIAUSDT",
+    "2ZUSDT", "ENJUSDT", "RVNUSDT", "CCUSDT", "MYXUSDT",
 ]
 
-BASE_PARAMS = StrategyParams()
-BASE_PARAMS.sort_mode         = "24h Ticker"
-BASE_PARAMS.leverage          = 20
-BASE_PARAMS.stop_loss         = 2.0
-BASE_PARAMS.trail_stop        = 0.4
-BASE_PARAMS.use_macro         = False
-BASE_PARAMS.prohibition       = ProhibitionFlags(
-    common_liq=True, common_fr=True, common_new=True, common_hunter=True,
-    long_fomo=True, long_short_open=True, short_accum=True, short_long_open=True,
-)
-BASE_PARAMS.m4_rsi_oversold   = 30.0
-BASE_PARAMS.m4_rsi_overbought = 70.0
-BASE_PARAMS.m4_rsi_lookback   = 20
-BASE_PARAMS.m4_rsi_rsi_diff   = 3.0
-BASE_PARAMS.m4_rsi_vol_mult   = 1.5
+PERIOD       = "90일"
+_PERIOD_DAYS = 90
 
-PRICE_DIFFS = (0.0, 0.3, 0.5, 0.8, 1.0, 1.5, 2.0)  # 0.5 = 현재 기본값
-
-PERIOD           = "90일"
-_CHECKPOINT_PATH = _ROOT / "price_diff_sweep_checkpoint.json"
-_PERIOD_DAYS     = 90
-_SL_PCT          = BASE_PARAMS.stop_loss  # R 계산 기준
+COMBOS = [
+    (0.3, "price_diff=0.3% (기준선)"),
+    (0.2, "price_diff=0.2%"),
+    (0.1, "price_diff=0.1%"),
+    (0.0, "price_diff=0.0% (가격조건 면제)"),
+]
 
 
-def _init_buckets() -> list:
-    return [
-        {
-            "price_diff": pd,
-            "n": 0.0, "wins": 0.0,
-            "sum_pos_pnl": 0.0, "sum_neg_pnl": 0.0, "sum_ev_r": 0.0,
-        }
-        for pd in PRICE_DIFFS
-    ]
+def _init_bucket() -> dict:
+    return {"n": 0.0, "wins": 0.0, "sum_pos_pnl": 0.0, "sum_neg_pnl": 0.0, "sum_ev_r": 0.0}
 
 
-def _load_checkpoint() -> tuple:
-    if not _CHECKPOINT_PATH.exists():
-        return set(), _init_buckets()
-    with open(_CHECKPOINT_PATH, encoding="utf-8") as f:
-        ckpt = json.load(f)
-    return set(ckpt["completed"]), ckpt["buckets"]
+def _make_params(price_diff_val: float) -> StrategyParams:
+    p = StrategyParams()
+    p.sort_mode         = "24h Ticker"
+    p.leverage          = 20
+    p.stop_loss         = 3.0
+    p.trail_stop        = 0.4
+    p.use_macro         = False
+    p.prohibition       = ProhibitionFlags(
+        common_liq    = True,
+        common_fr     = True,
+        common_new    = True,
+        common_hunter = True,
+        long_fomo     = True,
+        long_short_open  = True,
+        short_accum      = True,
+        short_long_open  = True,
+    )
+    p.m4_rsi_oversold   = 30.0
+    p.m4_rsi_overbought = 70.0
+    p.m4_rsi_lookback   = 20
+    p.m4_rsi_rsi_diff   = 3.0
+    p.m4_rsi_vol_mult   = 1.5
+    p.m4_rsi_price_diff = price_diff_val
+    return p
 
 
-def _save_checkpoint(completed: set, buckets: list) -> None:
-    with open(_CHECKPOINT_PATH, "w", encoding="utf-8") as f:
-        json.dump({"completed": list(completed), "buckets": buckets},
-                  f, ensure_ascii=False)
+def _run_all_symbols(price_diff_val: float, preloaded_cache: dict) -> dict:
+    params = _make_params(price_diff_val)
+    bkt = _init_bucket()
+    sl_used, _ = SLCalculator.clamp(
+        params.stop_loss, params.trail_stop,
+        params.leverage, mmr=params.mmr)
 
+    for sym in SYMBOLS:
+        preloaded = preloaded_cache[sym]
+        res = BacktestRunner.run(sym, params, PERIOD, preloaded=preloaded,
+                                 entry_variant="M4", exit_variant="CURRENT")
+        for tr in res.trades:
+            w = tr.qty_ratio
+            bkt["n"] += w
+            r = (tr.pnl_pct / sl_used) if sl_used > 0 else 0.0
+            bkt["sum_ev_r"] += r * w
+            if tr.pnl_pct > 0:
+                bkt["wins"]        += w
+                bkt["sum_pos_pnl"] += tr.pnl_pct * w
+            else:
+                bkt["sum_neg_pnl"] += abs(tr.pnl_pct) * w
 
-def _finalize(buckets: list) -> list:
-    results = []
-    for bkt in buckets:
-        n = bkt["n"]
-        results.append({
-            "price_diff": bkt["price_diff"],
-            "n":    n,
-            "wr":   (bkt["wins"] / n * 100.0) if n > 0 else 0.0,
-            "ev_r": (bkt["sum_ev_r"] / n)      if n > 0 else 0.0,
-            "pf":   (bkt["sum_pos_pnl"] / bkt["sum_neg_pnl"]
-                     if bkt["sum_neg_pnl"] > 0 else 0.0),
-        })
-    return sorted(results, key=lambda r: r["ev_r"], reverse=True)
+    return bkt
 
 
 def main():
-    completed, buckets = _load_checkpoint()
-
-    print(f"[price_diff sweep] {len(SYMBOLS)}심볼 × {len(PRICE_DIFFS)}조합 × {PERIOD}")
-    print(f"[고정] leverage={BASE_PARAMS.leverage}  SL={BASE_PARAMS.stop_loss}%  "
-          f"trail={BASE_PARAMS.trail_stop}%  rsi_diff=3.0  vol_mult=1.5  lb=20")
-    print(f"[변동] price_diff={PRICE_DIFFS}  (0.5 = 현재 기본값, 0.0 = 비활성)")
-    if completed:
-        print(f"[체크포인트] {len(completed)}/{len(SYMBOLS)} 완료, "
-              f"{len(SYMBOLS) - len(completed)}개 이어서 실행")
+    print(f"[price_diff sweep] {len(SYMBOLS)}심볼 × {len(COMBOS)}조합 × {PERIOD}")
+    print(f"[고정] leverage=20  SL=3.0%  trail=0.4%  common_liq=ON(K=0.75)")
     print("-" * 70)
 
     t0 = time.time()
-
+    preloaded_cache: dict = {}
     for sym in SYMBOLS:
-        s_idx = SYMBOLS.index(sym)
-        if sym in completed:
-            print(f"  [{s_idx+1}/{len(SYMBOLS)}] {sym} 스킵 (체크포인트)", flush=True)
-            continue
-
         _cache_path = _ROOT / "backtest_cache" / PERIOD / f"{sym}.pkl"
         if _cache_path.exists():
-            print(f"  [{s_idx+1}/{len(SYMBOLS)}] {sym} 캐시 로드", flush=True)
             with open(_cache_path, "rb") as _f:
-                preloaded = pickle.load(_f)
+                preloaded_cache[sym] = pickle.load(_f)
         else:
-            print(f"  [{s_idx+1}/{len(SYMBOLS)}] {sym} API 로딩중...", flush=True)
-            preloaded = BacktestRunner.load_tf_bars(sym, PERIOD)
-            preloaded["fr"]  = HistoricalDataLoader.load_funding_rate(sym)
-            preloaded["liq"] = HistoricalDataLoader.load_long_short_ratio(sym, _PERIOD_DAYS)
-            preloaded["1d"]  = HistoricalDataLoader.load(sym, "1d", _NEW_DAYS_MIN + 5)
+            print(f"  캐시 없음: {sym} — API 로딩중...", flush=True)
+            preloaded_cache[sym] = BacktestRunner.load_tf_bars(sym, PERIOD)
+            preloaded_cache[sym]["fr"]  = HistoricalDataLoader.load_funding_rate(sym)
+            preloaded_cache[sym]["liq"] = HistoricalDataLoader.load_long_short_ratio(sym, _PERIOD_DAYS)
+            preloaded_cache[sym]["1d"]  = HistoricalDataLoader.load(sym, "1d", _NEW_DAYS_MIN + 5)
 
-        for i, pd in enumerate(PRICE_DIFFS):
-            _p = dataclasses.replace(BASE_PARAMS, m4_rsi_price_diff=pd)
-            res = BacktestRunner.run(sym, _p, PERIOD, preloaded=preloaded,
-                                     entry_variant="M4", exit_variant="CURRENT")
-            bkt = buckets[i]
-            for tr in res.trades:
-                w = tr.qty_ratio
-                bkt["n"] += w
-                r = (tr.pnl_pct / _SL_PCT) if _SL_PCT > 0 else 0.0
-                bkt["sum_ev_r"] += r * w
-                if tr.pnl_pct > 0:
-                    bkt["wins"]        += w
-                    bkt["sum_pos_pnl"] += tr.pnl_pct * w
-                else:
-                    bkt["sum_neg_pnl"] += abs(tr.pnl_pct) * w
+    print(f"[캐시 로드 완료] {time.time() - t0:.1f}초\n")
 
-        completed.add(sym)
-        _save_checkpoint(completed, buckets)
+    results = []
+    for pd_val, label in COMBOS:
+        t1 = time.time()
+        bkt = _run_all_symbols(pd_val, preloaded_cache)
+        n  = bkt["n"]
+        ev = (bkt["sum_ev_r"] / n) if n > 0 else 0.0
+        wr = (bkt["wins"] / n * 100.0) if n > 0 else 0.0
+        pf = (bkt["sum_pos_pnl"] / bkt["sum_neg_pnl"]
+              if bkt["sum_neg_pnl"] > 0 else 0.0)
+        results.append({"label": label, "price_diff": pd_val,
+                        "n": int(n), "wr": wr, "ev_r": ev, "pf": pf})
+        print(f"  {label}")
+        print(f"    N={int(n)}  WR={wr:.1f}%  EV={ev:+.4f}R  PF={pf:.3f}"
+              f"  ({time.time()-t1:.1f}초)\n")
 
     elapsed = time.time() - t0
-    results  = _finalize(buckets)
+    baseline = results[0]
+    best     = max(results, key=lambda r: r["ev_r"])
 
-    if _CHECKPOINT_PATH.exists():
-        _CHECKPOINT_PATH.unlink()
-
-    baseline = next(
-        (r for r in results if abs(r["price_diff"] - 0.5) < 0.001),
-        None,
-    )
-
-    print(f"\n[완료] 소요시간 {elapsed / 60:.1f}분  ({len(completed)}/{len(SYMBOLS)} 심볼)\n")
-    if baseline:
-        print(
-            f"[기준선] price_diff=0.5 → EV={baseline['ev_r']:+.4f}R  "
-            f"PF={baseline['pf']:.3f}  WR={baseline['wr']:.1f}%  N={int(baseline['n'])}"
-        )
-    print(f"{'price_diff':>11} | {'N':>6} {'WR%':>6} {'EV(R)':>9} {'PF':>6}  비교")
+    print("=" * 70)
+    print(f"[결과 비교]  (소요시간 {elapsed/60:.1f}분)")
+    print(f"{'조합':<36} {'N':>6} {'일평균':>6} {'WR%':>6} {'EV(R)':>9} {'PF':>6}  diff")
     print("-" * 70)
-
     for r in results:
-        is_baseline = abs(r["price_diff"] - 0.5) < 0.001
-        is_disabled = abs(r["price_diff"]) < 0.001
-        diff_str = "(기준)" if is_baseline else (
-            f"({r['ev_r'] - baseline['ev_r']:+.4f}R)" if baseline else "")
-        flag = " ← 현재기본값" if is_baseline else (" ← 비활성" if is_disabled else "")
-        print(
-            f"{r['price_diff']:>11.1f} | "
-            f"{int(r['n']):>6} {r['wr']:>6.1f}% {r['ev_r']:>+9.4f} {r['pf']:>6.3f}  "
-            f"{diff_str}{flag}"
-        )
+        diff = "" if r is baseline else f"({r['ev_r'] - baseline['ev_r']:+.4f}R)"
+        flag = " ← 기준선" if r is baseline else ""
+        daily = r["n"] / 90.0
+        print(f"  {r['label']:<34}"
+              f"{r['n']:>6} {daily:>6.2f} {r['wr']:>6.1f}% {r['ev_r']:>+9.4f} {r['pf']:>6.3f}  {diff}{flag}")
+    print(f"\n[최우수] {best['label']}  EV={best['ev_r']:+.4f}R")
+    print("=" * 70)
 
-    if results:
-        best = results[0]
-        print("\n" + "=" * 70)
-        print(f"[최우수 조합] price_diff={best['price_diff']:.1f}")
-        print(
-            f"  N={int(best['n'])}  WR={best['wr']:.1f}%  "
-            f"EV={best['ev_r']:+.4f}R  PF={best['pf']:.3f}"
-        )
-        if baseline:
-            print(f"  기준선(price_diff=0.5) 대비: {best['ev_r'] - baseline['ev_r']:+.4f}R")
-        print("=" * 70)
-
-    out_path = _ROOT / "price_diff_sweep_result.json"
-    with open(out_path, "w", encoding="utf-8") as f:
+    out = _ROOT / "price_diff_sweep_result.json"
+    with open(out, "w", encoding="utf-8") as f:
         json.dump({"results": results}, f, indent=2, ensure_ascii=False)
-    print(f"\n[저장] {out_path}")
+    print(f"\n[저장] {out}")
 
     return results
 
