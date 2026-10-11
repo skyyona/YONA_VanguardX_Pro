@@ -569,7 +569,7 @@ class TradingEngine:
                             if _ind_kd and not RiskManager.should_stop_loss(updated, mark):
                                 _tf5 = _ind_kd.get("tf5", {})
                                 _k5m = float(_tf5.get("k", 50.0))
-                                if self._k5m_prev_long >= 80.0 and _k5m < 80.0:
+                                if (old_phase_l != 1 or updated.phase != 2) and self._k5m_prev_long >= 80.0 and _k5m < 80.0:
                                     self._close_long("KD-EXIT", mark)
                             if RiskManager.should_stop_loss(updated, mark):
                                 self._close_long("SL", mark)
@@ -620,7 +620,7 @@ class TradingEngine:
                             if _ind_kd and not RiskManager.should_stop_loss(updated, mark):
                                 _tf5 = _ind_kd.get("tf5", {})
                                 _k5m = float(_tf5.get("k", 50.0))
-                                if self._k5m_prev_short <= 20.0 and _k5m > 20.0:
+                                if (old_phase_s != 1 or updated.phase != 2) and self._k5m_prev_short <= 20.0 and _k5m > 20.0:
                                     self._close_short("KD-EXIT", mark)
                             if RiskManager.should_stop_loss(updated, mark):
                                 self._close_short("SL", mark)
