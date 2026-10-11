@@ -49,12 +49,7 @@ BASE_PARAMS.prohibition       = ProhibitionFlags(
     common_liq=True, common_fr=True, common_new=True, common_hunter=True,
     long_fomo=True, long_short_open=True, short_accum=True, short_long_open=True,
 )
-BASE_PARAMS.m4_rsi_oversold   = 30.0
-BASE_PARAMS.m4_rsi_overbought = 70.0
-BASE_PARAMS.m4_rsi_lookback   = 20
-BASE_PARAMS.m4_rsi_rsi_diff   = 3.0
 BASE_PARAMS.m4_rsi_vol_mult   = 1.5
-BASE_PARAMS.m4_rsi_price_diff = 0.3
 
 # (stop_loss%, trail_stop%) — trail=0.4 고정, SL 확장 탐색
 # _TRAIL_CAP=0.6 제약: trail_used = min(trail_set, sl_used × 0.6)

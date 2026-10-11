@@ -1,19 +1,8 @@
 """
 bottom_engine/strategy/rsi_divergence.py
-RSI 과매도/과매수 반전 신호 + 가격 편차 확인 + 거래량 확인 — 실거래·백테스트 공용 계산 유틸.
-
-사용:
-  from bottom_engine.strategy.rsi_divergence import detect_rsi_divergence
-
-인자 closes/volumes 길이 ≥ lookback + rsi_period + 5 필요.
-반환: (rsi_div_bull: bool, rsi_div_bear: bool, vol_ok: bool)
-  rsi_div_bull : lookback 내 RSI 최저값 < oversold_th
-                 AND 현재 RSI ≥ 최저값 + rsi_min_diff (RSI 반등)
-                 AND 현재 가격 ≥ lookback 최저가 × (1 + price_min_diff/100) (가격 반등 확인)
-  rsi_div_bear : lookback 내 RSI 최고값 > overbought_th
-                 AND 현재 RSI ≤ 최고값 - rsi_min_diff (RSI 하락)
-                 AND 현재 가격 ≤ lookback 최고가 × (1 - price_min_diff/100) (가격 하락 확인)
-  vol_ok       : 마지막 봉 거래량 ≥ 최근 20봉 평균 × vol_mult
+RSI 시리즈 계산 + 거래량 확인 유틸.
+  calc_rsi_series : Wilder's Smoothed RSI 시리즈 반환 (G2에서 사용)
+  _check_volume   : 마지막 봉 거래량 ≥ 최근 20봉 평균 × vol_mult
 """
 from __future__ import annotations
 
@@ -45,69 +34,6 @@ def calc_rsi_series(closes: list[float], period: int = 14) -> list[float]:
             rsi_list.append(100.0 - 100.0 / (1.0 + rs))
     return rsi_list
 
-
-def detect_rsi_divergence(
-    closes:         list[float],
-    volumes:        list[float],
-    lookback:       int   = 20,
-    price_min_diff: float = 0.5,    # 가격 반등·하락 최소 편차 (%) — 0.0이면 미적용
-    rsi_min_diff:   float = 3.0,    # RSI 반전 강도 최소값 (pt)
-    vol_mult:       float = 1.5,
-    rsi_period:     int   = 14,
-    oversold_th:    float = 30.0,   # 롱: lookback 내 RSI 최저값이 이 값 미만이어야 함
-    overbought_th:  float = 70.0,   # 숏: lookback 내 RSI 최고값이 이 값 초과이어야 함
-) -> tuple[bool, bool, bool]:
-    """RSI 과매도/과매수 반전 신호 탐지 + 가격 편차 확인 + 거래량 확인.
-
-    closes, volumes : 시간 오름차순 (인덱스 0 = 가장 오래된 봉)
-    반환 : (rsi_div_bull, rsi_div_bear, vol_ok)
-    """
-    needed = lookback + rsi_period + 5
-    if len(closes) < needed or len(volumes) < needed:
-        return False, False, False
-
-    # RSI 계산 창: 마지막 (lookback + rsi_period + 2) 봉 사용
-    win_size = lookback + rsi_period + 2
-    win_cls  = closes[-win_size:]
-    rsi_full = calc_rsi_series(win_cls, rsi_period)
-    if len(rsi_full) < lookback:
-        return False, False, False
-
-    rsi_lb  = rsi_full[-lookback:]
-    rsi_cur = rsi_lb[-1]
-
-    rsi_min = min(rsi_lb)
-    rsi_max = max(rsi_lb)
-
-    # 가격 편차: lookback 구간의 최저가·최고가 기준 반등·하락 비율 계산
-    cls_lb    = closes[-lookback:]
-    price_min = min(cls_lb)
-    price_max = max(cls_lb)
-    price_cur = closes[-1]
-
-    if price_min_diff > 0.0:
-        price_bounce  = ((price_cur - price_min) / price_min * 100.0) if price_min > 0.0 else 0.0
-        price_decline = ((price_max - price_cur) / price_max * 100.0) if price_max > 0.0 else 0.0
-        bull_price_ok = price_bounce  >= price_min_diff
-        bear_price_ok = price_decline >= price_min_diff
-    else:
-        bull_price_ok = bear_price_ok = True
-
-    # 불리시: lookback 내 RSI 과매도 진입 후 반등 + 가격도 저점 대비 반등
-    rsi_div_bull = (
-        (rsi_min < oversold_th)
-        and (rsi_cur >= rsi_min + rsi_min_diff)
-        and bull_price_ok
-    )
-    # 베어리시: lookback 내 RSI 과매수 진입 후 하락 + 가격도 고점 대비 하락
-    rsi_div_bear = (
-        (rsi_max > overbought_th)
-        and (rsi_cur <= rsi_max - rsi_min_diff)
-        and bear_price_ok
-    )
-    vol_ok = _check_volume(volumes, vol_mult)
-
-    return rsi_div_bull, rsi_div_bear, vol_ok
 
 
 def _check_volume(volumes: list[float], vol_mult: float) -> bool:

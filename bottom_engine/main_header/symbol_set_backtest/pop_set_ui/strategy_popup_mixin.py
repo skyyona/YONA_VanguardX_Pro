@@ -118,7 +118,7 @@ class StrategyPopupMixin:
                   activebackground="#0A3A18", activeforeground=POSITIVE,
                   font=("Segoe UI", 9, "bold"), relief="flat", padx=14, pady=4,
                   cursor="hand2",
-                  command=lambda: self._confirm_strategy(win, _selected_sort_ref[0], float(_slope_var.get()))
+                  command=lambda: self._confirm_strategy(win, _selected_sort_ref[0])
                   ).pack(anchor="center", pady=(4, 0))
 
         # [중간] 백테스팅 결과 요약 (항상 표시 — 백테스팅 전: "—", 후: 실제값)
@@ -200,22 +200,6 @@ class StrategyPopupMixin:
                             padx=8, pady=4, cursor="hand2",
                             state="disabled")
         cmp_btn.pack(side="left", padx=(12, 0), pady=(4, 0))
-
-        # M4 SLOPE_TH 선택 — 단건 백테스팅·비교 탭 공용 (실거래 params.m4_slope_th 변경 없음)
-        _init_slope = str(int(
-            self._applied_params.get("m4_slope_th", 10)
-            if self._applied_params else 10
-        ))
-        _slope_var = tk.StringVar(value=_init_slope)
-        _slope_cb = ttk.Combobox(
-            footer_row1,
-            textvariable=_slope_var,
-            values=["5", "10", "15"],
-            state="readonly", width=8,
-            font=("Segoe UI", 7),
-        )
-        _slope_cb.pack(side="left", padx=(8, 0), pady=(4, 0))
-        _slope_var.trace_add("write", lambda *_: _render_strategy_cols(_selected_sort_ref[0]))
 
         bt_btn = tk.Button(footer_row1, text="  ▶  백테스팅  ",
                            bg=DARK_PANEL, fg=ACCENT_BLUE,
@@ -645,9 +629,6 @@ class StrategyPopupMixin:
                               "Stoch RSI 불리시 다이버전스", POSITIVE,
                               "5m 가격 저저점 + K 고저점  [G1]")
                     _cond_row(long_col, "▶", POSITIVE,
-                              f"5m  K − D  ≥ {int(float(_slope_var.get()))}", POSITIVE,
-                              f"G1 — K기울기 임계값 충족  (SLOPE_TH={int(float(_slope_var.get()))})")
-                    _cond_row(long_col, "▶", POSITIVE,
                               "15m  K > D  |  spread ≥ 2", POSITIVE,
                               "G2 — 15m 롱 추세 합의")
 
@@ -711,9 +692,6 @@ class StrategyPopupMixin:
                     _cond_row(short_col, "▶", NEGATIVE,
                               "Stoch RSI 베어리시 다이버전스", NEGATIVE,
                               "5m 가격 고고점 + K 저고점  [G1]")
-                    _cond_row(short_col, "▶", NEGATIVE,
-                              f"5m  D − K  ≥ {int(float(_slope_var.get()))}", NEGATIVE,
-                              f"G1 — K기울기 임계값 충족  (SLOPE_TH={int(float(_slope_var.get()))})")
                     _cond_row(short_col, "▶", NEGATIVE,
                               "15m  K < D  |  spread ≥ 2", NEGATIVE,
                               "G2 — 15m 숏 추세 합의")
@@ -966,8 +944,6 @@ class StrategyPopupMixin:
                             sym, params, period_key,
                             entry_variant="M4",
                             exit_variant="CURRENT",
-                            m4_slope_th=float(_slope_var.get()),
-                            m4_div_th=params.m4_div_th,
                         )
                         res = _backtest_result_to_dict(result_obj)
                         res["derived"] = derive_params(result_obj.trades)
@@ -1278,15 +1254,7 @@ class StrategyPopupMixin:
                 from bottom_engine.engine_core.sl_calculator import SLCalculator as _SLC
                 _sl_used, _trail_used = _SLC.clamp(
                     params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr)
-                try:
-                    if _HAS_BACKTEST and BacktestRunner is not None:
-                        period_key = _get_period_key(avail_days_ref[0])
-                        cmp_results = BacktestRunner.run_m4_slope_comparison(
-                            sym, params, period_key)
-                    else:
-                        cmp_results = {}
-                except Exception as _exc:
-                    cmp_results = {"_error": str(_exc)}
+                cmp_results = {}
                 cmp_results["sl_used"]    = _sl_used    # [C-2] 실제 적용 SL 표시용
                 cmp_results["trail_used"] = _trail_used # [C-2] 실제 적용 Trail 표시용
                 cmp_results["mmr_used"]   = params.mmr  # [C-2] 실제 적용 MMR 표시용

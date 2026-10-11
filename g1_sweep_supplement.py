@@ -48,16 +48,9 @@ BASE_PARAMS.prohibition       = ProhibitionFlags(
     common_liq=True, common_fr=True, common_new=True, common_hunter=True,
     long_fomo=True, long_short_open=True, short_accum=True, short_long_open=True,
 )
-BASE_PARAMS.m4_rsi_oversold   = 30.0
-BASE_PARAMS.m4_rsi_overbought = 70.0
-BASE_PARAMS.m4_rsi_lookback   = 20
-BASE_PARAMS.m4_rsi_rsi_diff   = 3.0
 BASE_PARAMS.m4_rsi_vol_mult   = 1.5
-BASE_PARAMS.m4_rsi_price_diff = 0.5
 
-RSI_MIN_DIFFS = (3.0,)
 VOL_MULTS     = (1.5, 2.0)
-LOOKBACKS     = (20, 30)
 PERIOD        = "90일"
 
 _CHECKPOINT_PATH = _ROOT / "g1_sweep_checkpoint.json"
@@ -67,11 +60,11 @@ _PERIOD_DAYS     = {"7일": 7, "14일": 14, "30일": 30, "90일": 90}.get(PERIOD
 def _init_buckets(combos: list) -> list:
     return [
         {
-            "rsi_min_diff": rmd, "vol_mult": vm, "lookback": lb,
+            "vol_mult": vm,
             "n": 0.0, "wins": 0.0,
             "sum_pos_pnl": 0.0, "sum_neg_pnl": 0.0, "sum_ev_r": 0.0,
         }
-        for rmd, vm, lb in combos
+        for (vm,) in combos
     ]
 
 
@@ -94,9 +87,7 @@ def _finalize(buckets: list) -> list:
     for bkt in buckets:
         n = bkt["n"]
         results.append({
-            "rsi_min_diff": bkt["rsi_min_diff"],
-            "vol_mult":     bkt["vol_mult"],
-            "lookback":     bkt["lookback"],
+            "vol_mult": bkt["vol_mult"],
             "n":    n,
             "wr":   (bkt["wins"] / n * 100.0) if n > 0 else 0.0,
             "ev_r": (bkt["sum_ev_r"] / n)      if n > 0 else 0.0,
@@ -107,18 +98,13 @@ def _finalize(buckets: list) -> list:
 
 
 def main():
-    combos = [
-        (rmd, vm, lb)
-        for rmd in RSI_MIN_DIFFS
-        for vm  in VOL_MULTS
-        for lb  in LOOKBACKS
-    ]
+    combos = [(vm,) for vm in VOL_MULTS]
 
     completed, buckets = _load_checkpoint(combos)
     sl_pct = BASE_PARAMS.stop_loss
 
     print(f"[G1 보완 sweep] {len(SYMBOLS)}심볼 × {len(combos)}조합 × {PERIOD}")
-    print(f"[고정] rsi_min_diff=3.0  [변동] vol_mult={VOL_MULTS}  lookback={LOOKBACKS}")
+    print(f"[변동] vol_mult={VOL_MULTS}")
     print(f"[파라미터] leverage={BASE_PARAMS.leverage}  SL={sl_pct}%  trail={BASE_PARAMS.trail_stop}%  use_macro={BASE_PARAMS.use_macro}")
     if completed:
         print(f"[체크포인트] {len(completed)}/{len(SYMBOLS)} 완료, {len(SYMBOLS)-len(completed)}개 이어서 실행")
@@ -146,13 +132,8 @@ def main():
                 preloaded["liq"] = HistoricalDataLoader.load_long_short_ratio(sym, _PERIOD_DAYS)
             preloaded["1d"] = HistoricalDataLoader.load(sym, "1d", _NEW_DAYS_MIN + 5)
 
-        for i, (rmd, vm, lb) in enumerate(combos):
-            _p = dataclasses.replace(
-                BASE_PARAMS,
-                m4_rsi_rsi_diff=rmd,
-                m4_rsi_vol_mult=vm,
-                m4_rsi_lookback=lb,
-            )
+        for i, (vm,) in enumerate(combos):
+            _p = dataclasses.replace(BASE_PARAMS, m4_rsi_vol_mult=vm)
             res = BacktestRunner.run(sym, _p, PERIOD, preloaded=preloaded,
                                      entry_variant="M4", exit_variant="CURRENT")
             bkt = buckets[i]
@@ -177,35 +158,35 @@ def main():
         _CHECKPOINT_PATH.unlink()
 
     baseline = next(
-        (r for r in results if abs(r["vol_mult"] - 1.5) < 0.01 and r["lookback"] == 20),
+        (r for r in results if abs(r["vol_mult"] - 1.5) < 0.01),
         None,
     )
 
     print(f"\n[완료] 소요시간 {elapsed/60:.1f}분  ({len(completed)}/{len(SYMBOLS)} 심볼)\n")
     if baseline:
-        print(f"[기준선] vol=1.5 lb=20 → EV={baseline['ev_r']:+.4f}R  PF={baseline['pf']:.3f}  WR={baseline['wr']:.1f}%  N={int(baseline['n'])}")
-    print(f"{'vol_mult':>9} {'lookback':>9} | {'N':>6} {'WR%':>6} {'EV(R)':>9} {'PF':>6}  비교")
-    print("-" * 70)
+        print(f"[기준선] vol=1.5 → EV={baseline['ev_r']:+.4f}R  PF={baseline['pf']:.3f}  WR={baseline['wr']:.1f}%  N={int(baseline['n'])}")
+    print(f"{'vol_mult':>9} | {'N':>6} {'WR%':>6} {'EV(R)':>9} {'PF':>6}  비교")
+    print("-" * 55)
 
     for r in results:
-        is_baseline = (abs(r["vol_mult"] - 1.5) < 0.01 and r["lookback"] == 20)
+        is_baseline = abs(r["vol_mult"] - 1.5) < 0.01
         flag     = " ← 현재기본값" if is_baseline else ""
         diff_str = "(기준)" if is_baseline else (
             f"({r['ev_r'] - baseline['ev_r']:+.4f}R)" if baseline else ""
         )
         print(
-            f"{r['vol_mult']:>9.1f} {r['lookback']:>9d} | "
+            f"{r['vol_mult']:>9.1f} | "
             f"{int(r['n']):>6} {r['wr']:>6.1f}% {r['ev_r']:>+9.4f} {r['pf']:>6.3f}  {diff_str}{flag}"
         )
 
     if results:
         best = results[0]
-        print("\n" + "=" * 70)
-        print(f"[최우수 조합] vol_mult={best['vol_mult']:.1f}  lookback={best['lookback']}")
+        print("\n" + "=" * 55)
+        print(f"[최우수 조합] vol_mult={best['vol_mult']:.1f}")
         print(f"  N={int(best['n'])}  WR={best['wr']:.1f}%  EV={best['ev_r']:+.4f}R  PF={best['pf']:.3f}")
         if baseline:
             print(f"  기준선 대비: {best['ev_r'] - baseline['ev_r']:+.4f}R")
-        print("=" * 70)
+        print("=" * 55)
 
     out_path = _ROOT / "g1_sweep_supplement_result.json"
     with open(out_path, "w", encoding="utf-8") as f:

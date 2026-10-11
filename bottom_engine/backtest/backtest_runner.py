@@ -111,8 +111,6 @@ class BacktestRunner:
             preloaded: "dict | None" = None,
             entry_variant: str = "M4",
             exit_variant:  str = "M4",
-            m4_slope_th:   float = 10.0,
-            m4_div_th:     "float | None" = 2.0,
             max_r_pct:       float = 8.0,
             trail_cap:       float = 0.6,
             m4_ablation:     int   = 6,
@@ -180,7 +178,7 @@ class BacktestRunner:
         # [P4] G6 EMA — 1h봉 기준 (실거래 data_manager: EMAAlignment.calculate(b1h) 동일)
         ema5_1h:  list[float] = []
         ema50_1h: list[float] = []
-        _need_ema1h = cfg.macro_ema or (entry_variant == "M4" and m4_div_th is not None)
+        _need_ema1h = cfg.macro_ema
         if _need_ema1h and bars_1h:
             closes_1h = [b.close for b in bars_1h]
             ema5_1h   = cls._calc_ema_series(closes_1h, _EMA_SHORT)
@@ -823,78 +821,40 @@ class BacktestRunner:
         return result
 
     @classmethod
-    def run_m4_slope_comparison(
-        cls,
-        symbol: str,
-        params: StrategyParams,
-        period: str = "7일",
-    ) -> "dict[str, BacktestResult]":
-        """M4 전략 SLOPE_TH 3가지(5/10/15) 동시 비교 — 봉 데이터 1회 로드 후 공유.
-
-        Returns
-        -------
-        dict: SLOPE_TH별 BacktestResult
-            키: 'slope_5', 'slope_10', 'slope_15'
-        """
-        preloaded = cls.load_tf_bars(symbol, period)
-        results: dict[str, BacktestResult] = {}
-        for slope in (5.0, 10.0, 15.0):
-            _p = dataclasses.replace(params, m4_slope_th=slope)
-            results[f"slope_{int(slope)}"] = cls.run(
-                symbol, _p, period, preloaded=preloaded,
-                entry_variant="M4", exit_variant="CURRENT",
-                m4_slope_th=slope, m4_div_th=params.m4_div_th)
-        return results
-
-    @classmethod
     def run_g1_sweep(
         cls,
-        symbols:       "list[str]",
-        base_params:   StrategyParams,
-        period:        str                = "90일",
-        rsi_min_diffs: "tuple[float, ...]" = (2.0, 3.0, 5.0),
-        vol_mults:     "tuple[float, ...]" = (1.0, 2.0),
-        lookbacks:     "tuple[int, ...]"   = (15, 30),
+        symbols:   "list[str]",
+        base_params: StrategyParams,
+        period:    str                = "90일",
+        vol_mults: "tuple[float, ...]" = (1.0, 2.0),
     ) -> "list[dict]":
-        """G1 파라미터 sweep — rsi_min_diff × vol_mult × lookback 조합별 멀티심볼 집계.
+        """G1 vol_mult sweep — vol_mult별 멀티심볼 집계.
 
         심볼별 봉 데이터 1회 로드 후 모든 조합에 공유.
         반환: EV(R) 내림차순 정렬된 조합별 dict 리스트
-              키: rsi_min_diff, vol_mult, lookback, n, wr, ev_r, pf
+              키: vol_mult, n, wr, ev_r, pf
         """
-        combos = [
-            (rmd, vm, lb)
-            for rmd in rsi_min_diffs
-            for vm  in vol_mults
-            for lb  in lookbacks
-        ]
         sl_pct = base_params.stop_loss
 
         buckets: list[dict] = [
             {
-                "rsi_min_diff": rmd, "vol_mult": vm, "lookback": lb,
+                "vol_mult": vm,
                 "n": 0.0, "wins": 0.0,
                 "sum_pos_pnl": 0.0, "sum_neg_pnl": 0.0, "sum_ev_r": 0.0,
             }
-            for rmd, vm, lb in combos
+            for vm in vol_mults
         ]
 
         period_days = cls._days(period)
         for s_idx, sym in enumerate(symbols):
             print(f"  [{s_idx+1}/{len(symbols)}] {sym} 로딩중...", flush=True)
             preloaded = cls.load_tf_bars(sym, period)
-            # liq/fr 데이터 심볼당 1회 로드 → 4개 조합에 공유 (4회 재호출 방지)
             if base_params.prohibition.common_fr or base_params.prohibition.common_liq:
                 preloaded["fr"] = HistoricalDataLoader.load_funding_rate(sym)
             if base_params.prohibition.common_liq:
                 preloaded["liq"] = HistoricalDataLoader.load_long_short_ratio(sym, period_days)
-            for i, (rmd, vm, lb) in enumerate(combos):
-                _p = dataclasses.replace(
-                    base_params,
-                    m4_rsi_rsi_diff=rmd,
-                    m4_rsi_vol_mult=vm,
-                    m4_rsi_lookback=lb,
-                )
+            for i, vm in enumerate(vol_mults):
+                _p = dataclasses.replace(base_params, m4_rsi_vol_mult=vm)
                 res = cls.run(sym, _p, period, preloaded=preloaded,
                               entry_variant="M4", exit_variant="CURRENT")
                 bkt = buckets[i]

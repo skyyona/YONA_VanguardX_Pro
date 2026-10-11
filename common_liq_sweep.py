@@ -87,12 +87,7 @@ def _make_params(common_liq_flag: bool) -> StrategyParams:
         short_accum      = True,
         short_long_open  = True,
     )
-    p.m4_rsi_oversold   = 30.0
-    p.m4_rsi_overbought = 70.0
-    p.m4_rsi_lookback   = 20
-    p.m4_rsi_rsi_diff   = 3.0
     p.m4_rsi_vol_mult   = 1.5
-    p.m4_rsi_price_diff = 0.3
     return p
 
 

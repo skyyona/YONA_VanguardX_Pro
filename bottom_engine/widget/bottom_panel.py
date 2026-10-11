@@ -373,8 +373,7 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
     # ══════════════════════════════════════════════════════════════
     # ─── 전략 확정 ───────────────────────────────────────────────
     def _confirm_strategy(self, win: tk.Toplevel,
-                          sort_mode: str = "24h Ticker",
-                          m4_slope_th: float = 10.0) -> None:
+                          sort_mode: str = "24h Ticker") -> None:
         # ── 방안 A: 포지션 보유 중 전략 전체 재설정 차단 ──────────
         if self._engine is not None and self._engine.has_open_positions():
             from tkinter import messagebox as _mb
@@ -385,29 +384,13 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             return
         funds, lev, sl, trail = self._current_params()
         prohibited = {k: v.get() for k, v in self._prohibited_vars.items()}
-        # UI 위젯 없는 파라미터 — 저장된 값 그대로 유지 (Confirm 시 리셋 방지)
-        _saved           = StrategyLoader.load(sort_mode) if StrategyLoader is not None else None
-        _m4_div          = _saved.m4_div_th          if _saved is not None else None
-        _m4_oversold     = _saved.m4_rsi_oversold    if _saved is not None else 30.0
-        _m4_overbought   = _saved.m4_rsi_overbought  if _saved is not None else 70.0
-        _m4_g2_th        = _saved.m4_g2_th           if _saved is not None else 2.0
-        _m4_rsi_lb       = _saved.m4_rsi_lookback    if _saved is not None else 20
-        _m4_rsi_pd       = _saved.m4_rsi_price_diff  if _saved is not None else 0.5
-        _m4_rsi_rd       = _saved.m4_rsi_rsi_diff    if _saved is not None else 3.0
-        _m4_rsi_vm       = _saved.m4_rsi_vol_mult    if _saved is not None else 1.5
+        _saved       = StrategyLoader.load(sort_mode) if StrategyLoader is not None else None
+        _m4_rsi_vm   = _saved.m4_rsi_vol_mult if _saved is not None else 1.5
         self._applied_params = {"funds": funds, "leverage": lev,
                                 "sl": sl, "trail": trail,
                                 "use_macro": self._use_macro_var.get(),
                                 "prohibited": prohibited,
-                                "m4_slope_th":       m4_slope_th,
-                                "m4_div_th":         _m4_div,
-                                "m4_rsi_oversold":   _m4_oversold,
-                                "m4_rsi_overbought": _m4_overbought,
-                                "m4_g2_th":          _m4_g2_th,
-                                "m4_rsi_lookback":   _m4_rsi_lb,
-                                "m4_rsi_price_diff": _m4_rsi_pd,
-                                "m4_rsi_rsi_diff":   _m4_rsi_rd,
-                                "m4_rsi_vol_mult":   _m4_rsi_vm}
+                                "m4_rsi_vol_mult": _m4_rsi_vm}
         self._applied_sort_mode = sort_mode
         self._strategy_ready = True
         self._strategy_msg.configure(

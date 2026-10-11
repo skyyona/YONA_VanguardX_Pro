@@ -64,8 +64,8 @@ def _make_params() -> StrategyParams:
     p = StrategyParams()
     p.sort_mode         = "24h Ticker"
     p.leverage          = 10
-    p.stop_loss         = 1.8
-    p.trail_stop        = 0.7
+    p.stop_loss         = 4.0
+    p.trail_stop        = 1.9
     p.use_macro         = False
     p.prohibition       = ProhibitionFlags(
         common_liq    = True,
@@ -77,12 +77,7 @@ def _make_params() -> StrategyParams:
         short_accum      = True,
         short_long_open  = True,
     )
-    p.m4_rsi_oversold   = 30.0
-    p.m4_rsi_overbought = 70.0
-    p.m4_rsi_lookback   = 20
-    p.m4_rsi_rsi_diff   = 3.0
     p.m4_rsi_vol_mult   = 1.5
-    p.m4_rsi_price_diff = 0.1
     return p
 
 
@@ -94,7 +89,7 @@ def main():
 
     print(f"[exit_reason 분포 분석] {len(SYMBOLS)}심볼 × {PERIOD}")
     print(f"[파라미터] SL={params.stop_loss}%  trail={params.trail_stop}%  "
-          f"lev={params.leverage}  price_diff={params.m4_rsi_price_diff}")
+          f"lev={params.leverage}")
     print(f"[SLCalc]   sl_used={sl_used}%  trail_used={trail_used}%  "
           f"_leff≈{leff_approx:.3f}  SL hit 손실≈{sl_used * leff_approx:.1f}% (=max_r_pct)")
     print("-" * 70)

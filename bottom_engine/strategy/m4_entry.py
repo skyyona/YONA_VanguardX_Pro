@@ -38,7 +38,7 @@ ind_data 표준 키:
   "_player_tags": list                      Player Detection 태그 (없으면 [])
   "_days_listed": int                       상장일수 (days_listed 인자 대체 가능)
 
-실거래: trading_engine.py가 data_manager의 tf5.div 값을 직접 주입 (detect_rsi_divergence 미사용)
+실거래: trading_engine.py가 data_manager의 tf5.div 값을 직접 주입
 백테스트: backtest_runner.py가 DivergenceDetector 계산 결과(_tf_div["5m"])를 직접 주입
 """
 from __future__ import annotations
