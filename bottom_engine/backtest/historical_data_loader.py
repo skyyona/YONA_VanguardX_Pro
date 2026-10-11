@@ -5,6 +5,7 @@ bottom/backtest/historical_data_loader.py
 from __future__ import annotations
 
 import json
+import time
 import threading
 import urllib.request
 from dataclasses import dataclass
@@ -109,6 +110,7 @@ class HistoricalDataLoader:
             if len(page) < n:       # API가 요청보다 적게 반환 → 더 이전 데이터 없음
                 break
             end_time_ms = page[0].open_time - 1  # 이전 배치 직전 ms 로 역방향 이동
+            time.sleep(0.25)        # Binance API 속도 제한 방지 (분당 1200 가중치 ≤ 2400 한도)
 
         # pages[0] = 최신 배치, pages[-1] = 가장 오래된 배치 → 역순 병합
         pages.reverse()
