@@ -504,7 +504,7 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             hdr_fg       = POSITIVE,
             engine_state = "🟢  M4 롱 진입 조건 충족 — 롱 엔진 활성",
             state_col    = POSITIVE,
-            status_lbl   = ("M4 진입 신호 대기  |  RSI 다이버전스 탐색 중" if _long_active
+            status_lbl   = ("M4 진입 신호 대기  |  Stoch RSI 다이버전스 탐색 중" if _long_active
                             else "M4 신호 대기  |  엔진 대기 중"),
             status_col   = POSITIVE if _long_active else DIM_TEXT,
             pred_txt     = ("1m 과매도 진입 신호 대기 중" if _long_active
@@ -523,7 +523,7 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             hdr_fg       = NEGATIVE,
             engine_state = "🔴  M4 숏 진입 조건 충족 — 숏 엔진 활성",
             state_col    = NEGATIVE,
-            status_lbl   = ("M4 진입 신호 대기  |  RSI 다이버전스 탐색 중" if _short_active
+            status_lbl   = ("M4 진입 신호 대기  |  Stoch RSI 다이버전스 탐색 중" if _short_active
                             else "M4 신호 대기  |  엔진 대기 중"),
             status_col   = NEGATIVE if _short_active else DIM_TEXT,
             pred_txt     = ("1m 과매수 진입 신호 대기 중" if _short_active
@@ -1357,7 +1357,7 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             _hbg, _tfg = panel["hdr_bg"], panel["hdr_fg"]
             _st,  _sc  = panel["engine_state"], panel["state_col"]
             if _g2_ok:
-                _sl  = f"RSI 다이버전스 탐색 중  /  15m K={_k15m:.0f} D={_d15m:.0f}  |  진입 대기"
+                _sl  = f"Stoch RSI 다이버전스 탐색 중  /  15m K={_k15m:.0f} D={_d15m:.0f}  |  진입 대기"
                 _slc = POSITIVE if side == "long" else NEGATIVE
             else:
                 _sl  = f"5m 감지 중  /  15m K={_k15m:.0f} D={_d15m:.0f}  |  G2 대기"

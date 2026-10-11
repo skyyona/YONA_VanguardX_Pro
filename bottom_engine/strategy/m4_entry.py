@@ -9,19 +9,18 @@ M4 진입 판정 — 실거래·백테스트 공용 단일 소스.
   G6.  Sort by 품질 등급 필터 (cfg.quality_grade_req, ablation >= 6)
   G_K. tf5 K값 범위 게이트 (cfg.k_long_max / cfg.k_short_min, ablation >= 6)
   G_ema. macro_ema 거시 EMA 방향 게이트 (EMA5 vs EMA50, ablation >= 6)
-  G1.  RSI 다이버전스 + 거래량 확인
-         불리시 다이버전스: 가격 저점↓ + RSI 저점↑ (롱)
-         베어리시 다이버전스: 가격 고점↑ + RSI 고점↓ (숏)
-         강도 임계값: 가격 편차 ≥ m4_rsi_price_diff%, RSI 편차 ≥ m4_rsi_rsi_diff
-         거래량 확인: 진입봉 vol ≥ 최근 20봉 평균 × m4_rsi_vol_mult
+  G1.  Stoch RSI 다이버전스 (tf5.div == "bull"/"bear")
+         불리시 다이버전스: 5m 가격 저저점 + Stoch RSI K 고저점 (롱)
+         베어리시 다이버전스: 5m 가격 고고점 + Stoch RSI K 저고점 (숏)
+         거래량 확인: G5 필터에서 별도 처리 (rsi_div_vol_ok 항상 True)
   G2.  M4 15m RSI 50 레벨 방향 확인 (RSI ≥ 50 롱 / ≤ 50 숏)
   G7.5 use_macro 거시 추세 방향 연동 (tf1h/tf4h/tf1d K·D 점수)
   G8.  절대 금지 필터 (ProhibitionFilter 항목)
 
 ind_data 표준 키:
-  "rsi_div_bull" : bool    불리시 RSI 다이버전스 발생 여부 (G1, 사전 계산 주입)
-  "rsi_div_bear" : bool    베어리시 RSI 다이버전스 발생 여부 (G1, 사전 계산 주입)
-  "rsi_div_vol_ok": bool   거래량 확인 결과 (G1, 사전 계산 주입)
+  "rsi_div_bull" : bool    Stoch RSI 불리시 다이버전스 발생 여부 (G1, tf5.div == "bull")
+  "rsi_div_bear" : bool    Stoch RSI 베어리시 다이버전스 발생 여부 (G1, tf5.div == "bear")
+  "rsi_div_vol_ok": bool   거래량 확인 결과 (항상 True — G5 거래량 배수 필터에서 별도 체크)
   "atr_pct"     : float                      1h 기준 ATR% (G4, data_manager/backtest_runner 주입)
   "volume_ratio": float                      최근봉 vol / 20봉 평균 비율 (G5, 없으면 미체크)
   "tf1"/"tf3"   : {"k": float, "d": float}   1m/3m StochRSI (G6 QualityGrader 용)
@@ -39,8 +38,8 @@ ind_data 표준 키:
   "_player_tags": list                      Player Detection 태그 (없으면 [])
   "_days_listed": int                       상장일수 (days_listed 인자 대체 가능)
 
-실거래: trading_engine.py가 5m 봉 조회 후 detect_rsi_divergence()로 계산하여 주입
-백테스트: backtest_runner.py가 사전 계산 후 ind_bt에 주입
+실거래: trading_engine.py가 data_manager의 tf5.div 값을 직접 주입 (detect_rsi_divergence 미사용)
+백테스트: backtest_runner.py가 DivergenceDetector 계산 결과(_tf_div["5m"])를 직접 주입
 """
 from __future__ import annotations
 
@@ -124,10 +123,10 @@ class M4Entry:
         # ── G1: RSI 다이버전스 + 거래량 확인 ──────────────────────
         if is_long:
             if not ind_data.get("rsi_div_bull", False):
-                return False, "G1: RSI 불리시 다이버전스 미발생"
+                return False, "G1: Stoch RSI 불리시 다이버전스 미발생"
         else:
             if not ind_data.get("rsi_div_bear", False):
-                return False, "G1: RSI 베어리시 다이버전스 미발생"
+                return False, "G1: Stoch RSI 베어리시 다이버전스 미발생"
 
         if ablation >= 2 and not ind_data.get("rsi_div_vol_ok", False):
             return False, "G1: 거래량 미확인 (진입봉 vol < 평균 × m4_rsi_vol_mult)"
@@ -177,5 +176,5 @@ class M4Entry:
         direction = "롱" if is_long else "숏"
         return True, (
             f"M4 {direction} 진입 조건 충족 "
-            f"(RSI다이버전스, 15m RSI={rsi15:.1f} K={k15:.1f} D={d15:.1f})"
+            f"(Stoch RSI 다이버전스, 15m RSI={rsi15:.1f} K={k15:.1f} D={d15:.1f})"
         )
