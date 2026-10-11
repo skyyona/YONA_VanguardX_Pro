@@ -56,16 +56,16 @@ SYMBOLS = [
     "2ZUSDT", "ENJUSDT", "RVNUSDT", "CCUSDT", "MYXUSDT",
 ]
 
-PERIOD       = "90일"
-_PERIOD_DAYS = 90
+PERIOD       = "180일"
+_PERIOD_DAYS = 180
 
 
 def _make_params() -> StrategyParams:
     p = StrategyParams()
     p.sort_mode         = "24h Ticker"
     p.leverage          = 10
-    p.stop_loss         = 4.0
-    p.trail_stop        = 1.9
+    p.stop_loss         = 1.8
+    p.trail_stop        = 0.7
     p.use_macro         = False
     p.prohibition       = ProhibitionFlags(
         common_liq    = True,

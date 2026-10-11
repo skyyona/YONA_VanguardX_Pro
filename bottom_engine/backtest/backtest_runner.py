@@ -278,6 +278,11 @@ class BacktestRunner:
 
         _prev_k5m: float = 50.0  # M4 직전봉 5m K
 
+        # [DIV] 5m 다이버전스 캐시 — 5m 봉이 바뀔 때만 재계산
+        _div5m_last_pos: int        = -1
+        _div5m_cached:   "str|None" = None
+        _dv_need5: int = DivergenceDetector.MAX_LOOKBACK
+
         n_1m = len(bars_1m)
         # RANDOM 분기 전처리 — 무작위 진입 인덱스 사전 선택
         import random as _random_mod
@@ -653,14 +658,17 @@ class BacktestRunner:
                 _prev_tf5_long_ok  = _lo5
                 _prev_tf5_short_ok = _so5
 
-                # G6 QualityGrader BT↔LIVE 일치: div/elapsed 계산 후 _ind_bt 주입
-                _tf_div: dict[str, "str | None"] = {}
-                for _d_key, _d_bars in _tf_bars_map.items():
-                    if _d_key in _tf_pos:
-                        _d_pos, _d_idx, _d_ks = _tf_pos[_d_key]
-                        _tf_div[_d_key] = DivergenceDetector.detect(
-                            _d_bars[:_d_pos + 1], _d_ks[:_d_idx + 1]
-                        )
+                # G1 div — 5m 봉이 바뀔 때만 재계산 (1m/3m/15m div는 BT에서 미사용)
+                _tf_div: dict[str, "str | None"] = {"1m": None, "3m": None, "15m": None}
+                if "5m" in _tf_pos:
+                    _d_pos5, _d_idx5, _d_ks5 = _tf_pos["5m"]
+                    if _d_pos5 != _div5m_last_pos:
+                        _d_o5  = _d_pos5 - _d_idx5
+                        _b_sl5 = bars_5m[max(0, _d_pos5 + 1 - _dv_need5 - _d_o5):_d_pos5 + 1]
+                        _k_sl5 = _d_ks5[max(0, _d_idx5 + 1 - _dv_need5):_d_idx5 + 1]
+                        _div5m_cached   = DivergenceDetector.detect(_b_sl5, _k_sl5)
+                        _div5m_last_pos = _d_pos5
+                    _tf_div["5m"] = _div5m_cached
 
                 _tf5_elapsed: "str | None" = None
                 if _lo5 and _tf5_long_cross_t:
