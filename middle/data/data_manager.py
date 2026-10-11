@@ -89,7 +89,7 @@ def _stoch_tf_dict(r: StochRSIResult | None) -> dict:
     if r is None:
         return {"dir": "↔", "col": _YEL, "k": 50.0, "d": 50.0,
                 "elapsed": None, "div": None,
-                "k_series": [], "d_series": []}
+                "k_series": [], "d_series": [], "recent_volumes": []}
     # elapsed: 크로스 여부로 단순 추정
     elapsed = "방금" if r.direction != "↔" else None
     return {"dir": r.direction, "col": _dir_col(r.direction),
@@ -441,6 +441,8 @@ class MiddleDataManager:
                             "k": r.k, "d": r.d,
                             "elapsed": elapsed, "div": div,
                             "k_series": ks[-40:], "d_series": ds[-40:],
+                            "recent_volumes": ([b.volume for b in bars.get("5m", [])[-21:]]
+                                               if key == "tf5" else []),
                         }
 
                 ind["_data_ready"] = True
@@ -762,7 +764,7 @@ class MiddleDataManager:
             if r is None:
                 d[tf_key] = {"dir": "↔", "col": _YEL, "k": 50.0, "d": 50.0,
                              "elapsed": None, "div": None,
-                             "k_series": [], "d_series": []}
+                             "k_series": [], "d_series": [], "recent_volumes": []}
             else:
                 old_dir = cached_ind.get(tf_key, {}).get("dir", "↔")
                 elapsed = self._resolve_elapsed(symbol, tf_key, r.direction, old_dir)
@@ -773,7 +775,9 @@ class MiddleDataManager:
                 d[tf_key] = {"dir": r.direction, "col": _dir_col(r.direction),
                              "k": r.k, "d": r.d,
                              "elapsed": elapsed, "div": div,
-                             "k_series": ks[-40:], "d_series": ds[-40:]}
+                             "k_series": ks[-40:], "d_series": ds[-40:],
+                             "recent_volumes": ([b.volume for b in bars.get(tf_real, [])[-21:]]
+                                                if tf_key == "tf5" else [])}
 
         return d
 

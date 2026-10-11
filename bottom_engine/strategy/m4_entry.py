@@ -12,7 +12,7 @@ M4 진입 판정 — 실거래·백테스트 공용 단일 소스.
   G1.  Stoch RSI 다이버전스 (tf5.div == "bull"/"bear")
          불리시 다이버전스: 5m 가격 저저점 + Stoch RSI K 고저점 (롱)
          베어리시 다이버전스: 5m 가격 고고점 + Stoch RSI K 저고점 (숏)
-         거래량 확인: G5 필터에서 별도 처리 (rsi_div_vol_ok 항상 True)
+         거래량 확인: 5m 봉 기준 _check_volume — vol_mult=None 모드에서도 항상 체크
   G2.  M4 15m RSI 50 레벨 방향 확인 (RSI ≥ 50 롱 / ≤ 50 숏)
   G7.5 use_macro 거시 추세 방향 연동 (tf1h/tf4h/tf1d K·D 점수)
   G8.  절대 금지 필터 (ProhibitionFilter 항목)
@@ -20,7 +20,7 @@ M4 진입 판정 — 실거래·백테스트 공용 단일 소스.
 ind_data 표준 키:
   "rsi_div_bull" : bool    Stoch RSI 불리시 다이버전스 발생 여부 (G1, tf5.div == "bull")
   "rsi_div_bear" : bool    Stoch RSI 베어리시 다이버전스 발생 여부 (G1, tf5.div == "bear")
-  "rsi_div_vol_ok": bool   거래량 확인 결과 (항상 True — G5 거래량 배수 필터에서 별도 체크)
+  "rsi_div_vol_ok": bool   거래량 확인 결과 (5m 봉 기준: 현재봉 vol >= 20봉 평균 × m4_rsi_vol_mult)
   "atr_pct"     : float                      1h 기준 ATR% (G4, data_manager/backtest_runner 주입)
   "volume_ratio": float                      최근봉 vol / 20봉 평균 비율 (G5, 없으면 미체크)
   "tf1"/"tf3"   : {"k": float, "d": float}   1m/3m StochRSI (G6 QualityGrader 용)

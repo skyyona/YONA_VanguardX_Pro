@@ -26,7 +26,7 @@ from bottom_engine.long_engine.long_position import LongPosition
 from bottom_engine.short_engine.short_order import ShortOrder
 from bottom_engine.short_engine.short_position import ShortPosition
 from bottom_engine.strategy.m4_entry import M4Entry
-from bottom_engine.strategy.rsi_divergence import calc_rsi_series
+from bottom_engine.strategy.rsi_divergence import calc_rsi_series, _check_volume
 from bottom_engine.constants import _PROFIT_TRIGGER_PCT, _MAX_CONSECUTIVE_LOSSES, _LOSS_COOLDOWN_SEC
 
 _ENGINE_DIR = pathlib.Path(__file__).parent  # Phase3 상태 파일 저장 디렉터리
@@ -701,7 +701,9 @@ class TradingEngine:
                         # G1 Stoch RSI 다이버전스 → data_manager 계산 결과 주입 (REST API 추가 호출 제거)
                         ind["rsi_div_bull"]   = (ind.get("tf5", {}).get("div") == "bull")
                         ind["rsi_div_bear"]   = (ind.get("tf5", {}).get("div") == "bear")
-                        ind["rsi_div_vol_ok"] = True  # G5 거래량 배수 필터에서 별도 체크
+                        _tf5_vols = ind.get("tf5", {}).get("recent_volumes", [])
+                        ind["rsi_div_vol_ok"] = _check_volume(
+                            _tf5_vols, self._params.m4_rsi_vol_mult if self._params else 1.5)
 
                         # G2 15m RSI 50 레벨 계산 → ind에 주입 (BT와 동일 19봉 슬라이스)
                         _tf15_rsi = 50.0

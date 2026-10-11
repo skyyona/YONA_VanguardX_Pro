@@ -25,7 +25,7 @@ import dataclasses
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
 from bottom_engine.engine_core.quality_grader import QualityGrader
 from middle.col2_chart_indicators.divergence_detector import DivergenceDetector
-from bottom_engine.strategy.rsi_divergence import calc_rsi_series
+from bottom_engine.strategy.rsi_divergence import calc_rsi_series, _check_volume
 from bottom_engine.engine_core.risk_manager import RiskManager as _RM
 from bottom_engine.engine_core.sl_calculator import SLCalculator
 from bottom_engine.strategy_settings.realtrade_strategy_sort_by import get_mode_config
@@ -710,10 +710,14 @@ class BacktestRunner:
                     _bt_liq_l = -99.0 if liq_ok_long  else -0.1
                     _bt_liq_s =  99.0 if liq_ok_short else  0.1
 
-                    # G1 Stoch RSI 다이버전스 — 이미 계산된 _tf_div["5m"] 활용 (별도 슬라이스 불필요)
+                    # G1 Stoch RSI 다이버전스 — 이미 계산된 _tf_div["5m"] 활용
                     _rsi_div_bull = (_tf_div.get("5m") == "bull")
                     _rsi_div_bear = (_tf_div.get("5m") == "bear")
-                    _rsi_div_vol  = True  # G5 거래량 배수 필터에서 별도 체크
+                    # G1 거래량 — 5m 봉 기준 21봉 슬라이스 (_check_volume: 20봉 평균 × vol_mult)
+                    _rsi_div_vol = True  # 데이터 부족 시 기본값 (통과)
+                    if _5m_tf and _5m_pos >= 20:
+                        _vls5 = [bars_5m[j].volume for j in range(_5m_pos - 20, _5m_pos + 1)]
+                        _rsi_div_vol = _check_volume(_vls5, params.m4_rsi_vol_mult)
 
                     # G2 RSI 50 레벨 — 15m 봉 기준 (이미 계산된 _pos_15m 재사용)
                     _tf15_rsi = 50.0
