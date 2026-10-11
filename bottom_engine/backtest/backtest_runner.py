@@ -52,6 +52,7 @@ _TF_BARS: dict[str, dict[str, int]] = {
     "14일": {"1m": 20400, "3m": 6820, "5m": 4100, "15m": 1380, "1h":  390},
     "30일": {"1m": 43400, "3m":14500, "5m": 8700, "15m": 2920, "1h":  780},
     "90일": {"1m":129600, "3m":43220, "5m":25960, "15m": 8680, "1h": 1500},
+    "180일": {"1m":259200, "3m":86440, "5m":51920, "15m":17360, "1h": 3000},
 }
 
 # 비용 상수 (거래별 레버리지 반영 PnL%에서 차감) — _TAKER_FEE_RATE는 constants.py 참조
@@ -470,16 +471,13 @@ class BacktestRunner:
                             exit_reason=dec.reason, qty_ratio=dec.qty_ratio,
                         ))
                         _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
-                        if dec.reason in ("KD-EXIT", "PARTIAL"):
-                            _consecutive_losses = 0
+                        if pnl < 0:
+                            _consecutive_losses += 1
+                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
+                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
+                                _consecutive_losses = 0  # [A-2]
                         else:
-                            if pnl < 0:
-                                _consecutive_losses += 1
-                                if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                    _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
-                                    _consecutive_losses = 0  # [A-2]
-                            else:
-                                _consecutive_losses = 0
+                            _consecutive_losses = 0
                         if dec.reason == "PARTIAL":
                             # 50% 부분 청산 후 Phase3 진입 — position 유지
                             phase = dec.new_phase
@@ -607,16 +605,13 @@ class BacktestRunner:
                             exit_reason=dec.reason, qty_ratio=dec.qty_ratio,
                         ))
                         _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
-                        if dec.reason in ("KD-EXIT", "PARTIAL"):
-                            _consecutive_losses = 0
+                        if pnl < 0:
+                            _consecutive_losses += 1
+                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
+                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
+                                _consecutive_losses = 0  # [A-2]
                         else:
-                            if pnl < 0:
-                                _consecutive_losses += 1
-                                if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
-                                    _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
-                                    _consecutive_losses = 0  # [A-2]
-                            else:
-                                _consecutive_losses = 0
+                            _consecutive_losses = 0
                         if dec.reason == "PARTIAL":
                             # 50% 부분 청산 후 Phase3 진입 — position 유지
                             phase = dec.new_phase
@@ -1070,4 +1065,4 @@ class BacktestRunner:
 
     @staticmethod
     def _days(period: str) -> int:
-        return {"7일": 7, "14일": 14, "30일": 30, "90일": 90}.get(period, 7)
+        return {"7일": 7, "14일": 14, "30일": 30, "90일": 90, "180일": 180}.get(period, 7)
