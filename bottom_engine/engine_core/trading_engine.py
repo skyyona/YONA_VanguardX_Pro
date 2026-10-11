@@ -26,7 +26,7 @@ from bottom_engine.long_engine.long_position import LongPosition
 from bottom_engine.short_engine.short_order import ShortOrder
 from bottom_engine.short_engine.short_position import ShortPosition
 from bottom_engine.strategy.m4_entry import M4Entry
-from bottom_engine.strategy.rsi_divergence import detect_rsi_divergence, calc_rsi_series
+from bottom_engine.strategy.rsi_divergence import calc_rsi_series
 from bottom_engine.constants import _PROFIT_TRIGGER_PCT, _MAX_CONSECUTIVE_LOSSES, _LOSS_COOLDOWN_SEC
 
 _ENGINE_DIR = pathlib.Path(__file__).parent  # Phase3 상태 파일 저장 디렉터리
@@ -698,27 +698,10 @@ class TradingEngine:
                             self._k5m_entry_bar_ts = _now_5m
                         ind["_prev_k5m"] = self._k5m_entry_prev
 
-                        # G1 RSI 다이버전스 계산 → ind에 주입 (5m 봉 API 1회 추가)
-                        _rsi_bull = _rsi_bear = _rsi_vol_ok = False
-                        if sym and self._params:
-                            _lb    = self._params.m4_rsi_lookback
-                            _limit = _lb + 14 + 10
-                            _bars5 = self._client.get_klines(sym, "5m", limit=_limit)
-                            if len(_bars5) >= _lb + 14 + 5:
-                                _cls5 = [b["close"]  for b in _bars5]
-                                _vls5 = [b["volume"] for b in _bars5]
-                                _rsi_bull, _rsi_bear, _rsi_vol_ok = detect_rsi_divergence(
-                                    _cls5, _vls5,
-                                    lookback       = _lb,
-                                    price_min_diff = self._params.m4_rsi_price_diff,
-                                    rsi_min_diff   = self._params.m4_rsi_rsi_diff,
-                                    vol_mult       = self._params.m4_rsi_vol_mult,
-                                    oversold_th    = self._params.m4_rsi_oversold,
-                                    overbought_th  = self._params.m4_rsi_overbought,
-                                )
-                        ind["rsi_div_bull"]   = _rsi_bull
-                        ind["rsi_div_bear"]   = _rsi_bear
-                        ind["rsi_div_vol_ok"] = _rsi_vol_ok
+                        # G1 Stoch RSI 다이버전스 → data_manager 계산 결과 주입 (REST API 추가 호출 제거)
+                        ind["rsi_div_bull"]   = (ind.get("tf5", {}).get("div") == "bull")
+                        ind["rsi_div_bear"]   = (ind.get("tf5", {}).get("div") == "bear")
+                        ind["rsi_div_vol_ok"] = True  # G5 거래량 배수 필터에서 별도 체크
 
                         # G2 15m RSI 50 레벨 계산 → ind에 주입 (BT와 동일 19봉 슬라이스)
                         _tf15_rsi = 50.0
