@@ -302,14 +302,7 @@ class BacktestRunner:
 
             # ── [P3] 1h 기준 ATR% bisect 조회 ──────────────────────
             pos_1h  = max(0, bisect.bisect_right(times_1h, t) - 1) if times_1h else 0
-            atr_pct = atr_pct_1h[pos_1h] if (times_1h and pos_1h < len(atr_pct_1h)) else 0.0
-            atr_ok  = max(cfg.atr_min, sl_used / 2.0) <= atr_pct <= cfg.atr_max
-
-            # ── [P6] 1m 기준 volume_ratio 직접 조회 ─────────────────
-            vol_ok = True
-            if cfg.volume_mult is not None and vol_ratio_1m:
-                vr     = vol_ratio_1m[i] if i < len(vol_ratio_1m) else 1.0
-                vol_ok = vr >= cfg.volume_mult
+            atr_pct = atr_pct_1h[pos_1h] if (times_1h and pos_1h < len(atr_pct_1h)) else 2.0
 
             # ── [FR] common_fr 펀딩비 진입 차단 판정 ─────────────────
             fr_ok_long  = True

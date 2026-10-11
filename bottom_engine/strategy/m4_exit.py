@@ -108,8 +108,8 @@ def _eval_long(
         # [A-4] Phase1→2: bar.high ≥ entry+R
         new_phase = 2 if (R > 0 and hi >= entry + R) else 1
         new_sl    = entry if new_phase == 2 else sl_p1
-        # [A-5] K80 하향 돌파 익절
-        if k_prev >= 80.0 and k_cur < 80.0:
+        # [A-5] K80 하향 돌파 익절 (Phase2 전환 없을 때만 — BEP 보호 우선)
+        if new_phase == 1 and k_prev >= 80.0 and k_cur < 80.0:
             return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=1.0, new_phase=1)
         return ExitDecision(new_phase=new_phase, new_sl=new_sl)
 
@@ -173,8 +173,8 @@ def _eval_short(
         # [A-4] Phase1→2: bar.low ≤ entry−R
         new_phase = 2 if (R > 0 and lo <= entry - R) else 1
         new_sl    = entry if new_phase == 2 else sl_p1
-        # [A-5] K20 상향 돌파 익절
-        if k_prev <= 20.0 and k_cur > 20.0:
+        # [A-5] K20 상향 돌파 익절 (Phase2 전환 없을 때만 — BEP 보호 우선)
+        if new_phase == 1 and k_prev <= 20.0 and k_cur > 20.0:
             return ExitDecision(reason="KD-EXIT", exit_price=close, qty_ratio=1.0, new_phase=1)
         return ExitDecision(new_phase=new_phase, new_sl=new_sl)
 
