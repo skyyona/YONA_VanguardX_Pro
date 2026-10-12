@@ -66,6 +66,7 @@ class StrategyParams:
     portfolio_usdt: float            = 1000.0 # [B-1] 백테스트 기준 자본금 (실잔고 주입)
     mmr:            float            = 0.004  # [C-2] 유지증거금률 — liq_safe 산출용 (실거래 get_mmr 주입)
     m4_rsi_vol_mult:   float         = 1.5    # G1 거래량 확인 배수 (진입봉 vol ≥ avg × mult)
+    phase1_timeout_bars: int         = 0      # Phase1 Time-out (5m봉 수, 0=비활성)
 
     @classmethod
     def from_applied_params(cls, d: dict, sort_mode: str = "24h Ticker") -> "StrategyParams":
@@ -78,6 +79,7 @@ class StrategyParams:
         p.prohibition    = ProhibitionFlags.from_dict(d.get("prohibited", {}))
         p.use_macro      = bool(d.get("use_macro", True))
         p.m4_rsi_vol_mult    = float(d.get("m4_rsi_vol_mult", 1.5))
+        p.phase1_timeout_bars = int(d.get("phase1_timeout_bars", 0))
         return p
 
 
@@ -171,4 +173,7 @@ class BacktestResult:
     avg_loss:     float     = 0.0    # %
     trades:       list[BacktestTrade] = field(default_factory=list)
     long_ratio_coverage: float = 0.0
+    # ── 아래 2개: 스윕 집계용 1R 단일 소스 (BacktestRunner.run 이 주입) ──
+    l_eff:     float = 0.0   # 유효 레버리지 — R-cap(8%) 반영 후 실제 적용값
+    one_r_pct: float = 0.0   # 1R (%) = sl_used × l_eff. 0.0 = 미산출(데이터 부족 조기 반환)
 

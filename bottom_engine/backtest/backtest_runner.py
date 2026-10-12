@@ -440,6 +440,29 @@ class BacktestRunner:
                         continue
 
                 else:  # CURRENT exit_variant — M4Exit 공통 판정
+                    # Phase1 Time-out: N봉 초과 시 close 가격으로 전량 청산
+                    if (phase == 1 and params.phase1_timeout_bars > 0
+                            and bars_held >= params.phase1_timeout_bars):
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (close - entry_price) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(
+                            params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="long", entry_price=entry_price, exit_price=close,
+                            pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val,
+                            exit_reason="TIMEOUT", qty_ratio=1.0,
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val
+                        if pnl < 0:
+                            _consecutive_losses += 1
+                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
+                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
+                                _consecutive_losses = 0
+                        else:
+                            _consecutive_losses = 0
+                        in_long = False; phase = 1; trail_ref = 0.0; profit_trigger_long = 0.0
+                        continue
                     dec = M4Exit.evaluate(
                         side="LONG",
                         phase=phase,
@@ -574,6 +597,29 @@ class BacktestRunner:
                         continue
 
                 else:  # CURRENT exit_variant — M4Exit 공통 판정
+                    # Phase1 Time-out: N봉 초과 시 close 가격으로 전량 청산
+                    if (phase == 1 and params.phase1_timeout_bars > 0
+                            and bars_held >= params.phase1_timeout_bars):
+                        cost = cls._cost(_leff, bars_held)
+                        pnl  = (entry_price - close) / entry_price * 100.0 * _leff - cost
+                        _pnl_usdt_val = round(
+                            params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
+                        trades.append(BacktestTrade(
+                            entry_time=entry_time, exit_time=bar.close_time,
+                            side="short", entry_price=entry_price, exit_price=close,
+                            pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val,
+                            exit_reason="TIMEOUT", qty_ratio=1.0,
+                        ))
+                        _daily_pnl_usdt += _pnl_usdt_val
+                        if pnl < 0:
+                            _consecutive_losses += 1
+                            if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
+                                _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
+                                _consecutive_losses = 0
+                        else:
+                            _consecutive_losses = 0
+                        in_short = False; phase = 1; trail_ref = 0.0; profit_trigger_short = 0.0
+                        continue
                     dec = M4Exit.evaluate(
                         side="SHORT",
                         phase=phase,
@@ -811,6 +857,8 @@ class BacktestRunner:
 
         from bottom_engine.backtest.result_summary import ResultSummary
         result = ResultSummary.build(symbol, params.sort_mode, period_days, trades)
+        result.l_eff     = _leff
+        result.one_r_pct = sl_used * _leff
         if params.prohibition.common_liq and _lr_times:
             _bt_start    = bars_1m[_WARMUP_1M].open_time
             _bt_end      = bars_1m[-1].open_time
