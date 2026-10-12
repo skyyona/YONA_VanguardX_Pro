@@ -1,8 +1,8 @@
 """
 SL 확장 sweep — 150심볼 × 4조합 × 180일
-_strategy.json "24h Ticker" 실거래 기준(leverage=10) SL/trail 최적 조합 탐색
+_strategy.json "24h Ticker" 실거래 기준(leverage=20) SL/trail 최적 조합 탐색
 trail=0.4 고정 (선행 탐색에서 trail=0.4가 모든 SL 구간에서 최우수)
-현재 실거래 파라미터(SL=1.8%, trail=0.7%)가 기준선으로 포함됨
+현재 실거래 파라미터(SL=2.9%, trail=1.2%)가 기준선으로 포함됨
 
 체크포인트 지원: 중단 후 재실행 시 완료된 심볼 자동 스킵
   checkpoint: sl_trail_sweep_180d_checkpoint.json (자동 관리, 전체 완료 시 삭제)
@@ -25,63 +25,18 @@ sys.path.insert(0, str(_ROOT))
 
 from bottom_engine.backtest.backtest_runner import BacktestRunner
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
-from bottom_engine.engine_core.sl_calculator import SLCalculator
-from bottom_engine.models import StrategyParams, ProhibitionFlags
 from bottom_engine.constants import _NEW_DAYS_MIN
+from bottom_engine.sweep import SweepBucket, assert_sl_is_one_r
+from bottom_engine.sweep.base_params import load_symbols, make_base_params
 
-SYMBOLS = [
-    "BTCUSDT", "ETHUSDT", "SOLUSDT", "ZECUSDT", "XRPUSDT",
-    "RLCUSDT", "NEARUSDT", "DOGEUSDT", "HYPEUSDT", "BRUSDT",
-    "ORCAUSDT", "NMRUSDT", "SUIUSDT", "BNBUSDT", "UNIUSDT",
-    "PUMPUSDT", "ADAUSDT", "QNTUSDT", "AVAXUSDT", "WLDUSDT",
-    "ENAUSDT", "SANDUSDT", "TAOUSDT", "1000PEPEUSDT", "CAPUSDT",
-    "FILUSDT", "AAVEUSDT", "ONDOUSDT", "LINKUSDT", "USUSDT",
-    "GTCUSDT", "TRUMPUSDT", "INJUSDT", "ARBUSDT", "PENGUUSDT",
-    "ZROUSDT", "MINAUSDT", "LTCUSDT", "API3USDT", "ASTERUSDT",
-    "FETUSDT", "DOTUSDT", "GRIFFAINUSDT", "BCHUSDT", "PAXGUSDT",
-    "XLMUSDT", "APTUSDT", "MOVRUSDT", "LITUSDT", "ETHFIUSDT",
-    "TRBUSDT", "PROMUSDT", "TIAUSDT", "RENDERUSDT", "LYNUSDT",
-    "RAYSOLUSDT", "XAUTUSDT", "BTWUSDT", "1000SHIBUSDT", "HBARUSDT",
-    "XPLUSDT", "DASHUSDT", "MONUSDT", "OPUSDT", "ICPUSDT",
-    "AINUSDT", "TRXUSDT", "XMRUSDT", "PARTIUSDT", "METUSDT",
-    "VIRTUALUSDT", "JUPUSDT", "NILUSDT", "MUBARAKUSDT", "EDUUSDT",
-    "USELESSUSDT", "STRKUSDT", "ETCUSDT", "FARTCOINUSDT", "MAGICUSDT",
-    "CRVUSDT", "C98USDT", "VVVUSDT", "JTOUSDT", "GRASSUSDT",
-    "AEROUSDT", "PENDLEUSDT", "1000BONKUSDT", "LDOUSDT", "VTHOUSDT",
-    "ACEUSDT", "SEIUSDT", "POLUSDT", "WLFIUSDT", "STXUSDT",
-    "SYNUSDT", "RESOLVUSDT", "AKEUSDT", "WIFUSDT", "AXSUSDT",
-    "CHIPUSDT", "LSKUSDT", "NIGHTUSDT", "ORDIUSDT", "GRAMUSDT",
-    "ATOMUSDT", "BULLAUSDT", "ONEUSDT", "ARUSDT", "SKYUSDT",
-    "PYTHUSDT", "MANAUSDT", "HEMIUSDT", "GALAUSDT", "BOMEUSDT",
-    "UMAUSDT", "ARKUSDT", "ALGOUSDT", "MAGMAUSDT", "ZAMAUSDT",
-    "EIGENUSDT", "FLUXUSDT", "OGNUSDT", "SAGAUSDT", "CAKEUSDT",
-    "ZENUSDT", "VELVETUSDT", "LPTUSDT", "HUMAUSDT", "PHAUSDT",
-    "BIOUSDT", "MIRAUSDT", "COTIUSDT", "AIAUSDT", "LABUSDT",
-    "SOONUSDT", "0GUSDT", "ALICEUSDT", "MORPHOUSDT", "1000FLOKIUSDT",
-    "ESPUSDT", "CLOUSDT", "4USDT", "FLUIDUSDT", "DIAUSDT",
-    "2ZUSDT", "ENJUSDT", "RVNUSDT", "CCUSDT", "MYXUSDT",
-]
+SYMBOLS = load_symbols()
 
-BASE_PARAMS = StrategyParams()
-BASE_PARAMS.sort_mode         = "24h Ticker"
-BASE_PARAMS.leverage          = 10
-BASE_PARAMS.use_macro         = False
-BASE_PARAMS.prohibition       = ProhibitionFlags(
-    common_liq=True, common_fr=True, common_new=True, common_hunter=True,
-    long_fomo=True, long_short_open=True, short_accum=True, short_long_open=True,
-)
-BASE_PARAMS.m4_rsi_vol_mult   = 1.5
-
-# (stop_loss%, trail_stop%) — _TRAIL_CAP=0.6 제약 확인
-# liq_safe (leverage=10, mmr=0.4%) = (0.1 - 0.004) × 100 × 0.8 = 7.68% → 모두 통과
-# SL=1.8% → trail_cap=1.08% (trail=0.7 통과)
-# SL=2.5% → trail_cap=1.50% (trail=0.4 통과)
-# SL=3.0% → trail_cap=1.80% (trail=0.4 통과)
-# SL=3.5% → trail_cap=2.10% (trail=0.4 통과)
+# (stop_loss%, trail_stop%) 조합
 SL_TRAIL_COMBOS = [
-    (1.8, 0.7),   # 현재 _strategy.json "24h Ticker" 실거래 파라미터 (기준선)
-    (2.5, 0.4),   # 선행 90일 탐색 EV 양수 확인 (+0.0463R)
-    (3.0, 0.4),   # 선행 90일 탐색 최우수 (+0.1155R)
+    (1.8, 0.7),   # 구 실거래 파라미터 (이전 기준선)
+    (2.5, 0.4),   # 선행 90일 탐색 EV 양수 확인
+    (2.9, 1.2),   # 현재 실거래 파라미터 (기준선)
+    (3.0, 0.4),   # 선행 90일 탐색 최우수
     (3.5, 0.4),   # 추가 탐색
 ]
 
@@ -91,17 +46,8 @@ _PERIOD_DAYS     = 180
 
 
 def _init_buckets(combos: list) -> list:
-    buckets = []
-    for sl, trail in combos:
-        sl_used, trail_used = SLCalculator.clamp(
-            sl, trail, BASE_PARAMS.leverage, mmr=BASE_PARAMS.mmr)
-        buckets.append({
-            "sl_set": sl, "trail_set": trail,
-            "sl_used": sl_used, "trail_used": trail_used,
-            "n": 0.0, "wins": 0.0,
-            "sum_pos_pnl": 0.0, "sum_neg_pnl": 0.0, "sum_ev_r": 0.0,
-        })
-    return buckets
+    return [{"sl_set": sl, "trail_set": trail, "bucket": SweepBucket()}
+            for sl, trail in combos]
 
 
 def _load_checkpoint(combos: list) -> tuple:
@@ -109,29 +55,44 @@ def _load_checkpoint(combos: list) -> tuple:
         return set(), _init_buckets(combos)
     with open(_CHECKPOINT_PATH, encoding="utf-8") as f:
         ckpt = json.load(f)
-    return set(ckpt["completed"]), ckpt["buckets"]
+    first = ckpt["buckets"][0] if ckpt["buckets"] else {}
+    if "sum_pnl" not in first:   # 구 포맷 → 처음부터 다시
+        return set(), _init_buckets(combos)
+    buckets = []
+    for d, (sl, trail) in zip(ckpt["buckets"], combos):
+        bkt = SweepBucket(
+            n=d["n"], wins=d["wins"], sum_pnl=d["sum_pnl"],
+            sum_pos_pnl=d["sum_pos_pnl"], sum_neg_pnl=d["sum_neg_pnl"],
+            one_r_pct=d["one_r_pct"],
+        )
+        buckets.append({"sl_set": sl, "trail_set": trail, "bucket": bkt})
+    return set(ckpt["completed"]), buckets
 
 
 def _save_checkpoint(completed: set, buckets: list) -> None:
+    serializable = [
+        {"sl_set": b["sl_set"], "trail_set": b["trail_set"],
+         **dataclasses.asdict(b["bucket"])}
+        for b in buckets
+    ]
     with open(_CHECKPOINT_PATH, "w", encoding="utf-8") as f:
-        json.dump({"completed": list(completed), "buckets": buckets},
+        json.dump({"completed": list(completed), "buckets": serializable},
                   f, ensure_ascii=False)
 
 
 def _finalize(buckets: list) -> list:
     results = []
-    for bkt in buckets:
-        n = bkt["n"]
+    for b in buckets:
+        s = b["bucket"].summary()
         results.append({
-            "sl_set":    bkt["sl_set"],
-            "trail_set": bkt["trail_set"],
-            "sl_used":   bkt["sl_used"],
-            "trail_used": bkt["trail_used"],
-            "n":   n,
-            "wr":  (bkt["wins"] / n * 100.0) if n > 0 else 0.0,
-            "ev_r": (bkt["sum_ev_r"] / n)     if n > 0 else 0.0,
-            "pf":  (bkt["sum_pos_pnl"] / bkt["sum_neg_pnl"]
-                    if bkt["sum_neg_pnl"] > 0 else 0.0),
+            "sl_set":    b["sl_set"],
+            "trail_set": b["trail_set"],
+            "one_r_pct": s["one_r_pct"],
+            "n":         s["n"],
+            "wr":        s["wr"],
+            "ev_r":      s["ev_r"],
+            "pf":        s["pf"],
+            "pf_ci":     s["pf_ci"],
         })
     return sorted(results, key=lambda r: r["ev_r"], reverse=True)
 
@@ -141,7 +102,7 @@ def main():
     completed, buckets = _load_checkpoint(combos)
 
     print(f"[SL 확장 sweep] {len(SYMBOLS)}심볼 × {len(combos)}조합 × {PERIOD}")
-    print(f"[고정] leverage=10  m4_rsi_vol_mult=1.5  sort_mode=24h Ticker")
+    print(f"[고정] leverage=20  m4_rsi_vol_mult=1.5  sort_mode=24h Ticker")
     print(f"[조합] SL/trail={[(c[0], c[1]) for c in combos]}")
     if completed:
         print(f"[체크포인트] {len(completed)}/{len(SYMBOLS)} 완료, "
@@ -149,6 +110,7 @@ def main():
     print("-" * 70)
 
     t0 = time.time()
+    _assert_done = False
 
     for sym in SYMBOLS:
         s_idx = SYMBOLS.index(sym)
@@ -169,21 +131,17 @@ def main():
             preloaded["1d"]  = HistoricalDataLoader.load(sym, "1d", _NEW_DAYS_MIN + 5)
 
         for i, (sl, trail) in enumerate(combos):
-            _p = dataclasses.replace(BASE_PARAMS, stop_loss=sl, trail_stop=trail)
+            _p = make_base_params()
+            _p.stop_loss  = sl
+            _p.trail_stop = trail
             res = BacktestRunner.run(sym, _p, PERIOD, preloaded=preloaded,
                                      entry_variant="M4", exit_variant="CURRENT")
-            bkt     = buckets[i]
-            sl_used = bkt["sl_used"]
-            for tr in res.trades:
-                w = tr.qty_ratio
-                bkt["n"] += w
-                r = (tr.pnl_pct / sl_used) if sl_used > 0 else 0.0
-                bkt["sum_ev_r"] += r * w
-                if tr.pnl_pct > 0:
-                    bkt["wins"]        += w
-                    bkt["sum_pos_pnl"] += tr.pnl_pct * w
-                else:
-                    bkt["sum_neg_pnl"] += abs(tr.pnl_pct) * w
+            buckets[i]["bucket"].add(res)
+
+            if not _assert_done and i == 0:
+                ok, msg = assert_sl_is_one_r(res)
+                print(f"  [SL검증] {sym}: {msg}")
+                _assert_done = True
 
         completed.add(sym)
         _save_checkpoint(completed, buckets)
@@ -196,43 +154,47 @@ def main():
 
     baseline = next(
         (r for r in results
-         if abs(r["sl_set"] - 1.8) < 0.01 and abs(r["trail_set"] - 0.7) < 0.01),
+         if abs(r["sl_set"] - 2.9) < 0.01 and abs(r["trail_set"] - 1.2) < 0.01),
         None,
     )
 
     print(f"\n[완료] 소요시간 {elapsed / 60:.1f}분  ({len(completed)}/{len(SYMBOLS)} 심볼)\n")
     if baseline:
         print(
-            f"[기준선] SL={baseline['sl_used']:.1f}% trail={baseline['trail_used']:.1f}% "
+            f"[기준선] SL={baseline['sl_set']:.1f}% trail={baseline['trail_set']:.1f}% "
             f"→ EV={baseline['ev_r']:+.4f}R  PF={baseline['pf']:.3f}  "
-            f"WR={baseline['wr']:.1f}%  N={int(baseline['n'])}"
+            f"WR={baseline['wr']:.1f}%  N={baseline['n']:.0f}  1R={baseline['one_r_pct']:.2f}%"
         )
-    print(f"{'SL%':>5} {'trail%':>7} | {'N':>6} {'WR%':>6} {'EV(R)':>9} {'PF':>6}  비교")
-    print("-" * 70)
+    unavail = "⚠판정불가" if (baseline and baseline["one_r_pct"] <= 0) else ""
+    print(f"{'SL%':>5} {'trail%':>7} {'1R%':>6} | "
+          f"{'N':>6} {'WR%':>6} {'EV(R)':>9} {'PF':>6} {'PF±CI':>8}  비교")
+    print("-" * 80)
 
     for r in results:
         is_baseline = (
-            abs(r["sl_set"] - 1.8) < 0.01 and abs(r["trail_set"] - 0.7) < 0.01)
+            abs(r["sl_set"] - 2.9) < 0.01 and abs(r["trail_set"] - 1.2) < 0.01)
         diff_str = "(기준)" if is_baseline else (
             f"({r['ev_r'] - baseline['ev_r']:+.4f}R)" if baseline else "")
         flag = " ← _strategy.json 실거래" if is_baseline else ""
+        unavail_flag = " ⚠판정불가" if r["one_r_pct"] <= 0 else ""
         print(
-            f"{r['sl_used']:>5.1f} {r['trail_used']:>7.1f} | "
-            f"{int(r['n']):>6} {r['wr']:>6.1f}% {r['ev_r']:>+9.4f} {r['pf']:>6.3f}  "
-            f"{diff_str}{flag}"
+            f"{r['sl_set']:>5.1f} {r['trail_set']:>7.1f} {r['one_r_pct']:>6.2f} | "
+            f"{r['n']:>6.0f} {r['wr']:>6.1f}% {r['ev_r']:>+9.4f} {r['pf']:>6.3f} "
+            f"±{r['pf_ci']:>6.3f}  {diff_str}{flag}{unavail_flag}"
         )
 
     if results:
         best = results[0]
-        print("\n" + "=" * 70)
-        print(f"[최우수 조합] SL={best['sl_used']:.1f}%  trail={best['trail_used']:.1f}%")
+        print("\n" + "=" * 80)
+        print(f"[최우수 조합] SL={best['sl_set']:.1f}%  trail={best['trail_set']:.1f}%"
+              f"  1R={best['one_r_pct']:.2f}%")
         print(
-            f"  N={int(best['n'])}  WR={best['wr']:.1f}%  "
-            f"EV={best['ev_r']:+.4f}R  PF={best['pf']:.3f}"
+            f"  N={best['n']:.0f}  WR={best['wr']:.1f}%  "
+            f"EV={best['ev_r']:+.4f}R  PF={best['pf']:.3f} ±{best['pf_ci']:.3f}"
         )
         if baseline:
             print(f"  기준선 대비: {best['ev_r'] - baseline['ev_r']:+.4f}R")
-        print("=" * 70)
+        print("=" * 80)
 
     out_path = _ROOT / "sl_trail_sweep_180d_result.json"
     with open(out_path, "w", encoding="utf-8") as f:

@@ -23,8 +23,9 @@ sys.path.insert(0, str(_ROOT))
 
 from bottom_engine.backtest.backtest_runner import BacktestRunner
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
-from bottom_engine.models import StrategyParams, ProhibitionFlags
 from bottom_engine.constants import _NEW_DAYS_MIN
+from bottom_engine.sweep import SweepBucket, assert_sl_is_one_r
+from bottom_engine.sweep.base_params import make_base_params
 
 SYMBOLS = [
     "QUSDT", "QNTUSDT", "USUSDT", "BTWUSDT",
@@ -38,34 +39,18 @@ SYMBOLS = [
     "METUSDT", "IOTAUSDT", "TRIAUSDT", "LSKUSDT", "PTBUSDT",
 ]
 
-BASE_PARAMS = StrategyParams()
-BASE_PARAMS.sort_mode         = "24h Ticker"
-BASE_PARAMS.leverage          = 20
-BASE_PARAMS.stop_loss         = 1.3
-BASE_PARAMS.trail_stop        = 0.6
-BASE_PARAMS.use_macro         = False
-BASE_PARAMS.prohibition       = ProhibitionFlags(
-    common_liq=True, common_fr=True, common_new=True, common_hunter=True,
-    long_fomo=True, long_short_open=True, short_accum=True, short_long_open=True,
-)
-BASE_PARAMS.m4_rsi_vol_mult   = 1.5
-
-VOL_MULTS     = (1.5, 2.0)
-PERIOD        = "90일"
-
+VOL_MULTS        = (1.5, 2.0)
+PERIOD           = "90일"
 _CHECKPOINT_PATH = _ROOT / "g1_sweep_checkpoint.json"
-_PERIOD_DAYS     = {"7일": 7, "14일": 14, "30일": 30, "90일": 90}.get(PERIOD, 30)
+_PERIOD_DAYS     = 90
+
+# G1 스윕 고정값 (make_base_params 덮어쓰기)
+_SL    = 1.3
+_TRAIL = 0.6
 
 
 def _init_buckets(combos: list) -> list:
-    return [
-        {
-            "vol_mult": vm,
-            "n": 0.0, "wins": 0.0,
-            "sum_pos_pnl": 0.0, "sum_neg_pnl": 0.0, "sum_ev_r": 0.0,
-        }
-        for (vm,) in combos
-    ]
+    return [{"vol_mult": vm, "bucket": SweepBucket()} for (vm,) in combos]
 
 
 def _load_checkpoint(combos: list) -> tuple:
@@ -73,44 +58,60 @@ def _load_checkpoint(combos: list) -> tuple:
         return set(), _init_buckets(combos)
     with open(_CHECKPOINT_PATH, encoding="utf-8") as f:
         ckpt = json.load(f)
-    return set(ckpt["completed"]), ckpt["buckets"]
+    first = ckpt["buckets"][0] if ckpt["buckets"] else {}
+    if "sum_pnl" not in first:
+        return set(), _init_buckets(combos)
+    buckets = []
+    for d, (vm,) in zip(ckpt["buckets"], combos):
+        bkt = SweepBucket(
+            n=d["n"], wins=d["wins"], sum_pnl=d["sum_pnl"],
+            sum_pos_pnl=d["sum_pos_pnl"], sum_neg_pnl=d["sum_neg_pnl"],
+            one_r_pct=d["one_r_pct"],
+        )
+        buckets.append({"vol_mult": vm, "bucket": bkt})
+    return set(ckpt["completed"]), buckets
 
 
 def _save_checkpoint(completed: set, buckets: list) -> None:
+    serializable = [
+        {"vol_mult": b["vol_mult"], **dataclasses.asdict(b["bucket"])}
+        for b in buckets
+    ]
     with open(_CHECKPOINT_PATH, "w", encoding="utf-8") as f:
-        json.dump({"completed": list(completed), "buckets": buckets},
+        json.dump({"completed": list(completed), "buckets": serializable},
                   f, ensure_ascii=False)
 
 
 def _finalize(buckets: list) -> list:
     results = []
-    for bkt in buckets:
-        n = bkt["n"]
+    for b in buckets:
+        s = b["bucket"].summary()
         results.append({
-            "vol_mult": bkt["vol_mult"],
-            "n":    n,
-            "wr":   (bkt["wins"] / n * 100.0) if n > 0 else 0.0,
-            "ev_r": (bkt["sum_ev_r"] / n)      if n > 0 else 0.0,
-            "pf":   (bkt["sum_pos_pnl"] / bkt["sum_neg_pnl"]
-                     if bkt["sum_neg_pnl"] > 0 else 0.0),
+            "vol_mult":  b["vol_mult"],
+            "one_r_pct": s["one_r_pct"],
+            "n":         s["n"],
+            "wr":        s["wr"],
+            "ev_r":      s["ev_r"],
+            "pf":        s["pf"],
+            "pf_ci":     s["pf_ci"],
         })
     return sorted(results, key=lambda r: r["ev_r"], reverse=True)
 
 
 def main():
     combos = [(vm,) for vm in VOL_MULTS]
-
     completed, buckets = _load_checkpoint(combos)
-    sl_pct = BASE_PARAMS.stop_loss
 
     print(f"[G1 보완 sweep] {len(SYMBOLS)}심볼 × {len(combos)}조합 × {PERIOD}")
     print(f"[변동] vol_mult={VOL_MULTS}")
-    print(f"[파라미터] leverage={BASE_PARAMS.leverage}  SL={sl_pct}%  trail={BASE_PARAMS.trail_stop}%  use_macro={BASE_PARAMS.use_macro}")
+    print(f"[파라미터] leverage=20  SL={_SL}%  trail={_TRAIL}%  use_macro=False")
     if completed:
-        print(f"[체크포인트] {len(completed)}/{len(SYMBOLS)} 완료, {len(SYMBOLS)-len(completed)}개 이어서 실행")
+        print(f"[체크포인트] {len(completed)}/{len(SYMBOLS)} 완료, "
+              f"{len(SYMBOLS)-len(completed)}개 이어서 실행")
     print("-" * 70)
 
     t0 = time.time()
+    _assert_done = False
 
     for sym in SYMBOLS:
         s_idx = SYMBOLS.index(sym)
@@ -126,27 +127,23 @@ def main():
         else:
             print(f"  [{s_idx+1}/{len(SYMBOLS)}] {sym} API 로딩중...", flush=True)
             preloaded = BacktestRunner.load_tf_bars(sym, PERIOD)
-            if BASE_PARAMS.prohibition.common_fr or BASE_PARAMS.prohibition.common_liq:
-                preloaded["fr"] = HistoricalDataLoader.load_funding_rate(sym)
-            if BASE_PARAMS.prohibition.common_liq:
-                preloaded["liq"] = HistoricalDataLoader.load_long_short_ratio(sym, _PERIOD_DAYS)
-            preloaded["1d"] = HistoricalDataLoader.load(sym, "1d", _NEW_DAYS_MIN + 5)
+            preloaded["fr"]  = HistoricalDataLoader.load_funding_rate(sym)
+            preloaded["liq"] = HistoricalDataLoader.load_long_short_ratio(sym, _PERIOD_DAYS)
+            preloaded["1d"]  = HistoricalDataLoader.load(sym, "1d", _NEW_DAYS_MIN + 5)
 
         for i, (vm,) in enumerate(combos):
-            _p = dataclasses.replace(BASE_PARAMS, m4_rsi_vol_mult=vm)
+            _p = make_base_params()
+            _p.stop_loss        = _SL
+            _p.trail_stop       = _TRAIL
+            _p.m4_rsi_vol_mult  = vm
             res = BacktestRunner.run(sym, _p, PERIOD, preloaded=preloaded,
                                      entry_variant="M4", exit_variant="CURRENT")
-            bkt = buckets[i]
-            for t in res.trades:
-                w = t.qty_ratio
-                bkt["n"] += w
-                r = (t.pnl_pct / sl_pct) if sl_pct > 0 else 0.0
-                bkt["sum_ev_r"] += r * w
-                if t.pnl_pct > 0:
-                    bkt["wins"]        += w
-                    bkt["sum_pos_pnl"] += t.pnl_pct * w
-                else:
-                    bkt["sum_neg_pnl"] += abs(t.pnl_pct) * w
+            buckets[i]["bucket"].add(res)
+
+            if not _assert_done and i == 0:
+                ok, msg = assert_sl_is_one_r(res)
+                print(f"  [SL검증] {sym}: {msg}")
+                _assert_done = True
 
         completed.add(sym)
         _save_checkpoint(completed, buckets)
@@ -157,36 +154,37 @@ def main():
     if _CHECKPOINT_PATH.exists():
         _CHECKPOINT_PATH.unlink()
 
-    baseline = next(
-        (r for r in results if abs(r["vol_mult"] - 1.5) < 0.01),
-        None,
-    )
+    baseline = next((r for r in results if abs(r["vol_mult"] - 1.5) < 0.01), None)
 
     print(f"\n[완료] 소요시간 {elapsed/60:.1f}분  ({len(completed)}/{len(SYMBOLS)} 심볼)\n")
     if baseline:
-        print(f"[기준선] vol=1.5 → EV={baseline['ev_r']:+.4f}R  PF={baseline['pf']:.3f}  WR={baseline['wr']:.1f}%  N={int(baseline['n'])}")
-    print(f"{'vol_mult':>9} | {'N':>6} {'WR%':>6} {'EV(R)':>9} {'PF':>6}  비교")
-    print("-" * 55)
+        print(f"[기준선] vol=1.5 → EV={baseline['ev_r']:+.4f}R  PF={baseline['pf']:.3f}  "
+              f"WR={baseline['wr']:.1f}%  N={baseline['n']:.0f}  1R={baseline['one_r_pct']:.2f}%")
+    print(f"{'vol_mult':>9} {'1R%':>6} | "
+          f"{'N':>6} {'WR%':>6} {'EV(R)':>9} {'PF':>6} {'PF±CI':>8}  비교")
+    print("-" * 65)
 
     for r in results:
         is_baseline = abs(r["vol_mult"] - 1.5) < 0.01
         flag     = " ← 현재기본값" if is_baseline else ""
         diff_str = "(기준)" if is_baseline else (
-            f"({r['ev_r'] - baseline['ev_r']:+.4f}R)" if baseline else ""
-        )
+            f"({r['ev_r'] - baseline['ev_r']:+.4f}R)" if baseline else "")
+        unavail_flag = " ⚠판정불가" if r["one_r_pct"] <= 0 else ""
         print(
-            f"{r['vol_mult']:>9.1f} | "
-            f"{int(r['n']):>6} {r['wr']:>6.1f}% {r['ev_r']:>+9.4f} {r['pf']:>6.3f}  {diff_str}{flag}"
+            f"{r['vol_mult']:>9.1f} {r['one_r_pct']:>6.2f} | "
+            f"{r['n']:>6.0f} {r['wr']:>6.1f}% {r['ev_r']:>+9.4f} {r['pf']:>6.3f} "
+            f"±{r['pf_ci']:>6.3f}  {diff_str}{flag}{unavail_flag}"
         )
 
     if results:
         best = results[0]
-        print("\n" + "=" * 55)
-        print(f"[최우수 조합] vol_mult={best['vol_mult']:.1f}")
-        print(f"  N={int(best['n'])}  WR={best['wr']:.1f}%  EV={best['ev_r']:+.4f}R  PF={best['pf']:.3f}")
+        print("\n" + "=" * 65)
+        print(f"[최우수 조합] vol_mult={best['vol_mult']:.1f}  1R={best['one_r_pct']:.2f}%")
+        print(f"  N={best['n']:.0f}  WR={best['wr']:.1f}%  "
+              f"EV={best['ev_r']:+.4f}R  PF={best['pf']:.3f} ±{best['pf_ci']:.3f}")
         if baseline:
             print(f"  기준선 대비: {best['ev_r'] - baseline['ev_r']:+.4f}R")
-        print("=" * 55)
+        print("=" * 65)
 
     out_path = _ROOT / "g1_sweep_supplement_result.json"
     with open(out_path, "w", encoding="utf-8") as f:

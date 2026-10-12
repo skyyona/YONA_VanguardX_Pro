@@ -20,45 +20,19 @@ sys.path.insert(0, str(_ROOT))
 
 from bottom_engine.backtest.backtest_runner import BacktestRunner
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
-from bottom_engine.engine_core.sl_calculator import SLCalculator
-from bottom_engine.models import StrategyParams, ProhibitionFlags
+from bottom_engine.models import ProhibitionFlags
 from bottom_engine.constants import _NEW_DAYS_MIN
+from bottom_engine.sweep import SweepBucket, assert_sl_is_one_r
+from bottom_engine.sweep.base_params import load_symbols, make_base_params
 
-SYMBOLS = [
-    "BTCUSDT", "ETHUSDT", "SOLUSDT", "ZECUSDT", "XRPUSDT",
-    "RLCUSDT", "NEARUSDT", "DOGEUSDT", "HYPEUSDT", "BRUSDT",
-    "ORCAUSDT", "NMRUSDT", "SUIUSDT", "BNBUSDT", "UNIUSDT",
-    "PUMPUSDT", "ADAUSDT", "QNTUSDT", "AVAXUSDT", "WLDUSDT",
-    "ENAUSDT", "SANDUSDT", "TAOUSDT", "1000PEPEUSDT", "CAPUSDT",
-    "FILUSDT", "AAVEUSDT", "ONDOUSDT", "LINKUSDT", "USUSDT",
-    "GTCUSDT", "TRUMPUSDT", "INJUSDT", "ARBUSDT", "PENGUUSDT",
-    "ZROUSDT", "MINAUSDT", "LTCUSDT", "API3USDT", "ASTERUSDT",
-    "FETUSDT", "DOTUSDT", "GRIFFAINUSDT", "BCHUSDT", "PAXGUSDT",
-    "XLMUSDT", "APTUSDT", "MOVRUSDT", "LITUSDT", "ETHFIUSDT",
-    "TRBUSDT", "PROMUSDT", "TIAUSDT", "RENDERUSDT", "LYNUSDT",
-    "RAYSOLUSDT", "XAUTUSDT", "BTWUSDT", "1000SHIBUSDT", "HBARUSDT",
-    "XPLUSDT", "DASHUSDT", "MONUSDT", "OPUSDT", "ICPUSDT",
-    "AINUSDT", "TRXUSDT", "XMRUSDT", "PARTIUSDT", "METUSDT",
-    "VIRTUALUSDT", "JUPUSDT", "NILUSDT", "MUBARAKUSDT", "EDUUSDT",
-    "USELESSUSDT", "STRKUSDT", "ETCUSDT", "FARTCOINUSDT", "MAGICUSDT",
-    "CRVUSDT", "C98USDT", "VVVUSDT", "JTOUSDT", "GRASSUSDT",
-    "AEROUSDT", "PENDLEUSDT", "1000BONKUSDT", "LDOUSDT", "VTHOUSDT",
-    "ACEUSDT", "SEIUSDT", "POLUSDT", "WLFIUSDT", "STXUSDT",
-    "SYNUSDT", "RESOLVUSDT", "AKEUSDT", "WIFUSDT", "AXSUSDT",
-    "CHIPUSDT", "LSKUSDT", "NIGHTUSDT", "ORDIUSDT", "GRAMUSDT",
-    "ATOMUSDT", "BULLAUSDT", "ONEUSDT", "ARUSDT", "SKYUSDT",
-    "PYTHUSDT", "MANAUSDT", "HEMIUSDT", "GALAUSDT", "BOMEUSDT",
-    "UMAUSDT", "ARKUSDT", "ALGOUSDT", "MAGMAUSDT", "ZAMAUSDT",
-    "EIGENUSDT", "FLUXUSDT", "OGNUSDT", "SAGAUSDT", "CAKEUSDT",
-    "ZENUSDT", "VELVETUSDT", "LPTUSDT", "HUMAUSDT", "PHAUSDT",
-    "BIOUSDT", "MIRAUSDT", "COTIUSDT", "AIAUSDT", "LABUSDT",
-    "SOONUSDT", "0GUSDT", "ALICEUSDT", "MORPHOUSDT", "1000FLOKIUSDT",
-    "ESPUSDT", "CLOUSDT", "4USDT", "FLUIDUSDT", "DIAUSDT",
-    "2ZUSDT", "ENJUSDT", "RVNUSDT", "CCUSDT", "MYXUSDT",
-]
+SYMBOLS = load_symbols()
 
 PERIOD       = "90일"
 _PERIOD_DAYS = 90
+
+# common_liq sweep 고정값 (make_base_params 덮어쓰기)
+_SL    = 3.0
+_TRAIL = 0.4
 
 COMBOS = [
     (True,  "common_liq=ON  (G8 기준선)"),
@@ -66,18 +40,11 @@ COMBOS = [
 ]
 
 
-def _init_bucket() -> dict:
-    return {"n": 0.0, "wins": 0.0, "sum_pos_pnl": 0.0, "sum_neg_pnl": 0.0, "sum_ev_r": 0.0}
-
-
-def _make_params(common_liq_flag: bool) -> StrategyParams:
-    p = StrategyParams()
-    p.sort_mode         = "24h Ticker"
-    p.leverage          = 20
-    p.stop_loss         = 3.0
-    p.trail_stop        = 0.4
-    p.use_macro         = False
-    p.prohibition       = ProhibitionFlags(
+def _make_params(common_liq_flag: bool):
+    p = make_base_params()
+    p.stop_loss   = _SL
+    p.trail_stop  = _TRAIL
+    p.prohibition = ProhibitionFlags(
         common_liq    = common_liq_flag,
         common_fr     = True,
         common_new    = True,
@@ -87,38 +54,28 @@ def _make_params(common_liq_flag: bool) -> StrategyParams:
         short_accum      = True,
         short_long_open  = True,
     )
-    p.m4_rsi_vol_mult   = 1.5
     return p
 
 
-def _run_all_symbols(common_liq_flag: bool, preloaded_cache: dict) -> dict:
+def _run_all_symbols(common_liq_flag: bool, preloaded_cache: dict) -> SweepBucket:
     params = _make_params(common_liq_flag)
-    bkt = _init_bucket()
-    sl_used, _ = SLCalculator.clamp(
-        params.stop_loss, params.trail_stop,
-        params.leverage, mmr=params.mmr)
-
+    bkt = SweepBucket()
+    _assert_done = False
     for sym in SYMBOLS:
-        preloaded = preloaded_cache[sym]
-        res = BacktestRunner.run(sym, params, PERIOD, preloaded=preloaded,
+        res = BacktestRunner.run(sym, params, PERIOD,
+                                 preloaded=preloaded_cache[sym],
                                  entry_variant="M4", exit_variant="CURRENT")
-        for tr in res.trades:
-            w = tr.qty_ratio
-            bkt["n"] += w
-            r = (tr.pnl_pct / sl_used) if sl_used > 0 else 0.0
-            bkt["sum_ev_r"] += r * w
-            if tr.pnl_pct > 0:
-                bkt["wins"]        += w
-                bkt["sum_pos_pnl"] += tr.pnl_pct * w
-            else:
-                bkt["sum_neg_pnl"] += abs(tr.pnl_pct) * w
-
+        bkt.add(res)
+        if not _assert_done:
+            ok, msg = assert_sl_is_one_r(res)
+            print(f"  [SL검증] {sym}: {msg}")
+            _assert_done = True
     return bkt
 
 
 def main():
     print(f"[common_liq sweep] {len(SYMBOLS)}심볼 × 2조합 × {PERIOD}")
-    print(f"[고정] leverage=20  SL=3.0%  trail=0.4%  price_diff=0.3")
+    print(f"[고정] leverage=20  SL={_SL}%  trail={_TRAIL}%")
     print("-" * 70)
 
     t0 = time.time()
@@ -141,16 +98,18 @@ def main():
     for liq_flag, label in COMBOS:
         t1 = time.time()
         bkt = _run_all_symbols(liq_flag, preloaded_cache)
-        n = bkt["n"]
-        ev = (bkt["sum_ev_r"] / n) if n > 0 else 0.0
-        wr = (bkt["wins"] / n * 100.0) if n > 0 else 0.0
-        pf = (bkt["sum_pos_pnl"] / bkt["sum_neg_pnl"]
-              if bkt["sum_neg_pnl"] > 0 else 0.0)
-        results.append({"label": label, "common_liq": liq_flag,
-                        "n": int(n), "wr": wr, "ev_r": ev, "pf": pf})
+        s = bkt.summary()
+        results.append({
+            "label": label, "common_liq": liq_flag,
+            "one_r_pct": s["one_r_pct"],
+            "n": s["n"], "wr": s["wr"], "ev_r": s["ev_r"],
+            "pf": s["pf"], "pf_ci": s["pf_ci"],
+        })
+        unavail = " ⚠판정불가" if s["one_r_pct"] <= 0 else ""
         print(f"  {label}")
-        print(f"    N={int(n)}  WR={wr:.1f}%  EV={ev:+.4f}R  PF={pf:.3f}"
-              f"  ({time.time()-t1:.1f}초)\n")
+        print(f"    N={s['n']:.0f}  WR={s['wr']:.1f}%  EV={s['ev_r']:+.4f}R  "
+              f"PF={s['pf']:.3f} ±{s['pf_ci']:.3f}  1R={s['one_r_pct']:.2f}%"
+              f"{unavail}  ({time.time()-t1:.1f}초)\n")
 
     elapsed = time.time() - t0
     baseline = results[0]
@@ -158,14 +117,16 @@ def main():
 
     print("=" * 70)
     print(f"[결과 비교]  (소요시간 {elapsed/60:.1f}분)")
-    print(f"{'조합':<42} {'N':>6} {'WR%':>6} {'EV(R)':>9} {'PF':>6}  diff")
-    print("-" * 70)
+    print(f"{'조합':<42} {'N':>6} {'WR%':>6} {'EV(R)':>9} {'PF':>6} {'PF±CI':>8}  diff")
+    print("-" * 80)
     for r in results:
         diff = "" if r is baseline else f"({r['ev_r'] - baseline['ev_r']:+.4f}R)"
         flag = " ← 기준선" if r is baseline else ""
         state = "ON " if r["common_liq"] else "OFF"
+        unavail = " ⚠판정불가" if r["one_r_pct"] <= 0 else ""
         print(f"  {state}   {r['label'][13:]:<36}"
-              f"{r['n']:>6} {r['wr']:>6.1f}% {r['ev_r']:>+9.4f} {r['pf']:>6.3f}  {diff}{flag}")
+              f"{r['n']:>6.0f} {r['wr']:>6.1f}% {r['ev_r']:>+9.4f} {r['pf']:>6.3f} "
+              f"±{r['pf_ci']:>6.3f}  {diff}{flag}{unavail}")
     print(f"\n[최우수] {best['label']}  EV={best['ev_r']:+.4f}R")
     print("=" * 70)
 

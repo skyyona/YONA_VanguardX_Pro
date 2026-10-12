@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from bottom_engine.models import StrategyParams
+from bottom_engine.models import StrategyParams, ProhibitionFlags
 
 PERIOD = "90일"
 
@@ -33,4 +33,14 @@ def make_base_params() -> StrategyParams:
     p.trail_stop        = 1.2
     p.use_macro         = False
     p.m4_rsi_vol_mult   = 1.5
+    p.prohibition       = ProhibitionFlags(
+        common_liq    = True,
+        common_fr     = True,
+        common_new    = True,
+        common_hunter = True,
+        long_fomo     = True,
+        long_short_open  = True,
+        short_accum      = True,
+        short_long_open  = True,
+    )
     return p
