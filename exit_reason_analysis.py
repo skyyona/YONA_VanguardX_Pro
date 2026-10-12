@@ -1,7 +1,7 @@
 """
-exit_reason_analysis.py — 150심볼 × 90일 exit_reason 분포 분석
+exit_reason_analysis.py — 150심볼 × 180일 exit_reason 분포 분석
 
-현재 24h Ticker 파라미터(SL=4.0%, trail=1.9%, lev=10, price_diff=0.1) 기준으로
+_strategy.json "24h Ticker" 실거래 파라미터(SL=1.8%, trail=0.7%, lev=10) 기준으로
 Phase 작동 여부 확인: KD-EXIT / PARTIAL / TRAIL / SL / BEP-SL 비율 출력
 
 실행 (프로젝트 루트에서):
@@ -64,8 +64,8 @@ def _make_params() -> StrategyParams:
     p = StrategyParams()
     p.sort_mode         = "24h Ticker"
     p.leverage          = 10
-    p.stop_loss         = 4.0
-    p.trail_stop        = 1.9
+    p.stop_loss         = 1.8
+    p.trail_stop        = 0.7
     p.use_macro         = False
     p.prohibition       = ProhibitionFlags(
         common_liq    = True,

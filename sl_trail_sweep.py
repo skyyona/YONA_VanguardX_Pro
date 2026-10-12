@@ -1,13 +1,13 @@
 """
-SL 확장 sweep — 44심볼 × 3조합 × 90일
-현재 확정 파라미터(price_diff=0.3) 기준으로 SL=2.0/2.5/3.0 비교
-G1 파라미터 고정: rsi_min_diff=3.0, vol_mult=1.5, lookback=20, price_diff=0.3
-trail=0.4 고정 (SL sweep 선행 결과에서 trail=0.4가 모든 SL 구간에서 최우수)
+SL 확장 sweep — 150심볼 × 4조합 × 180일
+_strategy.json "24h Ticker" 실거래 기준(leverage=10) SL/trail 최적 조합 탐색
+trail=0.4 고정 (선행 탐색에서 trail=0.4가 모든 SL 구간에서 최우수)
+현재 실거래 파라미터(SL=1.8%, trail=0.7%)가 기준선으로 포함됨
 
 체크포인트 지원: 중단 후 재실행 시 완료된 심볼 자동 스킵
-  checkpoint: sl_trail_sweep_checkpoint.json (자동 관리, 전체 완료 시 삭제)
+  checkpoint: sl_trail_sweep_180d_checkpoint.json (자동 관리, 전체 완료 시 삭제)
 
-결과 저장: sl_trail_sweep_result.json (프로젝트 루트)
+결과 저장: sl_trail_sweep_180d_result.json (프로젝트 루트)
 
 실행 (프로젝트 루트에서):
   cd C:/Users/User/YONA_VanguardX_Pro
@@ -30,20 +30,41 @@ from bottom_engine.models import StrategyParams, ProhibitionFlags
 from bottom_engine.constants import _NEW_DAYS_MIN
 
 SYMBOLS = [
-    "QUSDT", "QNTUSDT", "USUSDT", "BTWUSDT",
-    "RAREUSDT", "ONEUSDT", "MARSCOINUSDT", "MUBARAKUSDT", "GRASSUSDT",
-    "INXUSDT", "AZTECUSDT", "GRTUSDT", "ARXUSDT", "NILUSDT",
-    "LYNUSDT", "SAGAUSDT", "PHAROSUSDT", "IRYSUSDT", "PHAUSDT",
-    "NOMUSDT", "AKEUSDT", "NMRUSDT", "ONDOUSDT", "CCUSDT",
-    "WUSDT", "PUMPUSDT", "ZROUSDT", "MONUSDT", "BULLAUSDT",
-    "HBARUSDT", "FLOCKUSDT", "SEIUSDT", "TAKEUSDT", "AIOTUSDT",
-    "JASMYUSDT", "ARKUSDT", "USELESSUSDT", "PONSUSDT", "HUMAUSDT",
-    "METUSDT", "IOTAUSDT", "TRIAUSDT", "LSKUSDT", "PTBUSDT",
+    "BTCUSDT", "ETHUSDT", "SOLUSDT", "ZECUSDT", "XRPUSDT",
+    "RLCUSDT", "NEARUSDT", "DOGEUSDT", "HYPEUSDT", "BRUSDT",
+    "ORCAUSDT", "NMRUSDT", "SUIUSDT", "BNBUSDT", "UNIUSDT",
+    "PUMPUSDT", "ADAUSDT", "QNTUSDT", "AVAXUSDT", "WLDUSDT",
+    "ENAUSDT", "SANDUSDT", "TAOUSDT", "1000PEPEUSDT", "CAPUSDT",
+    "FILUSDT", "AAVEUSDT", "ONDOUSDT", "LINKUSDT", "USUSDT",
+    "GTCUSDT", "TRUMPUSDT", "INJUSDT", "ARBUSDT", "PENGUUSDT",
+    "ZROUSDT", "MINAUSDT", "LTCUSDT", "API3USDT", "ASTERUSDT",
+    "FETUSDT", "DOTUSDT", "GRIFFAINUSDT", "BCHUSDT", "PAXGUSDT",
+    "XLMUSDT", "APTUSDT", "MOVRUSDT", "LITUSDT", "ETHFIUSDT",
+    "TRBUSDT", "PROMUSDT", "TIAUSDT", "RENDERUSDT", "LYNUSDT",
+    "RAYSOLUSDT", "XAUTUSDT", "BTWUSDT", "1000SHIBUSDT", "HBARUSDT",
+    "XPLUSDT", "DASHUSDT", "MONUSDT", "OPUSDT", "ICPUSDT",
+    "AINUSDT", "TRXUSDT", "XMRUSDT", "PARTIUSDT", "METUSDT",
+    "VIRTUALUSDT", "JUPUSDT", "NILUSDT", "MUBARAKUSDT", "EDUUSDT",
+    "USELESSUSDT", "STRKUSDT", "ETCUSDT", "FARTCOINUSDT", "MAGICUSDT",
+    "CRVUSDT", "C98USDT", "VVVUSDT", "JTOUSDT", "GRASSUSDT",
+    "AEROUSDT", "PENDLEUSDT", "1000BONKUSDT", "LDOUSDT", "VTHOUSDT",
+    "ACEUSDT", "SEIUSDT", "POLUSDT", "WLFIUSDT", "STXUSDT",
+    "SYNUSDT", "RESOLVUSDT", "AKEUSDT", "WIFUSDT", "AXSUSDT",
+    "CHIPUSDT", "LSKUSDT", "NIGHTUSDT", "ORDIUSDT", "GRAMUSDT",
+    "ATOMUSDT", "BULLAUSDT", "ONEUSDT", "ARUSDT", "SKYUSDT",
+    "PYTHUSDT", "MANAUSDT", "HEMIUSDT", "GALAUSDT", "BOMEUSDT",
+    "UMAUSDT", "ARKUSDT", "ALGOUSDT", "MAGMAUSDT", "ZAMAUSDT",
+    "EIGENUSDT", "FLUXUSDT", "OGNUSDT", "SAGAUSDT", "CAKEUSDT",
+    "ZENUSDT", "VELVETUSDT", "LPTUSDT", "HUMAUSDT", "PHAUSDT",
+    "BIOUSDT", "MIRAUSDT", "COTIUSDT", "AIAUSDT", "LABUSDT",
+    "SOONUSDT", "0GUSDT", "ALICEUSDT", "MORPHOUSDT", "1000FLOKIUSDT",
+    "ESPUSDT", "CLOUSDT", "4USDT", "FLUIDUSDT", "DIAUSDT",
+    "2ZUSDT", "ENJUSDT", "RVNUSDT", "CCUSDT", "MYXUSDT",
 ]
 
 BASE_PARAMS = StrategyParams()
 BASE_PARAMS.sort_mode         = "24h Ticker"
-BASE_PARAMS.leverage          = 20
+BASE_PARAMS.leverage          = 10
 BASE_PARAMS.use_macro         = False
 BASE_PARAMS.prohibition       = ProhibitionFlags(
     common_liq=True, common_fr=True, common_new=True, common_hunter=True,
@@ -51,21 +72,22 @@ BASE_PARAMS.prohibition       = ProhibitionFlags(
 )
 BASE_PARAMS.m4_rsi_vol_mult   = 1.5
 
-# (stop_loss%, trail_stop%) — trail=0.4 고정, SL 확장 탐색
-# _TRAIL_CAP=0.6 제약: trail_used = min(trail_set, sl_used × 0.6)
-# SL=2.0% → trail 최대 1.2% (trail=0.4 통과)
-# SL=2.5% → trail 최대 1.5% (trail=0.4 통과)
-# SL=3.0% → trail 최대 1.8% (trail=0.4 통과)
-# liq_safe (leverage=20, mmr=0.4%) = 3.68% → 세 조합 모두 안전
+# (stop_loss%, trail_stop%) — _TRAIL_CAP=0.6 제약 확인
+# liq_safe (leverage=10, mmr=0.4%) = (0.1 - 0.004) × 100 × 0.8 = 7.68% → 모두 통과
+# SL=1.8% → trail_cap=1.08% (trail=0.7 통과)
+# SL=2.5% → trail_cap=1.50% (trail=0.4 통과)
+# SL=3.0% → trail_cap=1.80% (trail=0.4 통과)
+# SL=3.5% → trail_cap=2.10% (trail=0.4 통과)
 SL_TRAIL_COMBOS = [
-    (2.0, 0.4),   # 현재 기본값 (기준선)
-    (2.5, 0.4),   # 미탐색 — 비용 0.200R → 0.128R 예상
-    (3.0, 0.4),   # 미탐색 — 비용 0.200R → 0.089R 예상
+    (1.8, 0.7),   # 현재 _strategy.json "24h Ticker" 실거래 파라미터 (기준선)
+    (2.5, 0.4),   # 선행 90일 탐색 EV 양수 확인 (+0.0463R)
+    (3.0, 0.4),   # 선행 90일 탐색 최우수 (+0.1155R)
+    (3.5, 0.4),   # 추가 탐색
 ]
 
-PERIOD           = "90일"
-_CHECKPOINT_PATH = _ROOT / "sl_trail_sweep_checkpoint.json"
-_PERIOD_DAYS     = 90
+PERIOD           = "180일"
+_CHECKPOINT_PATH = _ROOT / "sl_trail_sweep_180d_checkpoint.json"
+_PERIOD_DAYS     = 180
 
 
 def _init_buckets(combos: list) -> list:
@@ -119,8 +141,8 @@ def main():
     completed, buckets = _load_checkpoint(combos)
 
     print(f"[SL 확장 sweep] {len(SYMBOLS)}심볼 × {len(combos)}조합 × {PERIOD}")
-    print(f"[고정] leverage=20  price_diff=0.3  rsi_diff=3.0  vol_mult=1.5  lb=20  trail=0.4")
-    print(f"[변동] SL={[c[0] for c in combos]}")
+    print(f"[고정] leverage=10  m4_rsi_vol_mult=1.5  sort_mode=24h Ticker")
+    print(f"[조합] SL/trail={[(c[0], c[1]) for c in combos]}")
     if completed:
         print(f"[체크포인트] {len(completed)}/{len(SYMBOLS)} 완료, "
               f"{len(SYMBOLS) - len(completed)}개 이어서 실행")
@@ -174,7 +196,7 @@ def main():
 
     baseline = next(
         (r for r in results
-         if abs(r["sl_set"] - 2.0) < 0.01 and abs(r["trail_set"] - 0.4) < 0.01),
+         if abs(r["sl_set"] - 1.8) < 0.01 and abs(r["trail_set"] - 0.7) < 0.01),
         None,
     )
 
@@ -190,10 +212,10 @@ def main():
 
     for r in results:
         is_baseline = (
-            abs(r["sl_set"] - 2.0) < 0.01 and abs(r["trail_set"] - 0.4) < 0.01)
+            abs(r["sl_set"] - 1.8) < 0.01 and abs(r["trail_set"] - 0.7) < 0.01)
         diff_str = "(기준)" if is_baseline else (
             f"({r['ev_r'] - baseline['ev_r']:+.4f}R)" if baseline else "")
-        flag = " ← 현재기본값" if is_baseline else ""
+        flag = " ← _strategy.json 실거래" if is_baseline else ""
         print(
             f"{r['sl_used']:>5.1f} {r['trail_used']:>7.1f} | "
             f"{int(r['n']):>6} {r['wr']:>6.1f}% {r['ev_r']:>+9.4f} {r['pf']:>6.3f}  "
@@ -212,7 +234,7 @@ def main():
             print(f"  기준선 대비: {best['ev_r'] - baseline['ev_r']:+.4f}R")
         print("=" * 70)
 
-    out_path = _ROOT / "sl_trail_sweep_result.json"
+    out_path = _ROOT / "sl_trail_sweep_180d_result.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({"results": results}, f, indent=2, ensure_ascii=False)
     print(f"\n[저장] {out_path}")
