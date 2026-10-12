@@ -570,7 +570,8 @@ class TradingEngine:
                                 _tf5 = _ind_kd.get("tf5", {})
                                 _k5m = float(_tf5.get("k", 50.0))
                                 if (old_phase_l != 1 or updated.phase != 2) and self._k5m_prev_long >= 80.0 and _k5m < 80.0:
-                                    self._close_long("KD-EXIT", mark)
+                                    if updated.phase != 1 or mark >= updated.entry_price:
+                                        self._close_long("KD-EXIT", mark)
                             if RiskManager.should_stop_loss(updated, mark):
                                 self._close_long("SL", mark)
 
@@ -621,7 +622,8 @@ class TradingEngine:
                                 _tf5 = _ind_kd.get("tf5", {})
                                 _k5m = float(_tf5.get("k", 50.0))
                                 if (old_phase_s != 1 or updated.phase != 2) and self._k5m_prev_short <= 20.0 and _k5m > 20.0:
-                                    self._close_short("KD-EXIT", mark)
+                                    if updated.phase != 1 or mark <= updated.entry_price:
+                                        self._close_short("KD-EXIT", mark)
                             if RiskManager.should_stop_loss(updated, mark):
                                 self._close_short("SL", mark)
                         # K80/K20 돌파 감지용 직전 K값 업데이트
