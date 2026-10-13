@@ -183,7 +183,7 @@ class YONAVanguardXPro(tk.Tk):
                 _do_full_stop()
 
         def on_forced_liquidation() -> None:
-            # 포지션만 강제 청산 — 앱·엔진 계속 작동
+            # 포지션 강제 청산 후 하단 엔진 정지 — 상단·중단 모듈은 계속 작동, 심볼 유지
             if hasattr(self.bottom, "force_close_all_positions"):
                 self.bottom.force_close_all_positions()
 
