@@ -2,15 +2,17 @@
 bottom_engine/sweep/base_params.py
 스윕 공통 기준 — 전 스윕이 동일 파라미터·동일 심볼을 쓰도록 단일 선언.
 
-기준 파라미터는 실거래 _strategy.json "24h Ticker" 와 일치시킨다.
-변경 시 이 파일만 수정하면 전 스윕에 반영된다.
+기준 파라미터는 _strategy.json "24h Ticker" 를 직접 읽는다.
+파라미터 변경 시 _strategy.json 만 수정하면 전 스윕에 자동 반영된다.
+base_params.py 는 수정하지 않는다.
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from bottom_engine.models import StrategyParams, ProhibitionFlags
+from bottom_engine.models import StrategyParams
+from bottom_engine.strategy_settings.strategy_loader import StrategyLoader
 
 PERIOD = "90일"
 
@@ -24,23 +26,5 @@ def load_symbols() -> list[str]:
 
 
 def make_base_params() -> StrategyParams:
-    """스윕 기준 파라미터 — 실거래 24h Ticker 설정과 동일."""
-    p = StrategyParams()
-    p.sort_mode         = "24h Ticker"
-    p.funds_pct         = 100
-    p.leverage          = 20
-    p.stop_loss         = 2.9
-    p.trail_stop        = 1.2
-    p.use_macro         = False
-    p.m4_rsi_vol_mult   = 1.5
-    p.prohibition       = ProhibitionFlags(
-        common_liq    = True,
-        common_fr     = True,
-        common_new    = True,
-        common_hunter = True,
-        long_fomo     = True,
-        long_short_open  = True,
-        short_accum      = True,
-        short_long_open  = True,
-    )
-    return p
+    """스윕 기준 파라미터 — _strategy.json '24h Ticker' 를 직접 읽어 자동 동기화."""
+    return StrategyLoader.load("24h Ticker")
