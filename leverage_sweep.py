@@ -1,6 +1,6 @@
 """
-leverage_sweep.py — leverage 4조합 × 44심볼 × 90일
-SL/trail 고정: SL=2.0%, trail=0.4% (SL/trail sweep 최우수 조합)
+leverage_sweep.py — leverage 4조합 × 150심볼 × 90일
+_strategy.json 실거래 값 사용, selected_symbols.json 150심볼
 G1 파라미터 고정: rsi_min_diff=3.0, vol_mult=1.5, lookback=20
 
 체크포인트 지원: 중단 후 재실행 시 완료된 심볼 자동 스킵
@@ -26,28 +26,14 @@ from bottom_engine.backtest.backtest_runner import BacktestRunner
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
 from bottom_engine.constants import _NEW_DAYS_MIN
 from bottom_engine.sweep import SweepBucket, assert_sl_is_one_r
-from bottom_engine.sweep.base_params import make_base_params
+from bottom_engine.sweep.base_params import load_symbols, make_base_params, run_metadata, print_metadata
 
-SYMBOLS = [
-    "QUSDT", "QNTUSDT", "USUSDT", "BTWUSDT",
-    "RAREUSDT", "ONEUSDT", "MARSCOINUSDT", "MUBARAKUSDT", "GRASSUSDT",
-    "INXUSDT", "AZTECUSDT", "GRTUSDT", "ARXUSDT", "NILUSDT",
-    "LYNUSDT", "SAGAUSDT", "PHAROSUSDT", "IRYSUSDT", "PHAUSDT",
-    "NOMUSDT", "AKEUSDT", "NMRUSDT", "ONDOUSDT", "CCUSDT",
-    "WUSDT", "PUMPUSDT", "ZROUSDT", "MONUSDT", "BULLAUSDT",
-    "HBARUSDT", "FLOCKUSDT", "SEIUSDT", "TAKEUSDT", "AIOTUSDT",
-    "JASMYUSDT", "ARKUSDT", "USELESSUSDT", "PONSUSDT", "HUMAUSDT",
-    "METUSDT", "IOTAUSDT", "TRIAUSDT", "LSKUSDT", "PTBUSDT",
-]
+SYMBOLS = load_symbols()
 
-LEVERAGES        = (5, 10, 15, 20)   # 20 = 현재 기본값
+LEVERAGES        = (5, 10, 15, 20)
 PERIOD           = "90일"
 _CHECKPOINT_PATH = _ROOT / "leverage_sweep_checkpoint.json"
 _PERIOD_DAYS     = 90
-
-# leverage sweep 고정값 (make_base_params 덮어쓰기)
-_SL    = 2.0
-_TRAIL = 0.4
 
 
 def _init_buckets() -> list:
@@ -102,9 +88,11 @@ def _finalize(buckets: list) -> list:
 def main():
     completed, buckets = _load_checkpoint()
 
+    _meta = run_metadata(make_base_params(), PERIOD, SYMBOLS)
+    print_metadata(_meta)
+    _base_lev = _meta["params"]["leverage"]
     print(f"[leverage sweep] {len(SYMBOLS)}심볼 × {len(LEVERAGES)}조합 × {PERIOD}")
-    print(f"[고정] SL={_SL}%  trail={_TRAIL}%  rsi_diff=3.0  vol_mult=1.5  lb=20")
-    print(f"[변동] leverage={LEVERAGES}  (20 = 현재 기본값)")
+    print(f"[변동] leverage={LEVERAGES}  ({_base_lev} = _strategy.json 실거래)")
     if completed:
         print(f"[체크포인트] {len(completed)}/{len(SYMBOLS)} 완료, "
               f"{len(SYMBOLS) - len(completed)}개 이어서 실행")
@@ -133,8 +121,6 @@ def main():
 
         for i, lev in enumerate(LEVERAGES):
             _p = make_base_params()
-            _p.stop_loss  = _SL
-            _p.trail_stop = _TRAIL
             _p.leverage   = lev
             res = BacktestRunner.run(sym, _p, PERIOD, preloaded=preloaded,
                                      entry_variant="M4", exit_variant="CURRENT")
@@ -193,7 +179,7 @@ def main():
 
     out_path = _ROOT / "leverage_sweep_result.json"
     with open(out_path, "w", encoding="utf-8") as f:
-        json.dump({"results": results}, f, indent=2, ensure_ascii=False)
+        json.dump({"meta": _meta, "results": results}, f, indent=2, ensure_ascii=False)
     print(f"\n[저장] {out_path}")
 
     return results

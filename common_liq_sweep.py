@@ -1,6 +1,6 @@
 """
 common_liq sweep — 150심볼 × 2조합(ON/OFF) × 90일
-현재 확정 파라미터(SL=3.0%, price_diff=0.3) 기준으로
+_strategy.json 실거래 값 사용, selected_symbols.json 150심볼
 G8(청산 근접도 필터) 효과 검증
 
 결과 저장: common_liq_sweep_result.json (프로젝트 루트)
@@ -9,6 +9,7 @@ G8(청산 근접도 필터) 효과 검증
   cd C:/Users/User/YONA_VanguardX_Pro
   python common_liq_sweep.py
 """
+import dataclasses
 import sys
 import time
 import json
@@ -20,19 +21,14 @@ sys.path.insert(0, str(_ROOT))
 
 from bottom_engine.backtest.backtest_runner import BacktestRunner
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
-from bottom_engine.models import ProhibitionFlags
 from bottom_engine.constants import _NEW_DAYS_MIN
 from bottom_engine.sweep import SweepBucket, assert_sl_is_one_r
-from bottom_engine.sweep.base_params import load_symbols, make_base_params
+from bottom_engine.sweep.base_params import load_symbols, make_base_params, run_metadata, print_metadata
 
 SYMBOLS = load_symbols()
 
 PERIOD       = "90일"
 _PERIOD_DAYS = 90
-
-# common_liq sweep 고정값 (make_base_params 덮어쓰기)
-_SL    = 3.0
-_TRAIL = 0.4
 
 COMBOS = [
     (True,  "common_liq=ON  (G8 기준선)"),
@@ -42,18 +38,7 @@ COMBOS = [
 
 def _make_params(common_liq_flag: bool):
     p = make_base_params()
-    p.stop_loss   = _SL
-    p.trail_stop  = _TRAIL
-    p.prohibition = ProhibitionFlags(
-        common_liq    = common_liq_flag,
-        common_fr     = True,
-        common_new    = True,
-        common_hunter = True,
-        long_fomo     = True,
-        long_short_open  = True,
-        short_accum      = True,
-        short_long_open  = True,
-    )
+    p.prohibition = dataclasses.replace(p.prohibition, common_liq=common_liq_flag)
     return p
 
 
@@ -74,8 +59,9 @@ def _run_all_symbols(common_liq_flag: bool, preloaded_cache: dict) -> SweepBucke
 
 
 def main():
+    _meta = run_metadata(make_base_params(), PERIOD, SYMBOLS)
+    print_metadata(_meta)
     print(f"[common_liq sweep] {len(SYMBOLS)}심볼 × 2조합 × {PERIOD}")
-    print(f"[고정] leverage=20  SL={_SL}%  trail={_TRAIL}%")
     print("-" * 70)
 
     t0 = time.time()
@@ -132,7 +118,7 @@ def main():
 
     out = _ROOT / "common_liq_sweep_result.json"
     with open(out, "w", encoding="utf-8") as f:
-        json.dump({"results": results}, f, indent=2, ensure_ascii=False)
+        json.dump({"meta": _meta, "results": results}, f, indent=2, ensure_ascii=False)
     print(f"\n[저장] {out}")
 
     return results

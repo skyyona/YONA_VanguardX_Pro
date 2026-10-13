@@ -1,6 +1,6 @@
 """
-macro_ema sweep — 44심볼 × 2조합(off/on) × 90일
-현재 확정 파라미터(SL=3.0%, price_diff=0.3) 기준으로
+macro_ema sweep — 150심볼 × 2조합(off/on) × 90일
+_strategy.json 실거래 값 사용, selected_symbols.json 150심볼
 1h EMA5 > EMA50 방향 필터(macro_ema) 효과 검증
 
 결과 저장: macro_ema_sweep_result.json (프로젝트 루트)
@@ -22,28 +22,14 @@ from bottom_engine.backtest.backtest_runner import BacktestRunner
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
 from bottom_engine.constants import _NEW_DAYS_MIN
 from bottom_engine.sweep import SweepBucket, assert_sl_is_one_r
-from bottom_engine.sweep.base_params import make_base_params
+from bottom_engine.sweep.base_params import load_symbols, make_base_params, run_metadata, print_metadata
 from bottom_engine.strategy_settings.realtrade_strategy_sort_by.mode_config_base import ModeConfig
 import bottom_engine.strategy_settings.realtrade_strategy_sort_by as _srt
 
-SYMBOLS = [
-    "QUSDT", "QNTUSDT", "USUSDT", "BTWUSDT",
-    "RAREUSDT", "ONEUSDT", "MARSCOINUSDT", "MUBARAKUSDT", "GRASSUSDT",
-    "INXUSDT", "AZTECUSDT", "GRTUSDT", "ARXUSDT", "NILUSDT",
-    "LYNUSDT", "SAGAUSDT", "PHAROSUSDT", "IRYSUSDT", "PHAUSDT",
-    "NOMUSDT", "AKEUSDT", "NMRUSDT", "ONDOUSDT", "CCUSDT",
-    "WUSDT", "PUMPUSDT", "ZROUSDT", "MONUSDT", "BULLAUSDT",
-    "HBARUSDT", "FLOCKUSDT", "SEIUSDT", "TAKEUSDT", "AIOTUSDT",
-    "JASMYUSDT", "ARKUSDT", "USELESSUSDT", "PONSUSDT", "HUMAUSDT",
-    "METUSDT", "IOTAUSDT", "TRIAUSDT", "LSKUSDT", "PTBUSDT",
-]
+SYMBOLS = load_symbols()
 
 PERIOD       = "90일"
 _PERIOD_DAYS = 90
-
-# macro_ema sweep 고정값 (make_base_params 덮어쓰기)
-_SL    = 3.0
-_TRAIL = 0.4
 
 _CFG_24H_ORIGINAL = _srt.MODE_CONFIG["24h Ticker"]
 
@@ -82,8 +68,9 @@ def _run_all_symbols(macro_ema_flag: bool, preloaded_cache: dict,
 
 
 def main():
+    _meta = run_metadata(make_base_params(), PERIOD, SYMBOLS)
+    print_metadata(_meta)
     print(f"[macro_ema sweep] {len(SYMBOLS)}심볼 × 2조합 × {PERIOD}")
-    print(f"[고정] leverage=20  SL={_SL}%  trail={_TRAIL}%")
     print("-" * 70)
 
     t0 = time.time()
@@ -103,8 +90,6 @@ def main():
     print(f"[캐시 로드 완료] {time.time() - t0:.1f}초\n")
 
     _p = make_base_params()
-    _p.stop_loss  = _SL
-    _p.trail_stop = _TRAIL
 
     results = []
     for macro_flag, label in COMBOS:
@@ -143,7 +128,7 @@ def main():
 
     out = _ROOT / "macro_ema_sweep_result.json"
     with open(out, "w", encoding="utf-8") as f:
-        json.dump({"results": results}, f, indent=2, ensure_ascii=False)
+        json.dump({"meta": _meta, "results": results}, f, indent=2, ensure_ascii=False)
     print(f"\n[저장] {out}")
 
     return results

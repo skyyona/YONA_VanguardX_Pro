@@ -2,7 +2,7 @@
 SL 확장 sweep — 150심볼 × 4조합 × 180일
 _strategy.json "24h Ticker" 실거래 기준(leverage=20) SL/trail 최적 조합 탐색
 trail=0.4 고정 (선행 탐색에서 trail=0.4가 모든 SL 구간에서 최우수)
-현재 실거래 파라미터(SL=2.9%, trail=1.2%)가 기준선으로 포함됨
+_strategy.json 실거래 값이 자동으로 기준선
 
 체크포인트 지원: 중단 후 재실행 시 완료된 심볼 자동 스킵
   checkpoint: sl_trail_sweep_180d_checkpoint.json (자동 관리, 전체 완료 시 삭제)
@@ -27,7 +27,7 @@ from bottom_engine.backtest.backtest_runner import BacktestRunner
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
 from bottom_engine.constants import _NEW_DAYS_MIN
 from bottom_engine.sweep import SweepBucket, assert_sl_is_one_r
-from bottom_engine.sweep.base_params import load_symbols, make_base_params
+from bottom_engine.sweep.base_params import load_symbols, make_base_params, run_metadata, print_metadata
 
 SYMBOLS = load_symbols()
 
@@ -35,7 +35,7 @@ SYMBOLS = load_symbols()
 SL_TRAIL_COMBOS = [
     (1.8, 0.7),   # 구 실거래 파라미터 (이전 기준선)
     (2.5, 0.4),   # 선행 90일 탐색 EV 양수 확인
-    (2.9, 1.2),   # 현재 실거래 파라미터 (기준선)
+
     (3.0, 0.4),   # 선행 90일 탐색 최우수
     (3.5, 0.4),   # 추가 탐색
 ]
@@ -98,11 +98,15 @@ def _finalize(buckets: list) -> list:
 
 
 def main():
-    combos = SL_TRAIL_COMBOS
+    _live = make_base_params()
+    _BASELINE = (_live.stop_loss, _live.trail_stop)
+    combos = [_BASELINE] + [c for c in SL_TRAIL_COMBOS
+                             if abs(c[0] - _BASELINE[0]) > 1e-9 or abs(c[1] - _BASELINE[1]) > 1e-9]
     completed, buckets = _load_checkpoint(combos)
 
+    _meta = run_metadata(_live, PERIOD, SYMBOLS)
+    print_metadata(_meta)
     print(f"[SL 확장 sweep] {len(SYMBOLS)}심볼 × {len(combos)}조합 × {PERIOD}")
-    print(f"[고정] leverage=20  m4_rsi_vol_mult=1.5  sort_mode=24h Ticker")
     print(f"[조합] SL/trail={[(c[0], c[1]) for c in combos]}")
     if completed:
         print(f"[체크포인트] {len(completed)}/{len(SYMBOLS)} 완료, "
@@ -154,7 +158,7 @@ def main():
 
     baseline = next(
         (r for r in results
-         if abs(r["sl_set"] - 2.9) < 0.01 and abs(r["trail_set"] - 1.2) < 0.01),
+         if abs(r["sl_set"] - _BASELINE[0]) < 0.01 and abs(r["trail_set"] - _BASELINE[1]) < 0.01),
         None,
     )
 
@@ -172,7 +176,7 @@ def main():
 
     for r in results:
         is_baseline = (
-            abs(r["sl_set"] - 2.9) < 0.01 and abs(r["trail_set"] - 1.2) < 0.01)
+            abs(r["sl_set"] - _BASELINE[0]) < 0.01 and abs(r["trail_set"] - _BASELINE[1]) < 0.01)
         diff_str = "(기준)" if is_baseline else (
             f"({r['ev_r'] - baseline['ev_r']:+.4f}R)" if baseline else "")
         flag = " ← _strategy.json 실거래" if is_baseline else ""
@@ -198,7 +202,7 @@ def main():
 
     out_path = _ROOT / "sl_trail_sweep_180d_result.json"
     with open(out_path, "w", encoding="utf-8") as f:
-        json.dump({"results": results}, f, indent=2, ensure_ascii=False)
+        json.dump({"meta": _meta, "results": results}, f, indent=2, ensure_ascii=False)
     print(f"\n[저장] {out_path}")
 
     return results

@@ -1,7 +1,7 @@
 """
 exit_reason_analysis.py — 150심볼 × 180일 exit_reason 분포 분석
-현재 실거래 파라미터(SL=2.9%, trail=1.2%, leverage=20) 기준
-SL 청산 평균 R 검증: 이론값 -(1 + 0.1/2.9) ≈ -1.034R
+_strategy.json 실거래 값 기준
+SL 청산 평균 R 검증: 이론값 -(1 + 수수료율/SL%) (SL값은 json에서 자동 읽음)
 
 실행 (프로젝트 루트에서):
   cd C:/Users/User/YONA_VanguardX_Pro
@@ -20,7 +20,7 @@ from bottom_engine.backtest.backtest_runner import BacktestRunner
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
 from bottom_engine.constants import _NEW_DAYS_MIN
 from bottom_engine.sweep import SweepBucket, assert_sl_is_one_r
-from bottom_engine.sweep.base_params import load_symbols, make_base_params
+from bottom_engine.sweep.base_params import load_symbols, make_base_params, run_metadata, print_metadata
 
 SYMBOLS      = load_symbols()
 PERIOD       = "180일"
@@ -29,6 +29,8 @@ _PERIOD_DAYS = 180
 
 def main():
     params = make_base_params()
+    _meta = run_metadata(params, PERIOD, SYMBOLS)
+    print_metadata(_meta)
 
     print(f"[exit_reason 분포 분석] {len(SYMBOLS)}심볼 × {PERIOD}")
     print(f"[파라미터] SL={params.stop_loss}%  trail={params.trail_stop}%  "
