@@ -11,9 +11,12 @@ import sys
 import time
 import pickle
 import pathlib
+import json
+import dataclasses
 from collections import defaultdict
 
 _ROOT = pathlib.Path(__file__).parent
+_RESULT_PATH = _ROOT / "exit_reason_analysis_result.json"
 sys.path.insert(0, str(_ROOT))
 
 from bottom_engine.backtest.backtest_runner import BacktestRunner
@@ -54,6 +57,8 @@ def main():
     print(f"[캐시 로드] {time.time() - t0:.1f}초\n")
 
     overall_bucket = SweepBucket()
+    side_bucket    = {"long": SweepBucket(), "short": SweepBucket()}
+    sym_rows       = []
     reason_count   = defaultdict(float)
     reason_pnl_sum = defaultdict(float)
     reason_wins    = defaultdict(float)
@@ -66,6 +71,14 @@ def main():
             entry_variant="M4", exit_variant="CURRENT",
         )
         overall_bucket.add(res)
+        for _side in ("long", "short"):
+            side_bucket[_side].add(dataclasses.replace(
+                res, trades=[tr for tr in res.trades if tr.side == _side]))
+        _sb = SweepBucket()
+        _sb.add(res)
+        sym_rows.append({"symbol": sym, "n": _sb.n,
+                         "pos_pnl": _sb.sum_pos_pnl, "neg_pnl": _sb.sum_neg_pnl,
+                         "ev_r": _sb.summary()["ev_r"]})
         if not _assert_done:
             ok, msg = assert_sl_is_one_r(res)
             print(f"[SL검증] {sym}: {msg}")
@@ -122,6 +135,37 @@ def main():
     print(f"  BEP-SL 청산                 : {bep_n:>5.0f}건  "
           f"({bep_n/s['n']*100:.1f}%)")
     print("=" * 70)
+
+    # ── 롱/숏 분리 ──────────────────────────────────────────
+    side_summary = {k: b.summary() for k, b in side_bucket.items()}
+    for _side, _s in side_summary.items():
+        print(f"  {_side:<5} N={_s['n']:>7.1f}  WR={_s['wr']:5.1f}%  "
+              f"EV={_s['ev_r']:+.4f}R  PF={_s['pf']:.3f}")
+
+    # ── 심볼별 PF > 1 집계 (손실 0건 심볼은 PF>1로 집계) ────
+    traded   = [r for r in sym_rows if r["n"] > 0]
+    pf_gt1   = [r for r in traded if r["pos_pnl"] > r["neg_pnl"]]
+    print(f"  거래 발생 심볼 {len(traded)}/{len(sym_rows)}  "
+          f"PF>1 심볼 {len(pf_gt1)}/{len(traded)}")
+    print("=" * 70)
+
+    # ── 결과 파일 저장 ─────────────────────────────────────
+    reasons = {
+        r: {"n": reason_count[r], "wins": reason_wins[r], "pnl_sum": reason_pnl_sum[r]}
+        for r in reason_count
+    }
+    with open(_RESULT_PATH, "w", encoding="utf-8") as f:
+        json.dump({
+            "meta":            _meta,
+            "elapsed_min":     elapsed / 60.0,
+            "overall":         s,
+            "by_side":         side_summary,
+            "by_reason":       reasons,
+            "symbols_traded":  len(traded),
+            "symbols_pf_gt1":  len(pf_gt1),
+            "by_symbol":       sym_rows,
+        }, f, indent=2, ensure_ascii=False)
+    print(f"[저장] {_RESULT_PATH.name}")
 
 
 if __name__ == "__main__":
