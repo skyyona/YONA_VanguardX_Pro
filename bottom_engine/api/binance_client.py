@@ -96,6 +96,7 @@ class BottomBinanceClient:
             side=OrderSide(close_side),
             order_type=OrderType.MARKET,
             quantity=quantity,
+            reduce_only=True,
         )
         return self.place_order(order, mark)
 
@@ -382,6 +383,8 @@ class BottomBinanceClient:
             if order.order_type == OrderType.LIMIT and order.price:
                 params["price"]       = f"{order.price:.8f}"
                 params["timeInForce"] = "GTX"   # Post-Only: 즉시 Taker 체결 시 -2010 반환
+            if order.reduce_only:
+                params["reduceOnly"] = "true"
             result = self._signed_post("/fapi/v1/order", params)
             if not result:
                 return OrderResult(False, error=self._last_api_error or "API 응답 없음")

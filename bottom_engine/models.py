@@ -95,6 +95,7 @@ class Order:
     leverage:   int             = 10
     stop_loss_pct:  float       = 2.5
     trail_stop_pct: float       = 1.5
+    reduce_only:    bool        = False
 
 
 @dataclass

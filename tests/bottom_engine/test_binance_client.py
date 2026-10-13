@@ -1,9 +1,10 @@
 ﻿"""
 tests/bottom/test_binance_client.py
-BottomBinanceClient MMR 캐시 관련 3건 테스트.
+BottomBinanceClient MMR 캐시 관련 3건 + reduceOnly 4건 테스트.
 mock/patch/MagicMock 사용 없음. 캐시 주입 방식으로 검증.
 """
 from bottom_engine.api.binance_client import BottomBinanceClient, _MMR_FALLBACK
+from bottom_engine.models import Order, OrderSide, OrderType
 
 
 class TestMmrCached:
@@ -25,3 +26,79 @@ class TestMmrCached:
         result = client.get_mmr("XRPUSDT")
         assert result == _MMR_FALLBACK
         assert "XRPUSDT" not in client._mmr_cache
+
+
+class TestReduceOnly:
+    """Order.reduce_only → _live_order params["reduceOnly"] 전달 검증."""
+
+    def _make_client(self):
+        client = BottomBinanceClient()
+        client._precision_cache["BTCUSDT"] = 3
+        return client
+
+    def _capture_fn(self, captured: list):
+        def _capture(path, params):
+            captured.append(dict(params))
+            return {
+                "avgPrice": "50000.0",
+                "price": "0",
+                "executedQty": "0.001",
+                "orderId": "12345",
+            }
+        return _capture
+
+    def test_reduce_only_true_sends_flag(self):
+        """reduce_only=True 주문은 params에 reduceOnly='true'가 포함된다."""
+        client = self._make_client()
+        captured = []
+        client._signed_post = self._capture_fn(captured)
+        order = Order(
+            symbol="BTCUSDT",
+            side=OrderSide.SELL,
+            order_type=OrderType.MARKET,
+            quantity=0.001,
+            reduce_only=True,
+        )
+        client.place_order(order)
+        assert len(captured) == 1
+        assert captured[0].get("reduceOnly") == "true"
+
+    def test_reduce_only_false_omits_flag(self):
+        """reduce_only=False(기본값) 주문은 params에 reduceOnly가 없다."""
+        client = self._make_client()
+        captured = []
+        client._signed_post = self._capture_fn(captured)
+        order = Order(
+            symbol="BTCUSDT",
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            quantity=0.001,
+        )
+        client.place_order(order)
+        assert len(captured) == 1
+        assert "reduceOnly" not in captured[0]
+
+    def test_close_position_sends_reduce_only(self):
+        """close_position()은 항상 reduceOnly='true'를 포함한다."""
+        client = self._make_client()
+        captured = []
+        client._signed_post = self._capture_fn(captured)
+        client.close_position("BTCUSDT", "long", 0.001)
+        assert len(captured) == 1
+        assert captured[0].get("reduceOnly") == "true"
+        assert captured[0].get("side") == "SELL"
+
+    def test_place_order_default_no_reduce_only(self):
+        """일반 place_order()는 reduce_only 미지정 시 reduceOnly를 보내지 않는다."""
+        client = self._make_client()
+        captured = []
+        client._signed_post = self._capture_fn(captured)
+        order = Order(
+            symbol="BTCUSDT",
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            quantity=0.001,
+        )
+        client.place_order(order)
+        assert len(captured) == 1
+        assert "reduceOnly" not in captured[0]
