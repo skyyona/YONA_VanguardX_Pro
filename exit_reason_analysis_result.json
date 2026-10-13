@@ -1,0 +1,1139 @@
+{
+  "meta": {
+    "commit": "448c3d7",
+    "dirty": true,
+    "run_at": "2026-10-13T23:28:58",
+    "period": "180일",
+    "symbols_count": 150,
+    "params": {
+      "sort_mode": "24h Ticker",
+      "funds_pct": 100,
+      "leverage": 20,
+      "stop_loss": 2.8,
+      "trail_stop": 1.2,
+      "prohibition": {
+        "common_liq": true,
+        "common_fr": true,
+        "common_new": true,
+        "common_hunter": true,
+        "long_fomo": true,
+        "long_short_open": true,
+        "short_accum": true,
+        "short_long_open": true
+      },
+      "use_macro": false,
+      "portfolio_usdt": 1000.0,
+      "mmr": 0.004,
+      "m4_rsi_vol_mult": 1.5,
+      "phase1_timeout_bars": 0
+    }
+  },
+  "elapsed_min": 11.025416163603465,
+  "overall": {
+    "n": 368.0,
+    "wr": 70.1086956521739,
+    "ev_r": -0.021961616847826083,
+    "pf": 0.9127884234067747,
+    "pf_ci": 0.09516477163237236,
+    "one_r_pct": 8.0
+  },
+  "by_side": {
+    "long": {
+      "n": 174.0,
+      "wr": 71.83908045977012,
+      "ev_r": 0.021451867816091968,
+      "pf": 1.0918458051002544,
+      "pf_ci": 0.1655452337472671,
+      "one_r_pct": 8.0
+    },
+    "short": {
+      "n": 194.0,
+      "wr": 68.55670103092784,
+      "ev_r": -0.06089948453608249,
+      "pf": 0.7729274427789937,
+      "pf_ci": 0.1109859127125447,
+      "one_r_pct": 8.0
+    }
+  },
+  "by_reason": {
+    "KD-EXIT": {
+      "n": 265.0,
+      "wins": 246.0,
+      "pnl_sum": 529.6160000000002
+    },
+    "SL": {
+      "n": 89.0,
+      "wins": 0.0,
+      "pnl_sum": -738.274
+    },
+    "PARTIAL": {
+      "n": 6.0,
+      "wins": 6.0,
+      "pnl_sum": 70.24000000000001
+    },
+    "TRAIL": {
+      "n": 6.0,
+      "wins": 6.0,
+      "pnl_sum": 74.343
+    },
+    "BEP-SL": {
+      "n": 2.0,
+      "wins": 0.0,
+      "pnl_sum": -0.58
+    }
+  },
+  "symbols_traded": 41,
+  "symbols_pf_gt1": 16,
+  "by_symbol": [
+    {
+      "symbol": "BTCUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ETHUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "SOLUSDT",
+      "n": 4.0,
+      "pos_pnl": 11.889999999999999,
+      "neg_pnl": 0.0,
+      "ev_r": 0.37156249999999996
+    },
+    {
+      "symbol": "ZECUSDT",
+      "n": 13.0,
+      "pos_pnl": 16.124,
+      "neg_pnl": 16.587,
+      "ev_r": -0.004451923076923065
+    },
+    {
+      "symbol": "XRPUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "RLCUSDT",
+      "n": 4.0,
+      "pos_pnl": 6.871,
+      "neg_pnl": 16.574,
+      "ev_r": -0.30321875000000004
+    },
+    {
+      "symbol": "NEARUSDT",
+      "n": 13.0,
+      "pos_pnl": 39.821000000000005,
+      "neg_pnl": 8.365,
+      "ev_r": 0.30246153846153845
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "HYPEUSDT",
+      "n": 3.0,
+      "pos_pnl": 3.5460000000000003,
+      "neg_pnl": 8.289,
+      "ev_r": -0.19762499999999997
+    },
+    {
+      "symbol": "BRUSDT",
+      "n": 12.0,
+      "pos_pnl": 25.168000000000003,
+      "neg_pnl": 33.448,
+      "ev_r": -0.08625
+    },
+    {
+      "symbol": "ORCAUSDT",
+      "n": 8.0,
+      "pos_pnl": 20.131999999999998,
+      "neg_pnl": 16.701,
+      "ev_r": 0.053609375000000015
+    },
+    {
+      "symbol": "NMRUSDT",
+      "n": 6.0,
+      "pos_pnl": 10.786999999999999,
+      "neg_pnl": 8.294,
+      "ev_r": 0.05193749999999999
+    },
+    {
+      "symbol": "SUIUSDT",
+      "n": 8.0,
+      "pos_pnl": 6.524000000000001,
+      "neg_pnl": 8.404,
+      "ev_r": -0.029374999999999988
+    },
+    {
+      "symbol": "BNBUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "UNIUSDT",
+      "n": 11.0,
+      "pos_pnl": 26.067999999999998,
+      "neg_pnl": 16.89,
+      "ev_r": 0.10429545454545454
+    },
+    {
+      "symbol": "PUMPUSDT",
+      "n": 20.0,
+      "pos_pnl": 24.761,
+      "neg_pnl": 50.135000000000005,
+      "ev_r": -0.15858750000000002
+    },
+    {
+      "symbol": "ADAUSDT",
+      "n": 4.0,
+      "pos_pnl": 9.197000000000001,
+      "neg_pnl": 0.0,
+      "ev_r": 0.28740625000000003
+    },
+    {
+      "symbol": "QNTUSDT",
+      "n": 2.0,
+      "pos_pnl": 1.472,
+      "neg_pnl": 8.286,
+      "ev_r": -0.425875
+    },
+    {
+      "symbol": "AVAXUSDT",
+      "n": 6.0,
+      "pos_pnl": 5.8069999999999995,
+      "neg_pnl": 8.292,
+      "ev_r": -0.05177083333333334
+    },
+    {
+      "symbol": "WLDUSDT",
+      "n": 20.0,
+      "pos_pnl": 37.21,
+      "neg_pnl": 41.483000000000004,
+      "ev_r": -0.026706250000000004
+    },
+    {
+      "symbol": "ENAUSDT",
+      "n": 11.0,
+      "pos_pnl": 16.516000000000002,
+      "neg_pnl": 33.17700000000001,
+      "ev_r": -0.18932954545454547
+    },
+    {
+      "symbol": "SANDUSDT",
+      "n": 5.0,
+      "pos_pnl": 2.908,
+      "neg_pnl": 8.578,
+      "ev_r": -0.14175
+    },
+    {
+      "symbol": "TAOUSDT",
+      "n": 5.0,
+      "pos_pnl": 12.671,
+      "neg_pnl": 0.087,
+      "ev_r": 0.3146
+    },
+    {
+      "symbol": "1000PEPEUSDT",
+      "n": 2.0,
+      "pos_pnl": 1.328,
+      "neg_pnl": 8.299,
+      "ev_r": -0.43568749999999995
+    },
+    {
+      "symbol": "CAPUSDT",
+      "n": 15.0,
+      "pos_pnl": 50.518,
+      "neg_pnl": 16.582,
+      "ev_r": 0.2828
+    },
+    {
+      "symbol": "FILUSDT",
+      "n": 6.0,
+      "pos_pnl": 4.077999999999999,
+      "neg_pnl": 8.423,
+      "ev_r": -0.09052083333333334
+    },
+    {
+      "symbol": "AAVEUSDT",
+      "n": 6.0,
+      "pos_pnl": 15.655999999999999,
+      "neg_pnl": 8.288,
+      "ev_r": 0.1535
+    },
+    {
+      "symbol": "ONDOUSDT",
+      "n": 7.0,
+      "pos_pnl": 9.024000000000001,
+      "neg_pnl": 24.883,
+      "ev_r": -0.2831964285714286
+    },
+    {
+      "symbol": "LINKUSDT",
+      "n": 1.0,
+      "pos_pnl": 1.893,
+      "neg_pnl": 0.0,
+      "ev_r": 0.236625
+    },
+    {
+      "symbol": "USUSDT",
+      "n": 20.0,
+      "pos_pnl": 80.82100000000003,
+      "neg_pnl": 41.925999999999995,
+      "ev_r": 0.24309374999999997
+    },
+    {
+      "symbol": "GTCUSDT",
+      "n": 10.0,
+      "pos_pnl": 7.3389999999999995,
+      "neg_pnl": 41.455,
+      "ev_r": -0.42645
+    },
+    {
+      "symbol": "TRUMPUSDT",
+      "n": 3.0,
+      "pos_pnl": 7.647,
+      "neg_pnl": 8.31,
+      "ev_r": -0.02762500000000001
+    },
+    {
+      "symbol": "INJUSDT",
+      "n": 8.0,
+      "pos_pnl": 13.604999999999999,
+      "neg_pnl": 8.287,
+      "ev_r": 0.08309374999999997
+    },
+    {
+      "symbol": "ARBUSDT",
+      "n": 13.0,
+      "pos_pnl": 19.898999999999997,
+      "neg_pnl": 49.785000000000004,
+      "ev_r": -0.2873653846153846
+    },
+    {
+      "symbol": "PENGUUSDT",
+      "n": 12.0,
+      "pos_pnl": 19.929000000000002,
+      "neg_pnl": 16.660999999999998,
+      "ev_r": 0.03404166666666671
+    },
+    {
+      "symbol": "ZROUSDT",
+      "n": 18.0,
+      "pos_pnl": 28.346000000000004,
+      "neg_pnl": 33.188,
+      "ev_r": -0.033625
+    },
+    {
+      "symbol": "MINAUSDT",
+      "n": 14.0,
+      "pos_pnl": 21.806,
+      "neg_pnl": 41.613,
+      "ev_r": -0.17684821428571426
+    },
+    {
+      "symbol": "LTCUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "API3USDT",
+      "n": 4.0,
+      "pos_pnl": 6.175,
+      "neg_pnl": 8.294,
+      "ev_r": -0.06621875000000002
+    },
+    {
+      "symbol": "ASTERUSDT",
+      "n": 3.0,
+      "pos_pnl": 9.258999999999999,
+      "neg_pnl": 0.0,
+      "ev_r": 0.3857916666666666
+    },
+    {
+      "symbol": "FETUSDT",
+      "n": 10.0,
+      "pos_pnl": 5.416,
+      "neg_pnl": 8.748,
+      "ev_r": -0.041649999999999986
+    },
+    {
+      "symbol": "DOTUSDT",
+      "n": 6.0,
+      "pos_pnl": 11.402,
+      "neg_pnl": 0.19,
+      "ev_r": 0.23358333333333334
+    },
+    {
+      "symbol": "GRIFFAINUSDT",
+      "n": 19.0,
+      "pos_pnl": 33.463,
+      "neg_pnl": 49.841,
+      "ev_r": -0.10775
+    },
+    {
+      "symbol": "BCHUSDT",
+      "n": 3.0,
+      "pos_pnl": 4.003,
+      "neg_pnl": 0.0,
+      "ev_r": 0.16679166666666667
+    },
+    {
+      "symbol": "PAXGUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "XLMUSDT",
+      "n": 6.0,
+      "pos_pnl": 8.907,
+      "neg_pnl": 16.596,
+      "ev_r": -0.16018749999999998
+    },
+    {
+      "symbol": "APTUSDT",
+      "n": 9.0,
+      "pos_pnl": 12.814999999999998,
+      "neg_pnl": 24.892,
+      "ev_r": -0.16773611111111109
+    },
+    {
+      "symbol": "MOVRUSDT",
+      "n": 18.0,
+      "pos_pnl": 25.901000000000003,
+      "neg_pnl": 41.507,
+      "ev_r": -0.108375
+    },
+    {
+      "symbol": "LITUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ETHFIUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "TRBUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "PROMUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "TIAUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "RENDERUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "LYNUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "RAYSOLUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "XAUTUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "BTWUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "1000SHIBUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "HBARUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "XPLUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "DASHUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "MONUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "OPUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ICPUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "AINUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "TRXUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "XMRUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "PARTIUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "METUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "VIRTUALUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "JUPUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "NILUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "MUBARAKUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "EDUUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "USELESSUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "STRKUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ETCUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "FARTCOINUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "MAGICUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "CRVUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "C98USDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "VVVUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "JTOUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "GRASSUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "AEROUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "PENDLEUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "1000BONKUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "LDOUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "VTHOUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ACEUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "SEIUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "POLUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "WLFIUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "STXUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "SYNUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "RESOLVUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "AKEUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "WIFUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "AXSUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "CHIPUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "LSKUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "NIGHTUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ORDIUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "GRAMUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ATOMUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "BULLAUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ONEUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ARUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "SKYUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "PYTHUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "MANAUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "HEMIUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "GALAUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "BOMEUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "UMAUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ARKUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ALGOUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "MAGMAUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ZAMAUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "EIGENUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "FLUXUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "OGNUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "SAGAUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "CAKEUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ZENUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "VELVETUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "LPTUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "HUMAUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "PHAUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "BIOUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "MIRAUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "COTIUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "AIAUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "LABUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "SOONUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "0GUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ALICEUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "MORPHOUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "1000FLOKIUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ESPUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "CLOUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "4USDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "FLUIDUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "DIAUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "2ZUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "ENJUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "RVNUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "CCUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    },
+    {
+      "symbol": "MYXUSDT",
+      "n": 0.0,
+      "pos_pnl": 0.0,
+      "neg_pnl": 0.0,
+      "ev_r": 0.0
+    }
+  ]
+}

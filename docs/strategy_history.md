@@ -15,6 +15,7 @@
 | 2026-09-27 | `6fa7148` | M4 RSI div v12 | 위 동일, oversold=30/overbought=70 최적화 | N=4815, WR=45.8%, EV=−0.0004R, PF=0.981 | 36 |
 | 2026-09-27 | `ca88fb4` | + G_K + G_ema | 위 + K값 범위 게이트 + 1h EMA 방향 필터 | Sharp rise: WR +7.7%p, EV +0.247R (N −15.4%) | 36 |
 | 2026-09-27 | `299cbfc` | 실거래 준비 완료 | BUG-2/3/4·CFG-1·D2·A2·exit_reason 표준화 | pytest 112 passed | — |
+| 2026-10-13 | `448c3d7` | M4 Stoch RSI div (현행) | Stoch RSI 다이버전스 + SL=2.8%/trail=1.2%/lev=20 | N=368, WR=70.1%, EV=−0.0220R, PF=0.913 (Long +0.0215R / Short −0.0609R) | 150 |
 
 ---
 
@@ -137,7 +138,7 @@
 | **test-2** | `test_m4_entry.py` 없음. 게이트 9개 진입 조건 미검증. |
 | **sym-list** | 36심볼 목록 기록 없음. 45심볼 목록은 `baseline_m4_45sym_90d.md §2`에 보존. §3 기준선은 150심볼로 재정의됨(2026-10-08). |
 | **E2** | 해시 증명 — 전략 교체로 비교 대상 소멸. 영구 미확인. |
-| **reduceOnly** | 청산 주문에 `reduceOnly` 플래그 없음 — 반대 포지션 생성 위험. |
+| ~~**reduceOnly**~~ | ~~청산 주문에 `reduceOnly` 플래그 없음 — 반대 포지션 생성 위험.~~ → **해결** (커밋 `c927298`) |
 | **phase-recovery** | 재시작 시 `phase` · `partial_closed` 미복원 (`profit_trigger`만 저장). |
 | **emergency-stop** | 비상 정지 버튼 없음. |
 | **spread-filter** | 스프레드·유동성 필터 없음. |
