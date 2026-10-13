@@ -565,6 +565,12 @@ class TradingEngine:
                                         else:
                                             with self._lock:
                                                 self._state.error_msg = "[경보] 롱 Trailing Stop 등록 실패 — Binance 연결 확인 필요"
+                            # Phase1 Time-out: N봉(5m) 초과 시 청산
+                            if (updated.phase == 1 and self._params.phase1_timeout_bars > 0
+                                    and not RiskManager.should_stop_loss(updated, mark)):
+                                _elapsed_5m = int((time.time() - updated.entry_time) / 300.0)
+                                if _elapsed_5m >= self._params.phase1_timeout_bars:
+                                    self._close_long("TIMEOUT", mark)
                             # K80-5M 익절 — 롱 (직전 K≥80 → 현재 K<80 하향 돌파)
                             if _ind_kd and not RiskManager.should_stop_loss(updated, mark):
                                 _tf5 = _ind_kd.get("tf5", {})
@@ -617,6 +623,12 @@ class TradingEngine:
                                         else:
                                             with self._lock:
                                                 self._state.error_msg = "[경보] 숏 Trailing Stop 등록 실패 — Binance 연결 확인 필요"
+                            # Phase1 Time-out: N봉(5m) 초과 시 청산
+                            if (updated.phase == 1 and self._params.phase1_timeout_bars > 0
+                                    and not RiskManager.should_stop_loss(updated, mark)):
+                                _elapsed_5m = int((time.time() - updated.entry_time) / 300.0)
+                                if _elapsed_5m >= self._params.phase1_timeout_bars:
+                                    self._close_short("TIMEOUT", mark)
                             # K20-5M 익절 — 숏 (직전 K≤20 → 현재 K>20 상향 돌파)
                             if _ind_kd and not RiskManager.should_stop_loss(updated, mark):
                                 _tf5 = _ind_kd.get("tf5", {})
