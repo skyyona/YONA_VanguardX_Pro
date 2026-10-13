@@ -102,3 +102,22 @@ class TestReduceOnly:
         client.place_order(order)
         assert len(captured) == 1
         assert "reduceOnly" not in captured[0]
+
+    def test_close_short_sends_reduce_only(self):
+        """숏 청산(close_position 'short')은 BUY + reduceOnly='true'."""
+        client = self._make_client()
+        captured = []
+        client._signed_post = self._capture_fn(captured)
+        client.close_position("BTCUSDT", "short", 0.001)
+        assert captured[0].get("side") == "BUY"
+        assert captured[0].get("reduceOnly") == "true"
+
+    def test_entry_limit_order_has_no_reduce_only(self):
+        """LIMIT(GTX) 진입 주문에는 reduceOnly가 붙지 않는다."""
+        client = self._make_client()
+        captured = []
+        client._signed_post = self._capture_fn(captured)
+        client.place_order(Order(symbol="BTCUSDT", side=OrderSide.SELL,
+                                 order_type=OrderType.LIMIT, quantity=0.001, price=50000.0))
+        assert captured[0].get("timeInForce") == "GTX"
+        assert "reduceOnly" not in captured[0]
