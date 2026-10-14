@@ -338,7 +338,7 @@ class BacktestRunner:
                 liq_short_dist = max(0.5, min(_LIQ_GAUGE_MAX,
                                      _liq_base - (abs(_liq_fr_val) * _LIQ_FR_BIAS if _liq_fr_val < 0 else 0.0)
                                      - _short_excess * _liq_base * 0.5))
-                liq_safe       = min(sl_used * 0.75, _LIQ_GAUGE_MAX * 0.95)
+                liq_safe       = min(sl_used, _LIQ_GAUGE_MAX * 0.95)  # LIVE prohibition_filter.py 와 동일 (K=1.0)
                 liq_ok_long    = liq_long_dist  >= liq_safe
                 liq_ok_short   = liq_short_dist >= liq_safe
 
