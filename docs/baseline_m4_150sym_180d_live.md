@@ -10,7 +10,7 @@
 `docs/baseline_m4_150sym_180d.md` (커밋 기준 `7df1136`, SL=1.8%)는 두 가지 이유로 교체:
 
 1. **파라미터 변경**: SL 1.8%→2.8%, trail 0.7%→1.2%, leverage 10→20.  
-   SL/trail sweep 결과 반영(sl_trail_sweep · leverage_sweep).
+   사용자 설정 변경 (e236151, bec14f2, 16882ef). 해당 값의 사전 측정 기록 없음.
 2. **실거래 파라미터 자동 동기화 구현** (`d50ecfa`):  
    `base_params.py`가 `_strategy.json "24h Ticker"`를 직접 읽도록 변경.  
    이후 기준선은 반드시 현행 `_strategy.json` 파라미터로 재측정해야 유효.
@@ -91,9 +91,6 @@ PF>1 심볼: **16 / 41**
 | BEP-SL 기여 | 2건 × -0.036R | -0.1R |
 | **합계** | 368건 | **-8.1R / 368 = -0.0220R** |
 
-**SL 24.2% × -1.037R이 KD-EXIT +0.250R 이익을 상쇄.**  
-숏 EV(-0.0609R)가 롱 EV(+0.0215R)보다 열위 — 숏 방향 진입 조건 또는 SL 폭 검토 필요.
-
 ---
 
 ## §7 구 기준선 비교
@@ -105,13 +102,11 @@ PF>1 심볼: **16 / 41**
 | N | 1,216건 | **368건** |
 | WR | 51.7% | **70.1%** |
 | SL 비율 | 15.9% | **24.2%** |
-| SL 평균R | -4.694R | **-1.037R** |
-| EV | -0.3437R | **-0.0220R** |
-| PF | — | **0.913** |
+| SL 평균R | -4.694R (1R 정의 정정 eb13e71 이전 단위 — 직접 비교 불가) | **-1.037R** |
+| EV | -0.3437R (1R 정의 정정 eb13e71 이전 단위 — 직접 비교 불가) | **-0.0220R** |
+| PF | 0.695 | **0.913** |
 
-> SL을 넓혔음에도 거래 건수가 대폭 감소(1,216→368).  
-> WR은 크게 상승(51.7→70.1%)하나 SL 빈도(24.2%)가 여전히 높아 EV 음수 유지.  
-> N=368건 — 통계 신뢰도 경계. 지속 관찰 필요.
+단위 무관 지표(PF·WR·N)만 직접 비교 가능.
 
 ---
 
@@ -120,3 +115,43 @@ PF>1 심볼: **16 / 41**
 스크립트: `exit_reason_analysis.py` (PERIOD="180일", `_strategy.json` 자동 읽기)  
 캐시: `backtest_cache/180일/` (150심볼)  
 결과 파일: `exit_reason_analysis_result.json`
+
+---
+
+## §9 판정
+
+| 기준 | 값 | 판정 |
+|---|---|---|
+| N ≥ 50 | 368 | 통과 |
+| EV > 0 | −0.0220R | 미달 |
+| PF > 1 | 0.913 (± 0.095 → 0.818~1.008) | 미달 (구간에 1 포함) |
+| PF>1 심볼 ≥ 50% | 16/41 = 39.0% | 미달 |
+
+---
+
+## §10 측정 메타
+
+| 항목 | 값 |
+|---|---|
+| commit | `448c3d7` |
+| dirty | **True** (측정 시 미추적 파일 존재 — `exit_reason_live_180d_log.txt` 리다이렉트 생성) |
+| run_at | 2026-10-13T23:28:58 |
+| period | 180일 |
+| symbols_count | 150 |
+| sort_mode | 24h Ticker |
+| leverage | 20 |
+| stop_loss | 2.8 |
+| trail_stop | 1.2 |
+| use_macro | false |
+| m4_rsi_vol_mult | 1.5 |
+| mmr | 0.004 |
+| funds_pct | 100 |
+| phase1_timeout_bars | 0 |
+| prohibition.common_liq | true |
+| prohibition.common_fr | true |
+| prohibition.common_new | true |
+| prohibition.common_hunter | true |
+| prohibition.long_fomo | true |
+| prohibition.long_short_open | true |
+| prohibition.short_accum | true |
+| prohibition.short_long_open | true |
