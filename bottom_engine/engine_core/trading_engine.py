@@ -724,6 +724,9 @@ class TradingEngine:
                         if sym:
                             _rsi_n15 = 14 + 5
                             _bars15 = self._client.get_klines(sym, "15m", limit=_rsi_n15 + 3)
+                            # 진행 중 봉 제외 — BT 는 bisect_right(close_time) 로 마감 봉만 사용
+                            _now_ms15 = int(time.time() * 1000) - 500
+                            _bars15 = [b for b in _bars15 if b["close_time"] < _now_ms15]
                             if len(_bars15) >= _rsi_n15:
                                 _cls15 = [b["close"] for b in _bars15[-_rsi_n15:]]
                                 _rsi15_list = calc_rsi_series(_cls15, period=14)
