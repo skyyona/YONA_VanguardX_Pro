@@ -77,3 +77,27 @@ PART 2 (방안 A) 구현으로 BT·LIVE 공통 청산 판정을 `M4Exit.evaluate
 | PARTIAL Phase3 진입 기준 | BT: `entry - R*1.5`, LIVE: 독립 계산 | 동일 `entry ± R*1.5` |
 | KD exit 조건 | BT: `k_prev`/`k_cur` 인라인, LIVE: `_sl_loop` | BT=M4Exit, LIVE=`_sl_loop` (구조 명확화) |
 | trail_ref 추적 방향 | LONG=max, SHORT=min | `M4Exit` 내부에서 통일 |
+
+---
+
+## 정합성 수정 완료 (이후)
+
+| 차이 | 내용 | 해결 방법 | 커밋 |
+|------|------|-----------|------|
+| ⑬ | LIVE G2 가 진행 중 15m 봉 사용 | `trading_engine.py:726` 마감 봉 필터 추가 | `0ce260d` |
+| ⑭ | Phase2 전환 시 KD-EXIT — BT/LIVE 불일치 | `m4_exit.py:112,177` `new_phase == 1 and …` 조건, `trading_engine.py:578` `(old_phase_l != 1 or updated.phase != 2)` 가드 — 양쪽 모두 `close >= entry` 수익 조건 포함 | 기수정 |
+| ⑮ | `phase1_timeout_bars` 단위 5배 불일치 (BT `bars_held` 1m vs LIVE `_elapsed_5m` 5m) | BT 비교식에 `* 5` 추가 | `4ebe270` |
+| ⑯ | BT `common_liq liq_safe` K 계수 불일치 (K=0.75 → K=1.0) | BT `min(sl_used, _LIQ_GAUGE_MAX * 0.95)` 로 일치 | `6bf1cd6` |
+
+> **⑫ 항목 철회**: 직전 보고에서 "동일 5m 봉 재진입 가드 부재"를 차이로 제안했으나,  
+> BT·LIVE 모두 1m 주기 재평가로 동일하게 동작함이 확인됨 — 차이 아님으로 삭제.
+
+---
+
+## 미해결 항목
+
+### ⑰ 백테스트 포지션 점유 미반영
+
+백테스트는 심볼별로 독립 실행되므로 한 심볼의 포지션이 다른 심볼의 신호를 막지 않습니다.  
+실거래는 하단 모듈 단일 인스턴스(`main.py:128`)로 **한 심볼만** 운용하며 `MAX_CONCURRENT_POSITIONS = 1`(`risk_manager.py:21`).  
+따라서 **백테스트의 거래 수는 실거래보다 과대 추정**됩니다. 규모는 미측정.
