@@ -880,18 +880,10 @@ class BacktestRunner:
 
         심볼별 봉 데이터 1회 로드 후 모든 조합에 공유.
         반환: EV(R) 내림차순 정렬된 조합별 dict 리스트
-              키: vol_mult, n, wr, ev_r, pf
+              키: vol_mult, n, wr, ev_r, pf, pf_ci, one_r_pct
         """
-        sl_pct = base_params.stop_loss
-
-        buckets: list[dict] = [
-            {
-                "vol_mult": vm,
-                "n": 0.0, "wins": 0.0,
-                "sum_pos_pnl": 0.0, "sum_neg_pnl": 0.0, "sum_ev_r": 0.0,
-            }
-            for vm in vol_mults
-        ]
+        from bottom_engine.sweep import SweepBucket
+        buckets = [SweepBucket() for _ in vol_mults]
 
         period_days = cls._days(period)
         for s_idx, sym in enumerate(symbols):
@@ -905,26 +897,11 @@ class BacktestRunner:
                 _p = dataclasses.replace(base_params, m4_rsi_vol_mult=vm)
                 res = cls.run(sym, _p, period, preloaded=preloaded,
                               entry_variant="M4", exit_variant="CURRENT")
-                bkt = buckets[i]
-                for t in res.trades:
-                    w = t.qty_ratio
-                    bkt["n"] += w
-                    r = (t.pnl_pct / sl_pct) if sl_pct > 0 else 0.0
-                    bkt["sum_ev_r"] += r * w
-                    if t.pnl_pct > 0:
-                        bkt["wins"]        += w
-                        bkt["sum_pos_pnl"] += t.pnl_pct * w
-                    else:
-                        bkt["sum_neg_pnl"] += abs(t.pnl_pct) * w
+                buckets[i].add(res)
 
-        for bkt in buckets:
-            n = bkt["n"]
-            bkt["wr"]   = (bkt["wins"] / n * 100.0) if n > 0 else 0.0
-            bkt["ev_r"] = (bkt["sum_ev_r"] / n) if n > 0 else 0.0
-            bkt["pf"]   = (bkt["sum_pos_pnl"] / bkt["sum_neg_pnl"]
-                           if bkt["sum_neg_pnl"] > 0 else 0.0)
-
-        return sorted(buckets, key=lambda b: b["ev_r"], reverse=True)
+        results = [{"vol_mult": vm, **bkt.summary()}
+                   for vm, bkt in zip(vol_mults, buckets)]
+        return sorted(results, key=lambda b: b["ev_r"], reverse=True)
 
     # ── 거래 비용 계산 ──────────────────────────────────────────
     @staticmethod
