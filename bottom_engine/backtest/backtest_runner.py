@@ -442,7 +442,7 @@ class BacktestRunner:
                 else:  # CURRENT exit_variant — M4Exit 공통 판정
                     # Phase1 Time-out: N봉 초과 시 close 가격으로 전량 청산
                     if (phase == 1 and params.phase1_timeout_bars > 0
-                            and bars_held >= params.phase1_timeout_bars):
+                            and bars_held >= params.phase1_timeout_bars * 5):
                         cost = cls._cost(_leff, bars_held)
                         pnl  = (close - entry_price) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(
@@ -599,7 +599,7 @@ class BacktestRunner:
                 else:  # CURRENT exit_variant — M4Exit 공통 판정
                     # Phase1 Time-out: N봉 초과 시 close 가격으로 전량 청산
                     if (phase == 1 and params.phase1_timeout_bars > 0
-                            and bars_held >= params.phase1_timeout_bars):
+                            and bars_held >= params.phase1_timeout_bars * 5):
                         cost = cls._cost(_leff, bars_held)
                         pnl  = (entry_price - close) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(
