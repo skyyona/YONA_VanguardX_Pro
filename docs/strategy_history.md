@@ -16,6 +16,7 @@
 | 2026-09-27 | `ca88fb4` | + G_K + G_ema | 위 + K값 범위 게이트 + 1h EMA 방향 필터 | Sharp rise: WR +7.7%p, EV +0.247R (N −15.4%) | 36 |
 | 2026-09-27 | `299cbfc` | 실거래 준비 완료 | BUG-2/3/4·CFG-1·D2·A2·exit_reason 표준화 | pytest 112 passed | — |
 | 2026-10-13 | `448c3d7` | M4 Stoch RSI div (현행) | Stoch RSI 다이버전스 + SL=2.8%/trail=1.2%/lev=20 | N=368, WR=70.1%, EV=−0.0220R, PF=0.913 (Long +0.0215R / Short −0.0609R) | 150 |
+| 2026-10-14 | `41f5155` | M4 Stoch RSI div (권고조치 후) | 위 동일 (작업 C·A·B·D 적용 후 재측정) | N=359, WR=69.4%, EV=−0.0253R, PF=0.902 (Long +0.0167R / Short −0.0609R) | 150 |
 
 ---
 

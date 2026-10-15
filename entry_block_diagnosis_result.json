@@ -1,0 +1,3812 @@
+{
+  "meta": {
+    "commit": "41f5155",
+    "dirty": true,
+    "run_at": "2026-10-14T21:57:04",
+    "period": "180일",
+    "symbols_count": 150,
+    "params": {
+      "sort_mode": "24h Ticker",
+      "funds_pct": 100,
+      "leverage": 20,
+      "stop_loss": 2.8,
+      "trail_stop": 1.2,
+      "prohibition": {
+        "common_liq": true,
+        "common_fr": true,
+        "common_new": true,
+        "common_hunter": true,
+        "long_fomo": true,
+        "long_short_open": true,
+        "short_accum": true,
+        "short_long_open": true
+      },
+      "use_macro": false,
+      "portfolio_usdt": 1000.0,
+      "mmr": 0.004,
+      "m4_rsi_vol_mult": 1.5,
+      "phase1_timeout_bars": 0
+    }
+  },
+  "elapsed_min": 11.718208587169647,
+  "symbols_traded": 40,
+  "symbols_zero": 110,
+  "no_eval": [
+    "LITUSDT",
+    "ETHFIUSDT",
+    "TRBUSDT",
+    "PROMUSDT",
+    "TIAUSDT",
+    "RENDERUSDT",
+    "LYNUSDT",
+    "RAYSOLUSDT",
+    "XAUTUSDT",
+    "BTWUSDT",
+    "1000SHIBUSDT",
+    "HBARUSDT",
+    "DASHUSDT",
+    "MONUSDT",
+    "OPUSDT",
+    "ICPUSDT",
+    "AINUSDT",
+    "TRXUSDT",
+    "XMRUSDT",
+    "PARTIUSDT",
+    "METUSDT",
+    "VIRTUALUSDT",
+    "JUPUSDT",
+    "NILUSDT",
+    "MUBARAKUSDT",
+    "EDUUSDT",
+    "USELESSUSDT",
+    "STRKUSDT",
+    "ETCUSDT",
+    "FARTCOINUSDT",
+    "MAGICUSDT",
+    "CRVUSDT",
+    "C98USDT",
+    "VVVUSDT",
+    "JTOUSDT",
+    "GRASSUSDT",
+    "AEROUSDT",
+    "PENDLEUSDT",
+    "1000BONKUSDT",
+    "LDOUSDT",
+    "VTHOUSDT",
+    "ACEUSDT",
+    "SEIUSDT",
+    "POLUSDT",
+    "WLFIUSDT",
+    "STXUSDT",
+    "SYNUSDT",
+    "RESOLVUSDT",
+    "AKEUSDT",
+    "WIFUSDT",
+    "AXSUSDT",
+    "CHIPUSDT",
+    "LSKUSDT",
+    "NIGHTUSDT",
+    "ORDIUSDT",
+    "GRAMUSDT",
+    "ATOMUSDT",
+    "BULLAUSDT",
+    "ONEUSDT",
+    "ARUSDT",
+    "SKYUSDT",
+    "PYTHUSDT",
+    "MANAUSDT",
+    "HEMIUSDT",
+    "GALAUSDT",
+    "BOMEUSDT",
+    "UMAUSDT",
+    "ARKUSDT",
+    "ALGOUSDT",
+    "MAGMAUSDT",
+    "ZAMAUSDT",
+    "EIGENUSDT",
+    "FLUXUSDT",
+    "OGNUSDT",
+    "SAGAUSDT",
+    "CAKEUSDT",
+    "ZENUSDT",
+    "VELVETUSDT",
+    "LPTUSDT",
+    "HUMAUSDT",
+    "PHAUSDT",
+    "BIOUSDT",
+    "MIRAUSDT",
+    "COTIUSDT",
+    "AIAUSDT",
+    "LABUSDT",
+    "0GUSDT",
+    "ALICEUSDT",
+    "MORPHOUSDT",
+    "1000FLOKIUSDT",
+    "ESPUSDT",
+    "CLOUSDT",
+    "4USDT",
+    "FLUIDUSDT",
+    "DIAUSDT",
+    "2ZUSDT",
+    "ENJUSDT",
+    "RVNUSDT",
+    "CCUSDT",
+    "MYXUSDT"
+  ],
+  "zero_no_signal": [
+    "LITUSDT",
+    "ETHFIUSDT",
+    "TRBUSDT",
+    "PROMUSDT",
+    "TIAUSDT",
+    "RENDERUSDT",
+    "LYNUSDT",
+    "RAYSOLUSDT",
+    "XAUTUSDT",
+    "BTWUSDT",
+    "1000SHIBUSDT",
+    "HBARUSDT",
+    "DASHUSDT",
+    "MONUSDT",
+    "OPUSDT",
+    "ICPUSDT",
+    "AINUSDT",
+    "TRXUSDT",
+    "XMRUSDT",
+    "PARTIUSDT",
+    "METUSDT",
+    "VIRTUALUSDT",
+    "JUPUSDT",
+    "NILUSDT",
+    "MUBARAKUSDT",
+    "EDUUSDT",
+    "USELESSUSDT",
+    "STRKUSDT",
+    "ETCUSDT",
+    "FARTCOINUSDT",
+    "MAGICUSDT",
+    "CRVUSDT",
+    "C98USDT",
+    "VVVUSDT",
+    "JTOUSDT",
+    "GRASSUSDT",
+    "AEROUSDT",
+    "PENDLEUSDT",
+    "1000BONKUSDT",
+    "LDOUSDT",
+    "VTHOUSDT",
+    "ACEUSDT",
+    "SEIUSDT",
+    "POLUSDT",
+    "WLFIUSDT",
+    "STXUSDT",
+    "SYNUSDT",
+    "RESOLVUSDT",
+    "AKEUSDT",
+    "WIFUSDT",
+    "AXSUSDT",
+    "CHIPUSDT",
+    "LSKUSDT",
+    "NIGHTUSDT",
+    "ORDIUSDT",
+    "GRAMUSDT",
+    "ATOMUSDT",
+    "BULLAUSDT",
+    "ONEUSDT",
+    "ARUSDT",
+    "SKYUSDT",
+    "PYTHUSDT",
+    "MANAUSDT",
+    "HEMIUSDT",
+    "GALAUSDT",
+    "BOMEUSDT",
+    "UMAUSDT",
+    "ARKUSDT",
+    "ALGOUSDT",
+    "MAGMAUSDT",
+    "ZAMAUSDT",
+    "EIGENUSDT",
+    "FLUXUSDT",
+    "OGNUSDT",
+    "SAGAUSDT",
+    "CAKEUSDT",
+    "ZENUSDT",
+    "VELVETUSDT",
+    "LPTUSDT",
+    "HUMAUSDT",
+    "PHAUSDT",
+    "BIOUSDT",
+    "MIRAUSDT",
+    "COTIUSDT",
+    "AIAUSDT",
+    "LABUSDT",
+    "0GUSDT",
+    "ALICEUSDT",
+    "MORPHOUSDT",
+    "1000FLOKIUSDT",
+    "ESPUSDT",
+    "CLOUSDT",
+    "4USDT",
+    "FLUIDUSDT",
+    "DIAUSDT",
+    "2ZUSDT",
+    "ENJUSDT",
+    "RVNUSDT",
+    "CCUSDT",
+    "MYXUSDT"
+  ],
+  "by_symbol": [
+    {
+      "symbol": "BTCUSDT",
+      "trades": 0,
+      "evaluated": 259000,
+      "all": {
+        "long": {
+          "G5": 65584,
+          "G_K": 8374,
+          "G1": 5838,
+          "G1_vol": 118,
+          "G2": 24,
+          "G8_liq": 6,
+          "G4": 179056
+        },
+        "short": {
+          "G5": 65584,
+          "G1": 5865,
+          "G_K": 8315,
+          "G1_vol": 137,
+          "G2": 26,
+          "G8_liq": 17,
+          "G4": 179056
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 3161,
+          "G_K": 526,
+          "G1_vol": 118,
+          "G2": 24,
+          "G8_liq": 6,
+          "G4": 7825
+        },
+        "short": {
+          "G_K": 507,
+          "G5": 3188,
+          "G1_vol": 137,
+          "G2": 26,
+          "G8_liq": 17,
+          "G4": 7995
+        }
+      }
+    },
+    {
+      "symbol": "ETHUSDT",
+      "trades": 0,
+      "evaluated": 259000,
+      "all": {
+        "long": {
+          "G_K": 8820,
+          "G5": 68403,
+          "G1": 5895,
+          "G1_vol": 123,
+          "G8_liq": 6,
+          "G2": 55,
+          "G4": 175698
+        },
+        "short": {
+          "G1": 6030,
+          "G5": 68403,
+          "G_K": 8648,
+          "G1_vol": 173,
+          "G2": 38,
+          "G8_liq": 10,
+          "G4": 175698
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 3120,
+          "G_K": 496,
+          "G1_vol": 123,
+          "G8_liq": 6,
+          "G2": 55,
+          "G4": 8445
+        },
+        "short": {
+          "G5": 3223,
+          "G1_vol": 173,
+          "G2": 38,
+          "G_K": 506,
+          "G8_liq": 10,
+          "G4": 7675
+        }
+      }
+    },
+    {
+      "symbol": "SOLUSDT",
+      "trades": 3.0,
+      "evaluated": 258475,
+      "all": {
+        "long": {
+          "G1": 6713,
+          "G5": 74751,
+          "G_K": 9819,
+          "G1_vol": 154,
+          "G2": 26,
+          "G8_liq": 9,
+          "G4": 167000,
+          "PASS": 3
+        },
+        "short": {
+          "G_K": 9679,
+          "G5": 74751,
+          "G1": 6837,
+          "G1_vol": 179,
+          "G2": 24,
+          "G8_liq": 5,
+          "G4": 167000
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 3570,
+          "G_K": 611,
+          "G1_vol": 154,
+          "G2": 26,
+          "G8_liq": 9,
+          "G4": 8205,
+          "PASS": 3
+        },
+        "short": {
+          "G5": 3495,
+          "G_K": 612,
+          "G1_vol": 179,
+          "G2": 24,
+          "G8_liq": 5,
+          "G4": 8030
+        }
+      }
+    },
+    {
+      "symbol": "ZECUSDT",
+      "trades": 13.0,
+      "evaluated": 257465,
+      "all": {
+        "long": {
+          "G5": 159127,
+          "G1": 14029,
+          "G_K": 19152,
+          "G1_vol": 440,
+          "G2": 40,
+          "G8_liq": 16,
+          "PASS": 10,
+          "G4": 64651
+        },
+        "short": {
+          "G5": 159127,
+          "G_K": 19988,
+          "G1": 13313,
+          "G1_vol": 318,
+          "G2": 43,
+          "G8_liq": 22,
+          "PASS": 3,
+          "G4": 64651
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 7858,
+          "G1_vol": 440,
+          "G_K": 1164,
+          "G2": 40,
+          "G8_liq": 16,
+          "PASS": 10,
+          "G4": 3745
+        },
+        "short": {
+          "G5": 6979,
+          "G1_vol": 318,
+          "G_K": 1053,
+          "G2": 43,
+          "G8_liq": 22,
+          "PASS": 3,
+          "G4": 3415
+        }
+      }
+    },
+    {
+      "symbol": "XRPUSDT",
+      "trades": 0,
+      "evaluated": 259000,
+      "all": {
+        "long": {
+          "G5": 80321,
+          "G1": 7211,
+          "G_K": 10620,
+          "G1_vol": 107,
+          "G2": 33,
+          "G8_liq": 4,
+          "G4": 160704
+        },
+        "short": {
+          "G5": 80321,
+          "G_K": 10234,
+          "G1_vol": 174,
+          "G1": 7521,
+          "G2": 40,
+          "G8_liq": 6,
+          "G4": 160704
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 3932,
+          "G_K": 659,
+          "G1_vol": 107,
+          "G2": 33,
+          "G8_liq": 4,
+          "G4": 7590
+        },
+        "short": {
+          "G5": 3621,
+          "G_K": 650,
+          "G1_vol": 174,
+          "G2": 40,
+          "G8_liq": 6,
+          "G4": 7260
+        }
+      }
+    },
+    {
+      "symbol": "RLCUSDT",
+      "trades": 4.0,
+      "evaluated": 258812,
+      "all": {
+        "long": {
+          "G1": 9703,
+          "G5": 98409,
+          "G_K": 14367,
+          "G1_vol": 296,
+          "G2": 36,
+          "G8_liq": 13,
+          "G4": 135986,
+          "PASS": 2
+        },
+        "short": {
+          "G_K": 13898,
+          "G5": 98409,
+          "G1": 10201,
+          "G1_vol": 248,
+          "G2": 60,
+          "G8_liq": 8,
+          "G4": 135986,
+          "PASS": 2
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 5506,
+          "G1_vol": 296,
+          "G_K": 1019,
+          "G2": 36,
+          "G8_liq": 13,
+          "G4": 7285,
+          "PASS": 2
+        },
+        "short": {
+          "G5": 4229,
+          "G1_vol": 248,
+          "G_K": 720,
+          "G2": 60,
+          "G8_liq": 8,
+          "G4": 6070,
+          "PASS": 2
+        }
+      }
+    },
+    {
+      "symbol": "NEARUSDT",
+      "trades": 13.0,
+      "evaluated": 257339,
+      "all": {
+        "long": {
+          "G_K": 20769,
+          "G5": 151745,
+          "G1": 14596,
+          "G1_vol": 373,
+          "G2": 41,
+          "G8_liq": 6,
+          "G4": 69801,
+          "PASS": 8
+        },
+        "short": {
+          "G1": 14440,
+          "G5": 151745,
+          "G_K": 20958,
+          "G1_vol": 298,
+          "G2": 90,
+          "G8_liq": 2,
+          "G4": 69801,
+          "PASS": 5
+        }
+      },
+      "signal": {
+        "long": {
+          "G1_vol": 373,
+          "G5": 7061,
+          "G_K": 1228,
+          "G2": 41,
+          "G8_liq": 6,
+          "G4": 2740,
+          "PASS": 8
+        },
+        "short": {
+          "G5": 6948,
+          "G_K": 1216,
+          "G1_vol": 298,
+          "G2": 90,
+          "G8_liq": 2,
+          "G4": 2930,
+          "PASS": 5
+        }
+      }
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "trades": 0,
+      "evaluated": 259000,
+      "all": {
+        "long": {
+          "G1": 6913,
+          "G5": 79398,
+          "G_K": 10663,
+          "G1_vol": 129,
+          "G2": 36,
+          "G8_liq": 11,
+          "G4": 161850
+        },
+        "short": {
+          "G_K": 10094,
+          "G5": 79398,
+          "G1": 7445,
+          "G1_vol": 190,
+          "G2": 17,
+          "G8_liq": 6,
+          "G4": 161850
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 3737,
+          "G_K": 587,
+          "G1_vol": 129,
+          "G2": 36,
+          "G8_liq": 11,
+          "G4": 7680
+        },
+        "short": {
+          "G5": 3706,
+          "G_K": 656,
+          "G1_vol": 190,
+          "G2": 17,
+          "G8_liq": 6,
+          "G4": 8100
+        }
+      }
+    },
+    {
+      "symbol": "HYPEUSDT",
+      "trades": 3.0,
+      "evaluated": 258726,
+      "all": {
+        "long": {
+          "G_K": 13876,
+          "G5": 103990,
+          "G1": 9278,
+          "G1_vol": 206,
+          "G2": 50,
+          "G8_liq": 11,
+          "G4": 131312,
+          "PASS": 3
+        },
+        "short": {
+          "G_K": 13417,
+          "G5": 103990,
+          "G1": 9720,
+          "G1_vol": 234,
+          "G2": 50,
+          "G8_liq": 3,
+          "G4": 131312
+        }
+      },
+      "signal": {
+        "long": {
+          "G_K": 812,
+          "G5": 4602,
+          "G1_vol": 206,
+          "G2": 50,
+          "G8_liq": 11,
+          "G4": 6685,
+          "PASS": 3
+        },
+        "short": {
+          "G5": 5073,
+          "G_K": 865,
+          "G1_vol": 234,
+          "G2": 50,
+          "G8_liq": 3,
+          "G4": 6860
+        }
+      }
+    },
+    {
+      "symbol": "BRUSDT",
+      "trades": 12.0,
+      "evaluated": 257025,
+      "all": {
+        "long": {
+          "G5": 186620,
+          "G1": 17378,
+          "G_K": 24689,
+          "G1_vol": 526,
+          "G8_liq": 12,
+          "G2": 63,
+          "PASS": 8,
+          "G4": 27729
+        },
+        "short": {
+          "G5": 186620,
+          "G_K": 25331,
+          "G1": 16766,
+          "G1_vol": 478,
+          "G2": 95,
+          "G8_liq": 2,
+          "PASS": 4,
+          "G4": 27729
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 9966,
+          "G_K": 1612,
+          "G1_vol": 526,
+          "G8_liq": 12,
+          "G2": 63,
+          "PASS": 8,
+          "G4": 1385
+        },
+        "short": {
+          "G5": 8522,
+          "G_K": 1292,
+          "G1_vol": 478,
+          "G2": 95,
+          "G8_liq": 2,
+          "PASS": 4,
+          "G4": 1130
+        }
+      }
+    },
+    {
+      "symbol": "ORCAUSDT",
+      "trades": 8.0,
+      "evaluated": 258010,
+      "all": {
+        "long": {
+          "G5": 110530,
+          "G_K": 16097,
+          "G1": 10786,
+          "G1_vol": 334,
+          "G2": 49,
+          "G8_liq": 4,
+          "G4": 120208,
+          "PASS": 2
+        },
+        "short": {
+          "G5": 110530,
+          "G1": 11454,
+          "G_K": 15463,
+          "G1_vol": 298,
+          "G2": 41,
+          "G8_liq": 10,
+          "G4": 120208,
+          "PASS": 6
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 4866,
+          "G_K": 800,
+          "G1_vol": 334,
+          "G2": 49,
+          "G8_liq": 4,
+          "G4": 4040,
+          "PASS": 2
+        },
+        "short": {
+          "G5": 4399,
+          "G_K": 664,
+          "G1_vol": 298,
+          "G2": 41,
+          "G8_liq": 10,
+          "G4": 4265,
+          "PASS": 6
+        }
+      }
+    },
+    {
+      "symbol": "NMRUSDT",
+      "trades": 6.0,
+      "evaluated": 257891,
+      "all": {
+        "long": {
+          "G5": 91871,
+          "G1": 8980,
+          "G_K": 13693,
+          "G1_vol": 344,
+          "G2": 42,
+          "G8_liq": 3,
+          "G4": 142954,
+          "PASS": 4
+        },
+        "short": {
+          "G5": 91871,
+          "G_K": 13126,
+          "G1": 9634,
+          "G1_vol": 237,
+          "G8_liq": 29,
+          "G2": 38,
+          "G4": 142954,
+          "PASS": 2
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 5064,
+          "G_K": 876,
+          "G1_vol": 344,
+          "G2": 42,
+          "G8_liq": 3,
+          "G4": 7525,
+          "PASS": 4
+        },
+        "short": {
+          "G5": 4144,
+          "G_K": 782,
+          "G1_vol": 237,
+          "G8_liq": 29,
+          "G2": 38,
+          "G4": 5765,
+          "PASS": 2
+        }
+      }
+    },
+    {
+      "symbol": "SUIUSDT",
+      "trades": 7.0,
+      "evaluated": 256934,
+      "all": {
+        "long": {
+          "G5": 111144,
+          "G_K": 14436,
+          "G1": 9646,
+          "G1_vol": 263,
+          "G8_liq": 14,
+          "G2": 46,
+          "PASS": 3,
+          "G4": 121382
+        },
+        "short": {
+          "G5": 111144,
+          "G_K": 13858,
+          "G1": 10180,
+          "G1_vol": 324,
+          "G2": 31,
+          "G8_liq": 11,
+          "G4": 121382,
+          "PASS": 4
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 5485,
+          "G1_vol": 263,
+          "G_K": 943,
+          "G8_liq": 14,
+          "G2": 46,
+          "PASS": 3,
+          "G4": 6080
+        },
+        "short": {
+          "G5": 5262,
+          "G_K": 843,
+          "G1_vol": 324,
+          "G2": 31,
+          "G8_liq": 11,
+          "G4": 5380,
+          "PASS": 4
+        }
+      }
+    },
+    {
+      "symbol": "BNBUSDT",
+      "trades": 0,
+      "evaluated": 259000,
+      "all": {
+        "long": {
+          "G_K": 8657,
+          "G5": 66018,
+          "G1": 5668,
+          "G1_vol": 137,
+          "G8_liq": 15,
+          "G2": 24,
+          "G4": 178481
+        },
+        "short": {
+          "G1": 6170,
+          "G5": 66018,
+          "G_K": 8192,
+          "G1_vol": 104,
+          "G2": 24,
+          "G8_liq": 11,
+          "G4": 178481
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 3127,
+          "G1_vol": 137,
+          "G_K": 562,
+          "G8_liq": 15,
+          "G2": 24,
+          "G4": 9300
+        },
+        "short": {
+          "G5": 2561,
+          "G_K": 465,
+          "G1_vol": 104,
+          "G2": 24,
+          "G8_liq": 11,
+          "G4": 8580
+        }
+      }
+    },
+    {
+      "symbol": "UNIUSDT",
+      "trades": 10.0,
+      "evaluated": 256833,
+      "all": {
+        "long": {
+          "G5": 144008,
+          "G_K": 19405,
+          "G1": 12914,
+          "G8_liq": 19,
+          "G2": 38,
+          "G1_vol": 362,
+          "G4": 80083,
+          "PASS": 4
+        },
+        "short": {
+          "G5": 144008,
+          "G_K": 18679,
+          "G1": 13745,
+          "G1_vol": 276,
+          "G2": 32,
+          "G8_liq": 4,
+          "G4": 80083,
+          "PASS": 6
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 6690,
+          "G8_liq": 19,
+          "G2": 38,
+          "G_K": 1048,
+          "G1_vol": 362,
+          "G4": 3815,
+          "PASS": 4
+        },
+        "short": {
+          "G5": 6339,
+          "G_K": 1107,
+          "G1_vol": 276,
+          "G2": 32,
+          "G8_liq": 4,
+          "G4": 4010,
+          "PASS": 6
+        }
+      }
+    },
+    {
+      "symbol": "PUMPUSDT",
+      "trades": 20.0,
+      "evaluated": 256675,
+      "all": {
+        "long": {
+          "G5": 198335,
+          "G_K": 27537,
+          "G1": 18941,
+          "G1_vol": 499,
+          "G2": 63,
+          "G8_liq": 8,
+          "G4": 11280,
+          "PASS": 12
+        },
+        "short": {
+          "G5": 198335,
+          "G_K": 27290,
+          "G1": 19118,
+          "G1_vol": 539,
+          "G2": 93,
+          "G8_liq": 12,
+          "G4": 11280,
+          "PASS": 8
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 9075,
+          "G_K": 1618,
+          "G1_vol": 499,
+          "G2": 63,
+          "G8_liq": 8,
+          "G4": 725,
+          "PASS": 12
+        },
+        "short": {
+          "G5": 9142,
+          "G_K": 1601,
+          "G1_vol": 539,
+          "G2": 93,
+          "G8_liq": 12,
+          "G4": 575,
+          "PASS": 8
+        }
+      }
+    },
+    {
+      "symbol": "ADAUSDT",
+      "trades": 3.0,
+      "evaluated": 257610,
+      "all": {
+        "long": {
+          "G5": 113191,
+          "G_K": 15486,
+          "G1": 10456,
+          "G1_vol": 278,
+          "G2": 54,
+          "G8_liq": 3,
+          "G4": 118141,
+          "PASS": 1
+        },
+        "short": {
+          "G5": 113191,
+          "G_K": 15073,
+          "G1": 10880,
+          "G1_vol": 253,
+          "G2": 57,
+          "G8_liq": 13,
+          "G4": 118141,
+          "PASS": 2
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 5183,
+          "G1_vol": 278,
+          "G_K": 868,
+          "G2": 54,
+          "G8_liq": 3,
+          "G4": 5685,
+          "PASS": 1
+        },
+        "short": {
+          "G5": 4549,
+          "G1_vol": 253,
+          "G_K": 751,
+          "G2": 57,
+          "G8_liq": 13,
+          "G4": 5295,
+          "PASS": 2
+        }
+      }
+    },
+    {
+      "symbol": "QNTUSDT",
+      "trades": 2.0,
+      "evaluated": 258965,
+      "all": {
+        "long": {
+          "G5": 88374,
+          "G_K": 12178,
+          "G1": 8386,
+          "G1_vol": 228,
+          "G2": 30,
+          "G8_liq": 9,
+          "G4": 149760
+        },
+        "short": {
+          "G5": 88374,
+          "G1": 8502,
+          "G_K": 12027,
+          "G1_vol": 231,
+          "G8_liq": 9,
+          "G2": 60,
+          "G4": 149760,
+          "PASS": 2
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 4044,
+          "G_K": 719,
+          "G1_vol": 228,
+          "G2": 30,
+          "G8_liq": 9,
+          "G4": 7275
+        },
+        "short": {
+          "G_K": 775,
+          "G5": 4209,
+          "G1_vol": 231,
+          "G8_liq": 9,
+          "G2": 60,
+          "G4": 6065,
+          "PASS": 2
+        }
+      }
+    },
+    {
+      "symbol": "AVAXUSDT",
+      "trades": 5.0,
+      "evaluated": 258623,
+      "all": {
+        "long": {
+          "G5": 94197,
+          "G1": 8511,
+          "G_K": 12826,
+          "G1_vol": 201,
+          "G8_liq": 8,
+          "G2": 28,
+          "G4": 142851,
+          "PASS": 1
+        },
+        "short": {
+          "G5": 94197,
+          "G_K": 12308,
+          "G1": 8976,
+          "G1_vol": 230,
+          "G2": 42,
+          "G8_liq": 15,
+          "G4": 142851,
+          "PASS": 4
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 4406,
+          "G_K": 737,
+          "G1_vol": 201,
+          "G8_liq": 8,
+          "G2": 28,
+          "G4": 7095,
+          "PASS": 1
+        },
+        "short": {
+          "G_K": 803,
+          "G5": 4425,
+          "G1_vol": 230,
+          "G2": 42,
+          "G8_liq": 15,
+          "G4": 6775,
+          "PASS": 4
+        }
+      }
+    },
+    {
+      "symbol": "WLDUSDT",
+      "trades": 20.0,
+      "evaluated": 256182,
+      "all": {
+        "long": {
+          "G5": 176111,
+          "G1": 15348,
+          "G_K": 23169,
+          "G1_vol": 373,
+          "G2": 66,
+          "G8_liq": 7,
+          "PASS": 8,
+          "G4": 41100
+        },
+        "short": {
+          "G5": 176111,
+          "G_K": 22343,
+          "G1": 16092,
+          "G1_vol": 416,
+          "G2": 100,
+          "G8_liq": 8,
+          "PASS": 12,
+          "G4": 41100
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 8587,
+          "G_K": 1380,
+          "G1_vol": 373,
+          "G2": 66,
+          "G8_liq": 7,
+          "PASS": 8,
+          "G4": 2085
+        },
+        "short": {
+          "G5": 7959,
+          "G_K": 1292,
+          "G1_vol": 416,
+          "G2": 100,
+          "G8_liq": 8,
+          "PASS": 12,
+          "G4": 2125
+        }
+      }
+    },
+    {
+      "symbol": "ENAUSDT",
+      "trades": 11.0,
+      "evaluated": 257365,
+      "all": {
+        "long": {
+          "G5": 162211,
+          "G_K": 20836,
+          "G1": 13874,
+          "G1_vol": 427,
+          "G2": 60,
+          "G8_liq": 9,
+          "PASS": 4,
+          "G4": 59944
+        },
+        "short": {
+          "G5": 162211,
+          "G_K": 20246,
+          "G1": 14447,
+          "G1_vol": 436,
+          "G2": 59,
+          "G8_liq": 15,
+          "PASS": 7,
+          "G4": 59944
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 8852,
+          "G_K": 1400,
+          "G1_vol": 427,
+          "G2": 60,
+          "G8_liq": 9,
+          "PASS": 4,
+          "G4": 3355
+        },
+        "short": {
+          "G5": 8331,
+          "G_K": 1296,
+          "G1_vol": 436,
+          "G2": 59,
+          "G8_liq": 15,
+          "PASS": 7,
+          "G4": 2730
+        }
+      }
+    },
+    {
+      "symbol": "SANDUSDT",
+      "trades": 5.0,
+      "evaluated": 258495,
+      "all": {
+        "long": {
+          "G5": 106528,
+          "G_K": 14619,
+          "G1": 9599,
+          "G1_vol": 275,
+          "G2": 58,
+          "G8_liq": 9,
+          "G4": 127404,
+          "PASS": 3
+        },
+        "short": {
+          "G5": 106528,
+          "G_K": 13980,
+          "G1": 10241,
+          "G1_vol": 272,
+          "G2": 55,
+          "G8_liq": 8,
+          "G4": 127404,
+          "PASS": 2,
+          "G8_fr": 5
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 5469,
+          "G1_vol": 275,
+          "G_K": 1018,
+          "G2": 58,
+          "G8_liq": 9,
+          "G4": 5435,
+          "PASS": 3
+        },
+        "short": {
+          "G5": 5339,
+          "G_K": 911,
+          "G1_vol": 272,
+          "G2": 55,
+          "G8_liq": 8,
+          "PASS": 2,
+          "G4": 4840,
+          "G8_fr": 5
+        }
+      }
+    },
+    {
+      "symbol": "TAOUSDT",
+      "trades": 4.0,
+      "evaluated": 258532,
+      "all": {
+        "long": {
+          "G5": 121689,
+          "G1": 10759,
+          "G_K": 15802,
+          "G1_vol": 260,
+          "G8_liq": 20,
+          "G2": 21,
+          "G4": 109978,
+          "PASS": 3
+        },
+        "short": {
+          "G5": 121689,
+          "G_K": 15296,
+          "G1": 11265,
+          "G1_vol": 254,
+          "G8_liq": 7,
+          "G2": 42,
+          "G4": 109978,
+          "PASS": 1
+        }
+      },
+      "signal": {
+        "long": {
+          "G1_vol": 260,
+          "G5": 6140,
+          "G_K": 1012,
+          "G8_liq": 20,
+          "G2": 21,
+          "G4": 6040,
+          "PASS": 3
+        },
+        "short": {
+          "G_K": 964,
+          "G5": 5447,
+          "G1_vol": 254,
+          "G8_liq": 7,
+          "G2": 42,
+          "G4": 5465,
+          "PASS": 1
+        }
+      }
+    },
+    {
+      "symbol": "1000PEPEUSDT",
+      "trades": 2.0,
+      "evaluated": 258634,
+      "all": {
+        "long": {
+          "G5": 109930,
+          "G_K": 14360,
+          "G1": 9391,
+          "G1_vol": 231,
+          "G8_liq": 8,
+          "G2": 33,
+          "G4": 124680,
+          "PASS": 1
+        },
+        "short": {
+          "G5": 109930,
+          "G_K": 13649,
+          "G1": 9998,
+          "G1_vol": 308,
+          "G2": 53,
+          "G8_liq": 15,
+          "G4": 124680,
+          "PASS": 1
+        }
+      },
+      "signal": {
+        "long": {
+          "G_K": 936,
+          "G5": 5747,
+          "G1_vol": 231,
+          "G8_liq": 8,
+          "G2": 33,
+          "G4": 6195,
+          "PASS": 1
+        },
+        "short": {
+          "G5": 5479,
+          "G_K": 899,
+          "G1_vol": 308,
+          "G2": 53,
+          "G8_liq": 15,
+          "G4": 6030,
+          "PASS": 1
+        }
+      }
+    },
+    {
+      "symbol": "CAPUSDT",
+      "trades": 15.0,
+      "evaluated": 149741,
+      "all": {
+        "long": {
+          "G_K": 15646,
+          "G5": 110235,
+          "G1": 10233,
+          "G1_vol": 339,
+          "G2": 42,
+          "G4": 13239,
+          "PASS": 7
+        },
+        "short": {
+          "G1": 10777,
+          "G5": 110235,
+          "G_K": 15190,
+          "G1_vol": 246,
+          "G2": 40,
+          "G4": 13239,
+          "PASS": 8,
+          "G8_fr": 6
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 5160,
+          "G_K": 879,
+          "G1_vol": 339,
+          "G2": 42,
+          "G4": 725,
+          "PASS": 7
+        },
+        "short": {
+          "G5": 5410,
+          "G_K": 929,
+          "G1_vol": 246,
+          "G2": 40,
+          "G4": 715,
+          "PASS": 8,
+          "G8_fr": 6
+        }
+      }
+    },
+    {
+      "symbol": "FILUSDT",
+      "trades": 6.0,
+      "evaluated": 258415,
+      "all": {
+        "long": {
+          "G1": 12433,
+          "G5": 122978,
+          "G_K": 18742,
+          "G1_vol": 257,
+          "G2": 76,
+          "G8_liq": 6,
+          "PASS": 3,
+          "G4": 103920
+        },
+        "short": {
+          "G_K": 17835,
+          "G5": 122978,
+          "G1": 13285,
+          "G1_vol": 337,
+          "G8_liq": 10,
+          "G2": 47,
+          "G4": 103920,
+          "PASS": 3
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 4673,
+          "G_K": 854,
+          "G1_vol": 257,
+          "G2": 76,
+          "G8_liq": 6,
+          "PASS": 3,
+          "G4": 4820
+        },
+        "short": {
+          "G5": 5224,
+          "G_K": 918,
+          "G1_vol": 337,
+          "G8_liq": 10,
+          "G2": 47,
+          "G4": 4725,
+          "PASS": 3
+        }
+      }
+    },
+    {
+      "symbol": "AAVEUSDT",
+      "trades": 6.0,
+      "evaluated": 258440,
+      "all": {
+        "long": {
+          "G5": 114295,
+          "G_K": 15038,
+          "G1": 9915,
+          "G1_vol": 258,
+          "G2": 57,
+          "G8_liq": 9,
+          "G4": 118865,
+          "PASS": 3
+        },
+        "short": {
+          "G5": 114295,
+          "G_K": 14321,
+          "G1": 10610,
+          "G1_vol": 281,
+          "G8_liq": 12,
+          "G2": 53,
+          "G4": 118865,
+          "PASS": 3
+        }
+      },
+      "signal": {
+        "long": {
+          "G_K": 883,
+          "G5": 5659,
+          "G1_vol": 258,
+          "G2": 57,
+          "G8_liq": 9,
+          "G4": 6275,
+          "PASS": 3
+        },
+        "short": {
+          "G5": 5257,
+          "G1_vol": 281,
+          "G_K": 823,
+          "G8_liq": 12,
+          "G2": 53,
+          "G4": 6035,
+          "PASS": 3
+        }
+      }
+    },
+    {
+      "symbol": "ONDOUSDT",
+      "trades": 6.0,
+      "evaluated": 258206,
+      "all": {
+        "long": {
+          "G5": 132161,
+          "G_K": 17683,
+          "G1": 12021,
+          "G1_vol": 298,
+          "G2": 87,
+          "G8_liq": 12,
+          "PASS": 4,
+          "G4": 95940
+        },
+        "short": {
+          "G5": 132161,
+          "G1": 12529,
+          "G_K": 17272,
+          "G1_vol": 249,
+          "G2": 52,
+          "G8_liq": 1,
+          "PASS": 2,
+          "G4": 95940
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 6040,
+          "G_K": 1111,
+          "G1_vol": 298,
+          "G2": 87,
+          "G8_liq": 12,
+          "PASS": 4,
+          "G4": 4700
+        },
+        "short": {
+          "G_K": 1073,
+          "G5": 6005,
+          "G1_vol": 249,
+          "G2": 52,
+          "G8_liq": 1,
+          "PASS": 2,
+          "G4": 4340
+        }
+      }
+    },
+    {
+      "symbol": "LINKUSDT",
+      "trades": 0,
+      "evaluated": 259000,
+      "all": {
+        "long": {
+          "G5": 80427,
+          "G_K": 10610,
+          "G1": 7290,
+          "G1_vol": 136,
+          "G2": 23,
+          "G8_liq": 5,
+          "G4": 160509
+        },
+        "short": {
+          "G5": 80427,
+          "G1_vol": 148,
+          "G2": 37,
+          "G1": 7513,
+          "G_K": 10363,
+          "G8_liq": 3,
+          "G4": 160509
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 3749,
+          "G_K": 652,
+          "G1_vol": 136,
+          "G2": 23,
+          "G8_liq": 5,
+          "G4": 7490
+        },
+        "short": {
+          "G5": 3119,
+          "G1_vol": 148,
+          "G2": 37,
+          "G_K": 519,
+          "G8_liq": 3,
+          "G4": 7475
+        }
+      }
+    },
+    {
+      "symbol": "USUSDT",
+      "trades": 20.0,
+      "evaluated": 257160,
+      "all": {
+        "long": {
+          "G5": 199523,
+          "G1": 19169,
+          "G_K": 25880,
+          "G1_vol": 483,
+          "G2": 80,
+          "G8_liq": 6,
+          "PASS": 8,
+          "G4": 12011
+        },
+        "short": {
+          "G5": 199523,
+          "G_K": 27300,
+          "G1": 17840,
+          "G1_vol": 400,
+          "G2": 63,
+          "G8_liq": 11,
+          "PASS": 12,
+          "G4": 12011
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 9270,
+          "G_K": 1545,
+          "G1_vol": 483,
+          "G2": 80,
+          "G8_liq": 6,
+          "PASS": 8,
+          "G4": 505
+        },
+        "short": {
+          "G5": 9470,
+          "G_K": 1530,
+          "G1_vol": 400,
+          "G2": 63,
+          "G8_liq": 11,
+          "PASS": 12,
+          "G4": 660
+        }
+      }
+    },
+    {
+      "symbol": "GTCUSDT",
+      "trades": 10.0,
+      "evaluated": 258230,
+      "all": {
+        "long": {
+          "G5": 120436,
+          "G_K": 16463,
+          "G1": 11130,
+          "G1_vol": 353,
+          "G2": 30,
+          "G8_liq": 15,
+          "PASS": 3,
+          "G4": 109800
+        },
+        "short": {
+          "G5": 120436,
+          "G1": 11465,
+          "G_K": 16175,
+          "G1_vol": 271,
+          "G2": 60,
+          "G8_liq": 16,
+          "G4": 109800,
+          "PASS": 7
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 5723,
+          "G1_vol": 353,
+          "G_K": 990,
+          "G2": 30,
+          "G8_liq": 15,
+          "PASS": 3,
+          "G4": 5330
+        },
+        "short": {
+          "G5": 5470,
+          "G_K": 947,
+          "G1_vol": 271,
+          "G2": 60,
+          "G8_liq": 16,
+          "G4": 4895,
+          "PASS": 7
+        }
+      }
+    },
+    {
+      "symbol": "TRUMPUSDT",
+      "trades": 3.0,
+      "evaluated": 258496,
+      "all": {
+        "long": {
+          "G5": 126339,
+          "G1": 11307,
+          "G_K": 18148,
+          "G1_vol": 255,
+          "G8_liq": 15,
+          "G2": 54,
+          "G4": 102375,
+          "PASS": 3
+        },
+        "short": {
+          "G5": 126339,
+          "G_K": 16718,
+          "G1": 12667,
+          "G1_vol": 346,
+          "G2": 39,
+          "G8_liq": 12,
+          "G4": 102375
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 5449,
+          "G_K": 878,
+          "G1_vol": 255,
+          "G8_liq": 15,
+          "G2": 54,
+          "G4": 4825,
+          "PASS": 3
+        },
+        "short": {
+          "G_K": 992,
+          "G5": 5970,
+          "G1_vol": 346,
+          "G2": 39,
+          "G8_liq": 12,
+          "G4": 4095
+        }
+      }
+    },
+    {
+      "symbol": "INJUSDT",
+      "trades": 8.0,
+      "evaluated": 258285,
+      "all": {
+        "long": {
+          "G5": 144605,
+          "G_K": 19011,
+          "G1": 12808,
+          "G1_vol": 410,
+          "G2": 67,
+          "G8_liq": 5,
+          "G4": 81377,
+          "PASS": 2
+        },
+        "short": {
+          "G5": 144605,
+          "G_K": 18367,
+          "G1_vol": 297,
+          "G1": 13569,
+          "G2": 50,
+          "G8_liq": 14,
+          "G4": 81377,
+          "PASS": 6
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 6768,
+          "G_K": 1097,
+          "G1_vol": 410,
+          "G2": 67,
+          "G8_liq": 5,
+          "G4": 4610,
+          "PASS": 2
+        },
+        "short": {
+          "G5": 6393,
+          "G_K": 1011,
+          "G1_vol": 297,
+          "G2": 50,
+          "G8_liq": 14,
+          "PASS": 6,
+          "G4": 3955
+        }
+      }
+    },
+    {
+      "symbol": "ARBUSDT",
+      "trades": 13.0,
+      "evaluated": 257037,
+      "all": {
+        "long": {
+          "G5": 136362,
+          "G_K": 18774,
+          "G1": 12929,
+          "G1_vol": 313,
+          "G8_liq": 14,
+          "G2": 63,
+          "G4": 88578,
+          "PASS": 4
+        },
+        "short": {
+          "G5": 136362,
+          "G1": 13067,
+          "G_K": 18634,
+          "G8_liq": 2,
+          "G2": 88,
+          "G1_vol": 297,
+          "G4": 88578,
+          "PASS": 9
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 6445,
+          "G1_vol": 313,
+          "G_K": 1062,
+          "G8_liq": 14,
+          "G2": 63,
+          "G4": 4335,
+          "PASS": 4
+        },
+        "short": {
+          "G_K": 1167,
+          "G5": 6392,
+          "G8_liq": 2,
+          "G2": 88,
+          "G1_vol": 297,
+          "G4": 3935,
+          "PASS": 9
+        }
+      }
+    },
+    {
+      "symbol": "PENGUUSDT",
+      "trades": 12.0,
+      "evaluated": 257413,
+      "all": {
+        "long": {
+          "G5": 136814,
+          "G_K": 18304,
+          "G1": 12188,
+          "G1_vol": 303,
+          "G2": 49,
+          "G8_liq": 14,
+          "G4": 89734,
+          "PASS": 7
+        },
+        "short": {
+          "G5": 136814,
+          "G1": 13080,
+          "G_K": 17389,
+          "G1_vol": 338,
+          "G2": 48,
+          "G8_liq": 5,
+          "PASS": 5,
+          "G4": 89734
+        }
+      },
+      "signal": {
+        "long": {
+          "G_K": 1137,
+          "G5": 6468,
+          "G1_vol": 303,
+          "G2": 49,
+          "G8_liq": 14,
+          "G4": 5155,
+          "PASS": 7
+        },
+        "short": {
+          "G_K": 1007,
+          "G5": 6181,
+          "G1_vol": 338,
+          "G2": 48,
+          "G8_liq": 5,
+          "PASS": 5,
+          "G4": 4295
+        }
+      }
+    },
+    {
+      "symbol": "ZROUSDT",
+      "trades": 18.0,
+      "evaluated": 256417,
+      "all": {
+        "long": {
+          "G5": 173479,
+          "G_K": 21910,
+          "G1": 15625,
+          "G1_vol": 452,
+          "G2": 63,
+          "G8_liq": 3,
+          "G4": 44880,
+          "PASS": 5
+        },
+        "short": {
+          "G5": 173479,
+          "G_K": 22203,
+          "G1": 15455,
+          "G1_vol": 347,
+          "G8_liq": 9,
+          "G2": 31,
+          "PASS": 13,
+          "G4": 44880
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 9441,
+          "G1_vol": 452,
+          "G_K": 1541,
+          "G2": 63,
+          "G8_liq": 3,
+          "G4": 2395,
+          "PASS": 5
+        },
+        "short": {
+          "G5": 7361,
+          "G_K": 1247,
+          "G1_vol": 347,
+          "G8_liq": 9,
+          "G2": 31,
+          "PASS": 13,
+          "G4": 2250
+        }
+      }
+    },
+    {
+      "symbol": "MINAUSDT",
+      "trades": 14.0,
+      "evaluated": 257442,
+      "all": {
+        "long": {
+          "G_K": 19403,
+          "G5": 136283,
+          "G1": 13857,
+          "G1_vol": 306,
+          "G2": 42,
+          "G8_liq": 7,
+          "G4": 87540,
+          "PASS": 4
+        },
+        "short": {
+          "G1_vol": 302,
+          "G5": 136283,
+          "G2": 56,
+          "G_K": 19619,
+          "G1": 13626,
+          "G8_liq": 6,
+          "G4": 87540,
+          "PASS": 10
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 6469,
+          "G_K": 1254,
+          "G1_vol": 306,
+          "G2": 42,
+          "G8_liq": 7,
+          "G4": 5120,
+          "PASS": 4
+        },
+        "short": {
+          "G1_vol": 302,
+          "G5": 6335,
+          "G2": 56,
+          "G_K": 1278,
+          "G8_liq": 6,
+          "G4": 3760,
+          "PASS": 10
+        }
+      }
+    },
+    {
+      "symbol": "LTCUSDT",
+      "trades": 0,
+      "evaluated": 259000,
+      "all": {
+        "long": {
+          "G5": 75527,
+          "G_K": 10811,
+          "G1": 6818,
+          "G1_vol": 128,
+          "G8_liq": 9,
+          "G2": 20,
+          "G4": 165687
+        },
+        "short": {
+          "G5": 75527,
+          "G1": 7696,
+          "G_K": 9829,
+          "G1_vol": 217,
+          "G2": 38,
+          "G8_liq": 6,
+          "G4": 165687
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 3621,
+          "G1_vol": 128,
+          "G_K": 677,
+          "G8_liq": 9,
+          "G2": 20,
+          "G4": 7485
+        },
+        "short": {
+          "G5": 3237,
+          "G_K": 477,
+          "G1_vol": 217,
+          "G2": 38,
+          "G8_liq": 6,
+          "G4": 7765
+        }
+      }
+    },
+    {
+      "symbol": "API3USDT",
+      "trades": 4.0,
+      "evaluated": 258665,
+      "all": {
+        "long": {
+          "G5": 107109,
+          "G_K": 15649,
+          "G1": 10715,
+          "G1_vol": 285,
+          "G2": 36,
+          "G8_liq": 17,
+          "G4": 124854
+        },
+        "short": {
+          "G5": 107109,
+          "G_K": 15060,
+          "G1": 11358,
+          "G1_vol": 227,
+          "G2": 40,
+          "G8_liq": 13,
+          "G4": 124854,
+          "PASS": 4
+        }
+      },
+      "signal": {
+        "long": {
+          "G_K": 961,
+          "G5": 4981,
+          "G1_vol": 285,
+          "G2": 36,
+          "G8_liq": 17,
+          "G4": 5650
+        },
+        "short": {
+          "G5": 4236,
+          "G_K": 861,
+          "G1_vol": 227,
+          "G2": 40,
+          "G8_liq": 13,
+          "G4": 5720,
+          "PASS": 4
+        }
+      }
+    },
+    {
+      "symbol": "ASTERUSDT",
+      "trades": 3.0,
+      "evaluated": 258686,
+      "all": {
+        "long": {
+          "G5": 88014,
+          "G_K": 12299,
+          "G1": 7508,
+          "G1_vol": 187,
+          "G8_liq": 17,
+          "G2": 30,
+          "G4": 150630,
+          "PASS": 1
+        },
+        "short": {
+          "G5": 88014,
+          "G1": 8771,
+          "G_K": 10995,
+          "G1_vol": 236,
+          "G8_liq": 6,
+          "G2": 32,
+          "G4": 150630,
+          "PASS": 2
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 3720,
+          "G_K": 604,
+          "G1_vol": 187,
+          "G8_liq": 17,
+          "G2": 30,
+          "G4": 7195,
+          "PASS": 1
+        },
+        "short": {
+          "G5": 4108,
+          "G_K": 701,
+          "G1_vol": 236,
+          "G8_liq": 6,
+          "G2": 32,
+          "G4": 6780,
+          "PASS": 2
+        }
+      }
+    },
+    {
+      "symbol": "FETUSDT",
+      "trades": 9.0,
+      "evaluated": 256626,
+      "all": {
+        "long": {
+          "G5": 140199,
+          "G_K": 19515,
+          "G1": 13396,
+          "G8_liq": 14,
+          "G1_vol": 390,
+          "G2": 44,
+          "PASS": 4,
+          "G4": 83064
+        },
+        "short": {
+          "G5": 140199,
+          "G1": 13745,
+          "G_K": 19211,
+          "G1_vol": 326,
+          "G8_liq": 20,
+          "G2": 56,
+          "PASS": 5,
+          "G4": 83064
+        }
+      },
+      "signal": {
+        "long": {
+          "G8_liq": 14,
+          "G5": 6583,
+          "G_K": 1080,
+          "G1_vol": 390,
+          "G2": 44,
+          "PASS": 4,
+          "G4": 3605
+        },
+        "short": {
+          "G_K": 896,
+          "G5": 5526,
+          "G1_vol": 326,
+          "G8_liq": 20,
+          "G2": 56,
+          "PASS": 5,
+          "G4": 3410
+        }
+      }
+    },
+    {
+      "symbol": "DOTUSDT",
+      "trades": 6.0,
+      "evaluated": 258535,
+      "all": {
+        "long": {
+          "G5": 104712,
+          "G_K": 15898,
+          "G1": 10477,
+          "G1_vol": 256,
+          "G8_liq": 3,
+          "G2": 47,
+          "G4": 127140,
+          "PASS": 2
+        },
+        "short": {
+          "G5": 104712,
+          "G_K": 15161,
+          "G1": 11206,
+          "G2": 29,
+          "G1_vol": 281,
+          "G8_liq": 2,
+          "G4": 127140,
+          "PASS": 4
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 4564,
+          "G_K": 823,
+          "G1_vol": 256,
+          "G8_liq": 3,
+          "G2": 47,
+          "G4": 5045,
+          "PASS": 2
+        },
+        "short": {
+          "G5": 3862,
+          "G_K": 661,
+          "G2": 29,
+          "G1_vol": 281,
+          "G8_liq": 2,
+          "G4": 5050,
+          "PASS": 4
+        }
+      }
+    },
+    {
+      "symbol": "GRIFFAINUSDT",
+      "trades": 19.0,
+      "evaluated": 257165,
+      "all": {
+        "long": {
+          "G5": 165204,
+          "G_K": 22848,
+          "G1": 15224,
+          "G1_vol": 421,
+          "G2": 48,
+          "G8_liq": 12,
+          "G4": 53400,
+          "PASS": 8
+        },
+        "short": {
+          "G5": 165204,
+          "G1": 15955,
+          "G_K": 22083,
+          "G1_vol": 443,
+          "G8_liq": 20,
+          "G2": 49,
+          "G4": 53400,
+          "PASS": 11
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 8134,
+          "G1_vol": 421,
+          "G_K": 1450,
+          "G2": 48,
+          "G8_liq": 12,
+          "G4": 3165,
+          "PASS": 8
+        },
+        "short": {
+          "G5": 7607,
+          "G1_vol": 443,
+          "G8_liq": 20,
+          "G_K": 1240,
+          "G2": 49,
+          "G4": 2475,
+          "PASS": 11
+        }
+      }
+    },
+    {
+      "symbol": "BCHUSDT",
+      "trades": 3.0,
+      "evaluated": 258664,
+      "all": {
+        "long": {
+          "G_K": 12268,
+          "G1": 8157,
+          "G5": 96214,
+          "G1_vol": 220,
+          "G2": 28,
+          "G8_liq": 17,
+          "PASS": 2,
+          "G4": 141758
+        },
+        "short": {
+          "G_K": 11862,
+          "G5": 96214,
+          "G1": 8514,
+          "G2": 27,
+          "G1_vol": 278,
+          "G8_liq": 10,
+          "G4": 141758,
+          "PASS": 1
+        }
+      },
+      "signal": {
+        "long": {
+          "G_K": 807,
+          "G5": 5305,
+          "G1_vol": 220,
+          "G2": 28,
+          "G8_liq": 17,
+          "PASS": 2,
+          "G4": 6635
+        },
+        "short": {
+          "G5": 5217,
+          "G_K": 830,
+          "G2": 27,
+          "G1_vol": 278,
+          "G8_liq": 10,
+          "G4": 7485,
+          "PASS": 1
+        }
+      }
+    },
+    {
+      "symbol": "PAXGUSDT",
+      "trades": 0,
+      "evaluated": 259000,
+      "all": {
+        "long": {
+          "G5": 64390,
+          "G1": 6405,
+          "G1_vol": 163,
+          "G_K": 8935,
+          "G2": 21,
+          "G8_liq": 6,
+          "G4": 179080
+        },
+        "short": {
+          "G5": 64390,
+          "G_K": 8901,
+          "G1": 6445,
+          "G1_vol": 162,
+          "G8_liq": 11,
+          "G2": 11,
+          "G4": 179080
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 2979,
+          "G1_vol": 163,
+          "G_K": 486,
+          "G2": 21,
+          "G8_liq": 6,
+          "G4": 7640
+        },
+        "short": {
+          "G5": 2579,
+          "G1_vol": 162,
+          "G_K": 482,
+          "G8_liq": 11,
+          "G2": 11,
+          "G4": 7190
+        }
+      }
+    },
+    {
+      "symbol": "XLMUSDT",
+      "trades": 6.0,
+      "evaluated": 258270,
+      "all": {
+        "long": {
+          "G5": 107868,
+          "G1": 9451,
+          "G_K": 14013,
+          "G1_vol": 262,
+          "G2": 29,
+          "G8_liq": 2,
+          "G4": 126642,
+          "PASS": 3
+        },
+        "short": {
+          "G5": 107868,
+          "G_K": 13658,
+          "G1": 9740,
+          "G1_vol": 309,
+          "G8_liq": 11,
+          "G2": 39,
+          "PASS": 3,
+          "G4": 126642
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 6118,
+          "G_K": 1128,
+          "G1_vol": 262,
+          "G2": 29,
+          "G8_liq": 2,
+          "G4": 5492,
+          "PASS": 3
+        },
+        "short": {
+          "G5": 5334,
+          "G_K": 831,
+          "G1_vol": 309,
+          "G8_liq": 11,
+          "G2": 39,
+          "PASS": 3,
+          "G4": 6050
+        }
+      }
+    },
+    {
+      "symbol": "APTUSDT",
+      "trades": 9.0,
+      "evaluated": 257805,
+      "all": {
+        "long": {
+          "G5": 126598,
+          "G1": 11244,
+          "G_K": 17102,
+          "G1_vol": 277,
+          "G2": 24,
+          "G8_liq": 15,
+          "G4": 102540,
+          "PASS": 5
+        },
+        "short": {
+          "G5": 126598,
+          "G_K": 16021,
+          "G1": 12276,
+          "G1_vol": 322,
+          "G8_liq": 5,
+          "G2": 39,
+          "G4": 102540,
+          "PASS": 4
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 5854,
+          "G1_vol": 277,
+          "G_K": 1011,
+          "G2": 24,
+          "G8_liq": 15,
+          "G4": 5695,
+          "PASS": 5
+        },
+        "short": {
+          "G5": 6478,
+          "G_K": 1196,
+          "G1_vol": 322,
+          "G8_liq": 5,
+          "G2": 39,
+          "G4": 5015,
+          "PASS": 4
+        }
+      }
+    },
+    {
+      "symbol": "MOVRUSDT",
+      "trades": 18.0,
+      "evaluated": 257269,
+      "all": {
+        "long": {
+          "G5": 155379,
+          "G_K": 22538,
+          "G1": 15005,
+          "G1_vol": 483,
+          "G2": 60,
+          "G8_liq": 17,
+          "PASS": 7,
+          "G4": 63780
+        },
+        "short": {
+          "G5": 155379,
+          "G1": 15872,
+          "G_K": 21731,
+          "G1_vol": 388,
+          "G8_liq": 8,
+          "G2": 100,
+          "PASS": 11,
+          "G4": 63780
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 8471,
+          "G_K": 1515,
+          "G1_vol": 483,
+          "G2": 60,
+          "G8_liq": 17,
+          "PASS": 7,
+          "G4": 2735
+        },
+        "short": {
+          "G5": 6795,
+          "G_K": 1157,
+          "G1_vol": 388,
+          "G8_liq": 8,
+          "G2": 100,
+          "PASS": 11,
+          "G4": 2435
+        }
+      }
+    },
+    {
+      "symbol": "LITUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "ETHFIUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "TRBUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "PROMUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "TIAUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "RENDERUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "LYNUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "RAYSOLUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "XAUTUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "BTWUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "1000SHIBUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "HBARUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "XPLUSDT",
+      "trades": 0,
+      "evaluated": 1300,
+      "all": {
+        "long": {
+          "G5": 241,
+          "G_K": 38,
+          "G1": 11,
+          "G4": 1010
+        },
+        "short": {
+          "G5": 241,
+          "G_K": 15,
+          "G1": 34,
+          "G4": 1010
+        }
+      },
+      "signal": {
+        "long": {
+          "G4": 35
+        },
+        "short": {
+          "G4": 30
+        }
+      }
+    },
+    {
+      "symbol": "DASHUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "MONUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "OPUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "ICPUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "AINUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "TRXUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "XMRUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "PARTIUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "METUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "VIRTUALUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "JUPUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "NILUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "MUBARAKUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "EDUUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "USELESSUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "STRKUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "ETCUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "FARTCOINUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "MAGICUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "CRVUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "C98USDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "VVVUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "JTOUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "GRASSUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "AEROUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "PENDLEUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "1000BONKUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "LDOUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "VTHOUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "ACEUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "SEIUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "POLUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "WLFIUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "STXUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "SYNUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "RESOLVUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "AKEUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "WIFUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "AXSUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "CHIPUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "LSKUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "NIGHTUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "ORDIUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "GRAMUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "ATOMUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "BULLAUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "ONEUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "ARUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "SKYUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "PYTHUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "MANAUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "HEMIUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "GALAUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "BOMEUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "UMAUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "ARKUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "ALGOUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "MAGMAUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "ZAMAUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "EIGENUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "FLUXUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "OGNUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "SAGAUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "CAKEUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "ZENUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "VELVETUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "LPTUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "HUMAUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "PHAUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "BIOUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "MIRAUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "COTIUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "AIAUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "LABUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "SOONUSDT",
+      "trades": 0,
+      "evaluated": 1300,
+      "all": {
+        "long": {
+          "G5": 1012,
+          "G_K": 144,
+          "G1": 89,
+          "G1_vol": 1,
+          "G4": 54
+        },
+        "short": {
+          "G5": 1012,
+          "G_K": 139,
+          "G1": 95,
+          "G4": 54
+        }
+      },
+      "signal": {
+        "long": {
+          "G5": 56,
+          "G_K": 13,
+          "G1_vol": 1
+        },
+        "short": {
+          "G5": 28,
+          "G_K": 7
+        }
+      }
+    },
+    {
+      "symbol": "0GUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "ALICEUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "MORPHOUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "1000FLOKIUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "ESPUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "CLOUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "4USDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "FLUIDUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "DIAUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "2ZUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "ENJUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "RVNUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "CCUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    },
+    {
+      "symbol": "MYXUSDT",
+      "trades": 0,
+      "evaluated": 0,
+      "all": {
+        "long": {},
+        "short": {}
+      },
+      "signal": {
+        "long": {},
+        "short": {}
+      }
+    }
+  ]
+}
