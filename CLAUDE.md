@@ -1,103 +1,46 @@
 # CLAUDE.md
 
-Behavioral guidelines to reduce common LLM coding mistakes.  
-Based on Andrei Karpathy's vibe-coding principles, adapted by Forrest Chang.  
-Merged with YONA VanguardX Pro project-specific rules.
-
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+클로드 코드가 **YONA VanguardX Pro** 프로젝트 구현 진행을 위해 **반드시 지켜야 할 지침**입니다.  
+모든 구현 결과물은 **중복, 오류, 누락, 버그가 없어야 하며**, 기술적·문법적·계산적으로도 정확해야 합니다.  
+아래 지침은 우선순위 순서대로 나열되어 있습니다. **상위 항목이 하위 항목보다 항상 우선합니다.**
 
 ---
 
-## 1. Think Before Coding
+## 1. YONA VanguardX Pro — 프로젝트 전용 규칙
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+**이 섹션은 아래 모든 일반 지침보다 항상 우선합니다.**
 
-Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them — don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
-
-## 2. Simplicity First
-
-**Minimum code that solves the problem. Nothing speculative.**
-
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
-
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
-
-## 3. Surgical Changes
-
-**Touch only what you must. Clean up only your own mess.**
-
-When editing existing code:
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it — don't delete it.
-
-When your changes create orphans:
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
-
-The test: Every changed line should trace directly to the user's request.
-
-## 4. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-Transform tasks into verifiable goals:
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
-
-For multi-step tasks, state a brief plan:
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
-
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
-
----
-
-## 5. YONA VanguardX Pro — Project-Specific Rules
-
-### 5-1. No Unsolicited Changes
+### 1-1. 미승인 작업 금지
 **사용자 명령 없이 수정·구현 작업은 절대 하지 않는다.**  
 Ask first, implement after explicit approval.
 
-### 5-2. No Dummy / Mock / Sample Code
+### 1-2. 더미·목업·샘플 코드 금지
 **더미·목업·샘플 코드를 절대 생성하지 않는다.**  
 Every line of code written must be production-ready and directly relevant to the request.
 
-### 5-3. Python Version Lock
+### 1-3. Python 버전 고정
 **Python 3.12.10 단일 버전만 사용한다. 타 버전 설치 절대 금지.**  
 Do not suggest, install, or reference any other Python version.
 
-### 5-4. Live Trading Only
+### 1-4. 실거래 전용
 **이 앱은 실거래(LIVE) 전용이다. DRY_RUN 구현은 사용자의 의도가 아니다.**  
 Do not add dry-run modes, simulation branches, or paper-trading paths unless explicitly requested.
 
-### 5-5. Security — API Credentials
+### 1-5. API 자격증명 보안
 **`bottom_engine/.env`에는 실제 Binance API 자격증명이 포함되어 있다.**  
 - Never commit, share, log, or display the contents of `.env`.
 - Never echo API keys or secrets in any output.
 
-### 5-6. Syntax Verification
+### 1-6. 구문 검증 의무
 **모든 Python 파일 수정 후 반드시 `python -m py_compile <file>` 구문 검증을 실행한다.**  
 Report the result explicitly. Do not mark a task complete without a passing compile check.
 
-### 5-7. Communication
+### 1-7. 존댓말 사용
 **사용자에게는 항상 존댓말(존경의 존대말)을 사용한다.**
 
-### 5-8. Proof Over Claims
-**막연한 완료 보고보다 정확한 테스트를 거친 증거를 보고한다.**
+### 1-8. 증거 기반 완료 보고
+**구현 결과물은 중복, 오류, 누락, 버그가 없어야 하며, 기술적·문법적·계산적으로도 정확해야 한다.  
+이를 증거로 확인한 후에만 완료로 보고한다.**
 
 완료 보고 시 반드시 다음 중 하나 이상의 증거를 첨부한다:
 - `python -m py_compile <file>` 출력 결과
@@ -108,7 +51,7 @@ Report the result explicitly. Do not mark a task complete without a passing comp
 "구현 완료", "수정했습니다" 같은 단언만으로는 보고를 마치지 않는다.  
 증거 없는 완료 보고는 완료가 아니다.
 
-### 5-9. No Scope Creep — 요청 범위 초과 구현 금지
+### 1-9. 요청 범위 초과 금지
 **사용자가 명시적으로 요청한 범위를 초과하는 구현은 절대 하지 않는다.**
 
 - 요청된 기능만 구현한다. 관련 있어 보여도 요청하지 않은 것은 추가하지 않는다.
@@ -120,4 +63,66 @@ Report the result explicitly. Do not mark a task complete without a passing comp
 
 ---
 
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+## 2. 코딩 전에 먼저 생각하라
+
+**가정하지 말 것. 혼란을 숨기지 말 것. 트레이드오프를 표면에 드러낼 것.**  
+*Don't assume. Don't hide confusion. Surface tradeoffs.*
+
+구현 전:
+- 가정한 내용을 명시적으로 밝힐 것. 확신이 없으면 질문할 것.
+- 해석이 여러 가지인 경우 모두 제시할 것 — 조용히 하나를 선택하지 말 것.
+- 더 단순한 접근 방법이 있으면 말할 것. 필요하다면 반론을 제기할 것.
+- 불명확한 것이 있으면 멈출 것. 무엇이 혼란스러운지 명확히 하고 질문할 것.
+
+## 3. 단순함 최우선
+
+**문제를 해결하는 최소한의 코드. 추측성 코드는 절대 쓰지 말 것.**  
+*Minimum code that solves the problem. Nothing speculative.*
+
+- 요청된 것 이상의 기능은 추가하지 말 것.
+- 단일 용도 코드에 추상화를 넣지 말 것.
+- 요청하지 않은 "유연성"이나 "설정 가능성"을 넣지 말 것.
+- 발생 불가능한 시나리오에 대한 에러 핸들링을 넣지 말 것.
+- 200줄로 쓴 것이 50줄로 가능하다면 다시 작성할 것.
+
+스스로 물어볼 것: "시니어 엔지니어가 보면 과도하게 복잡하다고 할까?" — 그렇다면 단순화할 것.
+
+## 4. 외과적 수정
+
+**반드시 필요한 것만 건드릴 것. 자신이 만든 문제만 정리할 것.**  
+*Touch only what you must. Clean up only your own mess.*
+
+기존 코드 수정 시:
+- 인접 코드, 주석, 포맷을 임의로 "개선"하지 말 것.
+- 고장나지 않은 것을 리팩터링하지 말 것.
+- 자신이 다르게 하더라도 기존 스타일을 따를 것.
+- 관련 없는 데드 코드를 발견하면 언급만 할 것 — 삭제하지 말 것.
+
+자신의 변경으로 인해 고아(orphan)가 생긴 경우:
+- **자신의 변경으로 인해** 사용되지 않게 된 import·변수·함수는 제거할 것.
+- 기존에 있던 데드 코드는 요청 없이 제거하지 말 것.
+
+판단 기준: **변경된 모든 줄이 사용자의 요청으로 직접 추적 가능해야 한다.**
+
+## 5. 목표 중심 실행
+
+**성공 기준을 정의하라. 검증될 때까지 반복하라.**  
+*Define success criteria. Loop until verified.*
+
+작업을 검증 가능한 목표로 전환:
+- "유효성 검사 추가" → "잘못된 입력에 대한 테스트를 작성하고, 통과시킨다"
+- "버그 수정" → "버그를 재현하는 테스트를 작성하고, 통과시킨다"
+- "X 리팩터링" → "수정 전후 모두 테스트를 통과시킨다"
+
+다단계 작업은 간략한 계획을 먼저 제시:
+```
+1. [단계] → 검증: [확인 방법]
+2. [단계] → 검증: [확인 방법]
+3. [단계] → 검증: [확인 방법]
+```
+
+명확한 성공 기준이 있으면 독립적으로 반복 실행 가능. "동작하게 만들어"처럼 모호한 기준은 계속 확인이 필요하다.
+
+---
+
+**이 지침이 제대로 작동하고 있다면:** diff에 불필요한 변경이 줄어들고, 과도한 구현으로 인한 재작업이 줄어들며, 실수가 발생한 이후가 아니라 구현 전에 확인 질문이 나온다.
