@@ -26,12 +26,12 @@ def _load_env(path: Path) -> dict[str, str]:
     if not path.exists():
         return {}
     result: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         k, v = line.split("=", 1)
-        result[k.strip()] = v.strip()
+        result[k.strip()] = v.strip().strip('"').strip("'")
     return result
 
 
