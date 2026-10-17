@@ -10,6 +10,7 @@ import hmac
 import json
 import logging
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -26,6 +27,9 @@ class HeaderBinanceClient:
         env = self._load_env(env_path)
         self._api_key    = env.get("HEADER_BINANCE_API_KEY", "")
         self._api_secret = env.get("HEADER_BINANCE_API_SECRET", "")
+
+    def has_api_keys(self) -> bool:
+        return bool(self._api_key and self._api_secret)
 
     # ── 잔고 조회 ──────────────────────────────────────────────
     def fetch_futures_total_balance_with_status(self) -> WalletBalanceResult:
@@ -103,6 +107,10 @@ class HeaderBinanceClient:
             req = urllib.request.Request(url, headers={"X-MBX-APIKEY": self._api_key}, method="GET")
             with urllib.request.urlopen(req, timeout=5) as resp:
                 return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")
+            logging.warning("_signed_get %s%s: HTTP %d %s", base_url, path, e.code, body)
+            return None
         except Exception as e:
             logging.warning("_signed_get %s%s: %s", base_url, path, e)
             return None
@@ -125,6 +133,10 @@ class HeaderBinanceClient:
             with urllib.request.urlopen(req, timeout=10) as resp:
                 json.loads(resp.read().decode("utf-8"))
             return True
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")
+            logging.warning("_universal_transfer %s %.2fUSDT: HTTP %d %s", transfer_type, amount_usdt, e.code, body)
+            return False
         except Exception as e:
             logging.warning("_universal_transfer %s %.2fUSDT: %s", transfer_type, amount_usdt, e)
             return False
@@ -134,10 +146,10 @@ class HeaderBinanceClient:
         if not path.exists():
             return {}
         result: dict[str, str] = {}
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in path.read_text(encoding="utf-8-sig").splitlines():
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
             k, v = line.split("=", 1)
-            result[k.strip()] = v.strip()
+            result[k.strip()] = v.strip().strip('"').strip("'")
         return result
