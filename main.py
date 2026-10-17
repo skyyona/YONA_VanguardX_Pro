@@ -8,9 +8,11 @@ Header + Middle + Bottom 세 모듈을 단일 통합 GUI 창으로 실행
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
 import ctypes
+import threading
 import tkinter as tk
 
 from core.event_bus import EventBus
@@ -141,14 +143,22 @@ class YONAVanguardXPro(tk.Tk):
     # ── 헤더 액션 바인딩 ─────────────────────────────────────────
     def _bind_header_actions(self) -> None:
         def on_set_initial_investment() -> None:
-            InvestmentDialog(
+            dlg = InvestmentDialog(
                 self,
-                spot_result=self.header_panel.get_spot_balance(),
-                futures_result=self.header_panel.get_futures_balance(),
-                futures_available_result=self.header_panel.get_available_balance(),
                 on_confirm_bg=self.header_panel.do_transfer_bg,
                 on_confirm_done=self.header_panel.on_transfer_done,
             )
+
+            def _load_balances() -> None:
+                spot    = self.header_panel.get_spot_balance()
+                futures = self.header_panel.get_futures_balance()
+                avail   = self.header_panel.get_available_balance()
+                try:
+                    self.after(0, lambda: dlg.load_balances(spot, futures, avail))
+                except Exception:
+                    pass
+
+            threading.Thread(target=_load_balances, daemon=True).start()
 
         def on_start() -> None:
             self.header_panel.start()
@@ -232,6 +242,12 @@ class YONAVanguardXPro(tk.Tk):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        filename="logs/app.log",
+        level=logging.WARNING,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        encoding="utf-8",
+    )
     _acquire_instance_lock()  # [B] 단일 인스턴스 락 획득
     app = YONAVanguardXPro()
     app.mainloop()
