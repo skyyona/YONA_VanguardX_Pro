@@ -33,9 +33,6 @@ class InvestmentDialog(tk.Toplevel):
     def __init__(
         self,
         master: tk.Misc,
-        spot_result: WalletBalanceResult,
-        futures_result: WalletBalanceResult,
-        futures_available_result: WalletBalanceResult,
         on_confirm_bg: Callable[[float, TransferDirection], WalletBalanceResult],
         on_confirm_done: Callable[[], None],
     ) -> None:
@@ -48,12 +45,15 @@ class InvestmentDialog(tk.Toplevel):
         self._on_confirm_bg   = on_confirm_bg    # 백그라운드: API 이체
         self._on_confirm_done = on_confirm_done  # 메인 스레드: UI 갱신
 
-        self._spot_status               = spot_result.status
-        self._spot_balance              = spot_result.value_usdt
-        self._futures_status            = futures_result.status
-        self._futures_balance           = futures_result.value_usdt
-        self._futures_available_status  = futures_available_result.status
-        self._futures_available_balance = futures_available_result.value_usdt
+        # 잔고는 백그라운드 조회 완료 후 load_balances()로 채워짐
+        _placeholder = WalletBalanceResult(WalletQueryStatus.COMM_ERROR, 0.0)
+        self._spot_status               = _placeholder.status
+        self._spot_balance              = _placeholder.value_usdt
+        self._futures_status            = _placeholder.status
+        self._futures_balance           = _placeholder.value_usdt
+        self._futures_available_status  = _placeholder.status
+        self._futures_available_balance = _placeholder.value_usdt
+        self._loading = True
 
         self._direction_var = tk.StringVar(value=TransferDirection.TO_FUTURES.value)
         self._percent_var   = tk.DoubleVar(value=0.0)
@@ -75,11 +75,9 @@ class InvestmentDialog(tk.Toplevel):
         tk.Label(hdr, text="Initial Investment 설정", bg=_HDR, fg=_TEXT,
                  font=("Segoe UI", 11, "bold")).pack(padx=20, anchor="w")
 
-        bal_f = tk.Frame(self, bg=_PANEL, pady=12)
-        bal_f.pack(fill="x")
-        self._add_balance_row(bal_f, "Spot/Fiat 사용 가능 잔액", self._spot_status, self._spot_balance)
-        self._add_balance_row(bal_f, "USDⓈ-M Futures 현재 잔액", self._futures_status, self._futures_balance)
-        self._add_balance_row(bal_f, "USDⓈ-M Futures 이체 가능 잔액", self._futures_available_status, self._futures_available_balance)
+        self._bal_frame = tk.Frame(self, bg=_PANEL, pady=12)
+        self._bal_frame.pack(fill="x")
+        self._refresh_balance_rows()
         tk.Frame(self, bg=_SEP, height=1).pack(fill="x")
 
         body = tk.Frame(self, bg=_BG, pady=16)
@@ -132,7 +130,8 @@ class InvestmentDialog(tk.Toplevel):
                                        activebackground="#0A3A18", activeforeground=_POSITIVE,
                                        font=("Segoe UI", 9, "bold"),
                                        relief="flat", bd=0, highlightthickness=0,
-                                       padx=26, pady=6, cursor="hand2", command=self._confirm)
+                                       padx=26, pady=6, cursor="hand2", command=self._confirm,
+                                       state="disabled")
         self._confirm_btn.pack(side="right", padx=(4, 20))
         self._cancel_btn = tk.Button(btn_f, text="취소", bg=_HDR, fg=_DIM,
                                       activebackground="#333333", activeforeground=_TEXT,
@@ -142,11 +141,47 @@ class InvestmentDialog(tk.Toplevel):
         self._cancel_btn.pack(side="right", padx=4)
         self._update_amount_label()
 
+    def _refresh_balance_rows(self) -> None:
+        """잔고 표시 행을 현재 상태로 다시 그린다."""
+        for w in self._bal_frame.winfo_children():
+            w.destroy()
+        self._add_balance_row(self._bal_frame, "Spot/Fiat 사용 가능 잔액",
+                              self._spot_status, self._spot_balance)
+        self._add_balance_row(self._bal_frame, "USDⓈ-M Futures 현재 잔액",
+                              self._futures_status, self._futures_balance)
+        self._add_balance_row(self._bal_frame, "USDⓈ-M Futures 이체 가능 잔액",
+                              self._futures_available_status, self._futures_available_balance)
+
+    def load_balances(
+        self,
+        spot_result: WalletBalanceResult,
+        futures_result: WalletBalanceResult,
+        futures_available_result: WalletBalanceResult,
+    ) -> None:
+        """백그라운드 조회 완료 후 메인 스레드에서 호출 — 잔고 표시 갱신."""
+        try:
+            if not self.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        self._spot_status               = spot_result.status
+        self._spot_balance              = spot_result.value_usdt
+        self._futures_status            = futures_result.status
+        self._futures_balance           = futures_result.value_usdt
+        self._futures_available_status  = futures_available_result.status
+        self._futures_available_balance = futures_available_result.value_usdt
+        self._loading = False
+        self._refresh_balance_rows()
+        self._update_amount_label()
+        self._confirm_btn.configure(state="normal")
+
     def _add_balance_row(self, parent: tk.Widget, label: str, status: WalletQueryStatus, balance: float) -> None:
         row = tk.Frame(parent, bg=_PANEL)
         row.pack(fill="x", pady=(0, 6))
         tk.Label(row, text=label, bg=_PANEL, fg=_DIM, font=("Segoe UI", 9)).pack(side="left", padx=(20, 0))
-        if status == WalletQueryStatus.NO_API_KEY:
+        if self._loading:
+            t, c = "조회 중...", _DIM
+        elif status == WalletQueryStatus.NO_API_KEY:
             t, c = "API 키 미설정  —  조회 불가", _ORANGE
         elif status == WalletQueryStatus.COMM_ERROR:
             t, c = "통신 오류  —  잠시 후 다시 시도해 주세요", _ORANGE

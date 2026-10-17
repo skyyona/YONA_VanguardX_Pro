@@ -28,6 +28,8 @@ class TransferService:
         direction: TransferDirection = TransferDirection.TO_FUTURES,
     ) -> WalletBalanceResult:
         if transfer_amount_usdt > 0:
+            if not self._client.has_api_keys():
+                return WalletBalanceResult(WalletQueryStatus.NO_API_KEY, 0.0)
             if direction == TransferDirection.TO_FUTURES:
                 ok = self._client.transfer_spot_to_futures(transfer_amount_usdt)
             else:
