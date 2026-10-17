@@ -25,8 +25,9 @@ class HeaderBinanceClient:
     def __init__(self) -> None:
         env_path = Path(__file__).resolve().parents[1] / ".env"  # header/.env
         env = self._load_env(env_path)
-        self._api_key    = env.get("HEADER_BINANCE_API_KEY", "")
-        self._api_secret = env.get("HEADER_BINANCE_API_SECRET", "")
+        self._api_key     = env.get("HEADER_BINANCE_API_KEY", "")
+        self._api_secret  = env.get("HEADER_BINANCE_API_SECRET", "")
+        self._time_offset: float = 0.0
 
     def has_api_keys(self) -> bool:
         return bool(self._api_key and self._api_secret)
@@ -95,8 +96,7 @@ class HeaderBinanceClient:
 
     def _signed_get(self, base_url: str, path: str) -> dict | None:
         try:
-            timestamp    = int(time.time() * 1000)
-            params       = {"timestamp": str(timestamp)}
+            params       = {"timestamp": str(self._ts()), "recvWindow": "10000"}
             query_string = urllib.parse.urlencode(params)
             signature    = hmac.new(
                 self._api_secret.encode("utf-8"),
@@ -110,6 +110,23 @@ class HeaderBinanceClient:
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", errors="replace")
             logging.warning("_signed_get %s%s: HTTP %d %s", base_url, path, e.code, body)
+            try:
+                _binance_code = json.loads(body).get("code", 0)
+            except Exception:
+                _binance_code = 0
+            if _binance_code == -1021:
+                self._sync_server_time()
+                try:
+                    _p2  = {"timestamp": str(self._ts()), "recvWindow": "10000"}
+                    _qs2 = urllib.parse.urlencode(_p2)
+                    _sig2 = hmac.new(self._api_secret.encode("utf-8"), _qs2.encode("utf-8"),
+                                     hashlib.sha256).hexdigest()
+                    _url2 = f"{base_url}{path}?{_qs2}&signature={_sig2}"
+                    _req2 = urllib.request.Request(_url2, headers={"X-MBX-APIKEY": self._api_key}, method="GET")
+                    with urllib.request.urlopen(_req2, timeout=5) as _resp2:
+                        return json.loads(_resp2.read().decode("utf-8"))
+                except Exception as _e2:
+                    logging.warning("_signed_get %s%s: -1021 재시도 실패: %s", base_url, path, _e2)
             return None
         except Exception as e:
             logging.warning("_signed_get %s%s: %s", base_url, path, e)
@@ -119,9 +136,9 @@ class HeaderBinanceClient:
         if not self._api_key or not self._api_secret:
             return False
         try:
-            timestamp    = int(time.time() * 1000)
             params       = {"type": transfer_type, "asset": "USDT",
-                            "amount": f"{amount_usdt:.8f}", "timestamp": str(timestamp)}
+                            "amount": f"{amount_usdt:.8f}", "timestamp": str(self._ts()),
+                            "recvWindow": "10000"}
             query_string = urllib.parse.urlencode(params)
             signature    = hmac.new(
                 self._api_secret.encode("utf-8"),
@@ -136,10 +153,44 @@ class HeaderBinanceClient:
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", errors="replace")
             logging.warning("_universal_transfer %s %.2fUSDT: HTTP %d %s", transfer_type, amount_usdt, e.code, body)
+            try:
+                _binance_code = json.loads(body).get("code", 0)
+            except Exception:
+                _binance_code = 0
+            if _binance_code == -1021:
+                self._sync_server_time()
+                try:
+                    _p2  = {"type": transfer_type, "asset": "USDT",
+                            "amount": f"{amount_usdt:.8f}", "timestamp": str(self._ts()),
+                            "recvWindow": "10000"}
+                    _qs2 = urllib.parse.urlencode(_p2)
+                    _sig2 = hmac.new(self._api_secret.encode("utf-8"), _qs2.encode("utf-8"),
+                                     hashlib.sha256).hexdigest()
+                    _url2 = f"{self._SPOT_BASE_URL}/sapi/v1/asset/transfer?{_qs2}&signature={_sig2}"
+                    _req2 = urllib.request.Request(_url2, headers={"X-MBX-APIKEY": self._api_key}, method="POST")
+                    with urllib.request.urlopen(_req2, timeout=10) as _resp2:
+                        json.loads(_resp2.read().decode("utf-8"))
+                    return True
+                except Exception as _e2:
+                    logging.warning("_universal_transfer %s %.2fUSDT: -1021 재시도 실패: %s",
+                                    transfer_type, amount_usdt, _e2)
             return False
         except Exception as e:
             logging.warning("_universal_transfer %s %.2fUSDT: %s", transfer_type, amount_usdt, e)
             return False
+
+    def _sync_server_time(self) -> None:
+        try:
+            url = f"{self._FUTURES_BASE_URL}/fapi/v1/time"
+            with urllib.request.urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            server_time = data["serverTime"]
+            self._time_offset = (server_time - int(time.time() * 1000)) / 1000.0
+        except Exception as e:
+            logging.warning("_sync_server_time: %s — offset 유지: %.3fs", e, self._time_offset)
+
+    def _ts(self) -> int:
+        return int((time.time() + self._time_offset) * 1000)
 
     @staticmethod
     def _load_env(path: Path) -> dict[str, str]:
