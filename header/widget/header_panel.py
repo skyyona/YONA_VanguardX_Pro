@@ -60,6 +60,7 @@ class HeaderPanel:
         self._btc_vol   = BtcVolumeRatio(self._client)
         self._status    = AppStatus()
         self._timer     = UpdateTimer(HEADER_UPDATE_INTERVAL_SEC, self._tick)
+        self._last_wallet_status = WalletQueryStatus.OK
 
         # ── GUI 빌드 (상/하 패딩 최소화 → 중단/하단 공간 확보) ──
         self._frame = tk.Frame(root, bg=DARK_PANEL, pady=1)
@@ -74,15 +75,14 @@ class HeaderPanel:
     def initialize(self) -> None:
         self._last_state = self._build_state()
         self.render()
+        self._timer.start()
 
     def start(self) -> None:
         self._status.set_running()
-        self._timer.start()
         threading.Thread(target=self._tick, daemon=True).start()
 
     def stop(self) -> None:
         self._status.set_idle()
-        self._timer.stop()
         self._tick()
 
     def forced_liquidation(self) -> None:
@@ -145,13 +145,17 @@ class HeaderPanel:
             self._lbl_pnl_amt.configure(text="—", fg=NEUTRAL)
             self._lbl_total.configure(text="—", fg=NEUTRAL)
         elif state.status == HeaderStatus.ERROR:
-            # API 통신 오류 — 버튼은 활성 유지, 수치는 오류 표시
             self._btn_invest.configure(state="normal", bg=INITIAL_BUTTON, fg="#000000")
             self._lbl_invest_val.configure(
                 text=f"{state.initial_investment_usdt:.2f} USDT", fg=NEUTRAL)
-            self._lbl_pnl_pct.configure(text="통신 오류", fg=NEGATIVE)
-            self._lbl_pnl_amt.configure(text="통신 오류", fg=NEGATIVE)
-            self._lbl_total.configure(text="재연결 중...", fg=ORANGE)
+            if self._last_wallet_status == WalletQueryStatus.NO_API_KEY:
+                self._lbl_pnl_pct.configure(text="API 키 미설정", fg=NEGATIVE)
+                self._lbl_pnl_amt.configure(text="API 키 미설정", fg=NEGATIVE)
+                self._lbl_total.configure(text="header/.env 확인", fg=ORANGE)
+            else:
+                self._lbl_pnl_pct.configure(text="통신 오류", fg=NEGATIVE)
+                self._lbl_pnl_amt.configure(text="통신 오류", fg=NEGATIVE)
+                self._lbl_total.configure(text="재연결 중...", fg=ORANGE)
         else:
             self._btn_invest.configure(state="normal", bg=INITIAL_BUTTON, fg="#000000")
             self._lbl_invest_val.configure(
@@ -172,6 +176,7 @@ class HeaderPanel:
         current = self._status.get()
         if current in (HeaderStatus.RUNNING, HeaderStatus.ERROR):
             result = self._client.fetch_futures_total_balance_with_status()
+            self._last_wallet_status = result.status
             if result.status == WalletQueryStatus.OK:
                 # 정상 응답: ERROR였다면 RUNNING으로 자동 복구
                 if current == HeaderStatus.ERROR:
@@ -180,7 +185,9 @@ class HeaderPanel:
             elif result.status == WalletQueryStatus.COMM_ERROR:
                 # 통신 오류: ERROR 상태로 전환 (수치 갱신 중단)
                 self._status.set_error()
-            # NO_API_KEY는 키 미설정 — 상태 변경 없이 현재 유지
+            elif result.status == WalletQueryStatus.NO_API_KEY:
+                # API 키 미설정: ERROR 상태로 전환
+                self._status.set_error()
         self._last_state = self._build_state()
         try:
             self._root.after(0, self.render)
