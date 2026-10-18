@@ -13,7 +13,9 @@ Rate Limit (USDⓈ-M Futures):
 from __future__ import annotations
 
 import json
+import logging
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -52,6 +54,8 @@ class MiddleBinanceClient:
         self._api_key = env.get("MIDDLE_BINANCE_API_KEY", "")
         self._trading_symbols:    set[str] = set()
         self._trading_cache_ts:   float    = 0.0
+        # 최근 응답의 X-MBX-USED-WEIGHT-1M — 레이트리밋 실측 확인용
+        self._last_used_weight:   str      = ""
 
     @property
     def has_key(self) -> bool:
@@ -65,8 +69,21 @@ class MiddleBinanceClient:
                 headers["X-MBX-APIKEY"] = self._api_key
             req = urllib.request.Request(url, headers=headers, method="GET")
             with urllib.request.urlopen(req, timeout=timeout) as resp:
+                _w = resp.headers.get("X-MBX-USED-WEIGHT-1M")
+                if _w:
+                    self._last_used_weight = _w
                 return json.loads(resp.read().decode("utf-8"))
-        except Exception:
+        except urllib.error.HTTPError as e:
+            body = ""
+            try:
+                body = e.read().decode("utf-8", errors="replace")[:300]
+            except Exception:
+                pass
+            logging.warning("middle _get HTTP %d %s | used_weight=%s | %s",
+                            e.code, body, self._last_used_weight, url)
+            return None
+        except Exception as e:
+            logging.warning("middle _get %s | %s", e, url)
             return None
 
     # ── TRADING 심볼 캐시 ─────────────────────────────────────

@@ -11,6 +11,7 @@ middle/data/data_manager.py
 """
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -305,6 +306,7 @@ class MiddleDataManager:
                             with self._lock:
                                 self._last_refresh_error      = _ws_err
                                 self._last_refresh_error_time = time.time()
+                            logging.warning("middle WS: %s", _ws_err)
                         self.request_selected(_fallback_sym)
 
             # ── 카운터 리셋 (1시간 기준) + onboard_map 갱신 ──
@@ -455,6 +457,7 @@ class MiddleDataManager:
                 with self._lock:
                     self._last_refresh_error      = f"[stage3:{sym}] {e}"
                     self._last_refresh_error_time = time.time()
+                logging.warning("middle STAGE3 %s: %s", sym, e)
 
         with ThreadPoolExecutor(max_workers=_STAGE3_WORKERS) as pool:
             pool.map(_one, tickers)
@@ -528,8 +531,8 @@ class MiddleDataManager:
                     cb()   # → middle_panel._soft_update_ranking()
                 except Exception:
                     pass
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning("middle _refresh_tickers: %s", e)
 
     def _rebuild_ranking_rows(self) -> None:
         """Sharp Rise/Decline/Volatility/4TF 모드용 랭킹 풀 빌드.
@@ -688,6 +691,7 @@ class MiddleDataManager:
             with self._lock:
                 self._last_refresh_error      = f"[detail:{symbol}] {e}"
                 self._last_refresh_error_time = time.time()
+            logging.warning("middle detail %s: %s", symbol, e)
 
     # ══ dict 빌더 ═════════════════════════════════════════════
 
