@@ -24,12 +24,19 @@ class EMAAlignment:
 
     @staticmethod
     def _ema(prices: list[float], period: int) -> float:
-        """단순 EMA 계산 (마지막 값 반환)."""
+        """EMA 마지막 값 반환 — SMA 시드 방식.
+
+        backtest_runner._calc_ema_series 와 동일 정의.
+        첫 가격을 시드로 쓰면 표본이 부족할 때 시드 편향이 수렴하지 않는다
+        (1h 59봉에서 EMA50 의 시드 잔존 가중치 9.82%).
+        """
         if not prices:
             return 0.0
-        k = 2.0 / (period + 1)
-        val = prices[0]
-        for p in prices[1:]:
+        if len(prices) < period:
+            return round(prices[-1], 8)
+        k   = 2.0 / (period + 1)
+        val = sum(prices[:period]) / period      # SMA 시드
+        for p in prices[period:]:
             val = p * k + val * (1 - k)
         return round(val, 8)
 
