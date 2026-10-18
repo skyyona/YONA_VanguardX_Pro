@@ -206,7 +206,7 @@ class HeaderPanel:
         vol_label, vol_hint = self._btc_vol.fetch() if self._status.get() == HeaderStatus.RUNNING else ("—", "normal")
         session = SessionSnapshot(
             kst_datetime_label=self._kst_time.label(),
-            session_status_label=self._session.classify(now.time()),
+            session_status_label=self._session.classify(now),
             volume_label=vol_label,
             volume_hint=vol_hint,
         )
