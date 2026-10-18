@@ -404,7 +404,8 @@ class MiddleDataManager:
                 # volume_ratio — 1m 최근 봉 / 20봉 평균
                 b1m_kr = bars.get("1m", [])
                 if len(b1m_kr) >= 21:
-                    avg_vol = sum(b.volume for b in b1m_kr[-20:]) / 20.0
+                    # 현재봉 제외 — backtest_runner._calc_vol_ratio_series 와 동일 정의
+                    avg_vol = sum(b.volume for b in b1m_kr[-21:-1]) / 20.0
                     ind["volume_ratio"] = round(b1m_kr[-1].volume / avg_vol, 3) if avg_vol > 0 else 1.0
                 else:
                     ind["volume_ratio"] = 1.0
@@ -658,7 +659,8 @@ class MiddleDataManager:
             # volume_ratio — 1m 최근 봉 / 20봉 평균
             b1m_d = bars.get("1m", [])
             if len(b1m_d) >= 21:
-                avg_v = sum(b.volume for b in b1m_d[-20:]) / 20.0
+                # 현재봉 제외 — backtest_runner._calc_vol_ratio_series 와 동일 정의
+                avg_v = sum(b.volume for b in b1m_d[-21:-1]) / 20.0
                 ind["volume_ratio"] = round(b1m_d[-1].volume / avg_v, 3) if avg_v > 0 else 1.0
             else:
                 ind["volume_ratio"] = 1.0
