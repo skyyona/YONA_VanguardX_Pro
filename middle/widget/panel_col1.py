@@ -854,6 +854,10 @@ class _Col1Mixin:
             if self._shared_sym is not None:
                 self._shared_sym.set("")        # 배치 해제
         else:
+            if _ctx._bl_mgr is not None and _ctx._bl_mgr.is_blacklisted(symbol):
+                self._set_header_message(
+                    f"⛔ {symbol} — 블랙리스트 등록 심볼이므로 배정할 수 없습니다")
+                return
             self._assigned_sym = symbol
             if self._shared_sym is not None:
                 self._shared_sym.set(symbol)    # bottom module 에 즉시 전달

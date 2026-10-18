@@ -15,6 +15,13 @@ _bl_mgr   = None
 
 # ── 실데이터 전용 헬퍼 함수 ──────────────────────────────────
 
+def is_blacklisted(symbol: str) -> bool:
+    """블랙리스트 등록 여부 — 하단 엔진 진입 차단용. 매니저 없으면 False."""
+    if _bl_mgr is not None:
+        return _bl_mgr.is_blacklisted(symbol)
+    return False
+
+
 def get_ind(symbol: str) -> dict:
     """실데이터 DataManager에서 지표 반환. DataManager 없으면 빈 dict."""
     if _data_mgr is not None:

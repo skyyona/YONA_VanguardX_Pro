@@ -29,6 +29,11 @@ from bottom_engine.strategy.m4_entry import M4Entry
 from bottom_engine.strategy.rsi_divergence import calc_rsi_series, _check_volume
 from bottom_engine.constants import _PROFIT_TRIGGER_PCT, _MAX_CONSECUTIVE_LOSSES, _LOSS_COOLDOWN_SEC
 
+try:
+    from middle.widget.shared_context import is_blacklisted as _is_blacklisted
+except ImportError:
+    def _is_blacklisted(_s: str) -> bool: return False   # type: ignore[misc]
+
 _ENGINE_DIR = pathlib.Path(__file__).parent  # Phase3 상태 파일 저장 디렉터리
 SL_INTERVAL_SEC  = 1   # SL/Trailing 체크 주기 — 포지션 보유 중
 _DATA_SETTLE_SEC = 2   # 봉 마감 후 API 갱신 완료 대기 (초) — 7TF 병렬화 후 실측 1초 내외
@@ -695,6 +700,14 @@ class TradingEngine:
                     elif not ind.get("_data_ready", True):
                         with self._lock:
                             self._state.last_blocked_reason = "실시간 지표 미준비 — 초기화 대기 중"
+                            self._state.last_blocked_side   = ""
+                    elif _is_blacklisted(self._state.symbol):
+                        # 블랙리스트 등록 심볼 — 신규 진입만 차단.
+                        # 보유 포지션은 기존 청산 로직(SL·BEP·PARTIAL·KD-EXIT)대로 유지한다.
+                        with self._lock:
+                            self._state.last_blocked_reason = (
+                                f"{self._state.symbol} 블랙리스트 등록 — 신규 진입 차단 "
+                                f"(보유 포지션은 유지)")
                             self._state.last_blocked_side   = ""
                     else:
                         mark = 0.0  # 진입 신호 발생 시에만 REST 1회 조회
