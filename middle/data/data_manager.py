@@ -323,6 +323,8 @@ class MiddleDataManager:
         def _one(ticker: "SymbolTicker") -> None:
             sym      = ticker.symbol
             existing = self._ind_cache.get(sym, {})
+            if existing.get("_is_detail"):
+                return   # 완전 상세 데이터 있으면 스킵
             try:
                 ls = self._ls_svc.fetch(sym)
                 fr = self._fr_svc.fetch(sym)
@@ -351,6 +353,8 @@ class MiddleDataManager:
         def _one(ticker: "SymbolTicker") -> None:
             sym      = ticker.symbol
             existing = self._ind_cache.get(sym, {})
+            if existing.get("_is_detail"):
+                return   # 완전 상세 데이터 있으면 스킵
             try:
                 # ── klines 수집 ──────────────────────────────
                 bars: dict = {}
@@ -754,6 +758,8 @@ class MiddleDataManager:
             "_energy_long_ratio": round(eb.long_ratio, 4),
             # Player 태그 (내부용)
             "_player_tags": player_tags,
+            # STAGE2/3 경량 갱신으로부터 보호 — _process_selected() 전용 풀 상세 데이터 표시
+            "_is_detail":   True,
             "_data_ready":  True,
         }
 
