@@ -30,6 +30,16 @@ _STAGE2_WORKERS  = 5     # 경량 갱신 병렬 스레드 수 (3→5: 15초 주�
 _STAGE3_WORKERS  = 7     # klines 갱신 병렬 스레드 수 (3→7: 34초→15초, Rate 36% 유지)
 # STAGE3에서 갱신할 TF (1m·3m·5m·15m·1h·4h·1d — 4TF거시지지 s_macro 정확도 확보)
 _KLINES_TFS      = ("1m", "3m", "5m", "15m", "1h", "4h", "1d")
+# ── 단계별 필드 소유권 ────────────────────────────────────────
+# 각 갱신 단계는 자기가 담당하는 필드만 캐시에 병합한다.
+# 통째 교체 방식은 네트워크 대기 중 다른 단계가 쓴 결과를 되돌린다.
+_STAGE2_FIELDS = ("long_ratio", "funding_rate", "oi_change")
+_STAGE3_FIELDS = (
+    "atr", "atr_pct", "atr_pct_5m", "vss", "bpr", "price_change_pct",
+    "pattern", "align", "e5", "e10", "e20", "e50",
+    "volume_ratio", "swing_bull", "swing_bear", "vwap", "_data_ready",
+    "tf1", "tf3", "tf5", "tf15", "tf1h", "tf4h", "tf1d",
+)
 
 from middle.api.binance_client import MiddleBinanceClient
 from middle.data.ticker_data import TickerData
@@ -323,8 +333,6 @@ class MiddleDataManager:
         def _one(ticker: "SymbolTicker") -> None:
             sym      = ticker.symbol
             existing = self._ind_cache.get(sym, {})
-            if existing.get("_is_detail"):
-                return   # 완전 상세 데이터 있으면 스킵
             try:
                 ls = self._ls_svc.fetch(sym)
                 fr = self._fr_svc.fetch(sym)
@@ -336,6 +344,13 @@ class MiddleDataManager:
                     ind["funding_rate"] = fr.funding_rate * 100.0
                 ind["oi_change"] = oi
                 with self._lock:
+                    # 네트워크 대기 중 다른 단계가 갱신한 필드를 되돌리지 않도록
+                    # 현재 캐시를 기준으로 이 단계 담당 필드만 덮어쓴다.
+                    cur = self._ind_cache.get(sym)
+                    if cur is not None:
+                        merged = dict(cur)
+                        merged.update({k: ind[k] for k in _STAGE2_FIELDS if k in ind})
+                        ind = merged
                     self._ind_cache[sym] = ind
             except Exception:
                 pass
@@ -353,8 +368,6 @@ class MiddleDataManager:
         def _one(ticker: "SymbolTicker") -> None:
             sym      = ticker.symbol
             existing = self._ind_cache.get(sym, {})
-            if existing.get("_is_detail"):
-                return   # 완전 상세 데이터 있으면 스킵
             try:
                 # ── klines 수집 ──────────────────────────────
                 bars: dict = {}
@@ -450,6 +463,13 @@ class MiddleDataManager:
 
                 ind["_data_ready"] = True
                 with self._lock:
+                    # 네트워크 대기 중 다른 단계가 갱신한 필드를 되돌리지 않도록
+                    # 현재 캐시를 기준으로 이 단계 담당 필드만 덮어쓴다.
+                    cur = self._ind_cache.get(sym)
+                    if cur is not None:
+                        merged = dict(cur)
+                        merged.update({k: ind[k] for k in _STAGE3_FIELDS if k in ind})
+                        ind = merged
                     self._ind_cache[sym] = ind
                     sym_cache = self._ohlcv_cache.setdefault(sym, {})
                     sym_cache.update(bars)
@@ -758,8 +778,6 @@ class MiddleDataManager:
             "_energy_long_ratio": round(eb.long_ratio, 4),
             # Player 태그 (내부용)
             "_player_tags": player_tags,
-            # STAGE2/3 경량 갱신으로부터 보호 — _process_selected() 전용 풀 상세 데이터 표시
-            "_is_detail":   True,
             "_data_ready":  True,
         }
 
