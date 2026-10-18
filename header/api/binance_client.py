@@ -186,6 +186,7 @@ class HeaderBinanceClient:
                 data = json.loads(resp.read().decode("utf-8"))
             server_time = data["serverTime"]
             self._time_offset = (server_time - int(time.time() * 1000)) / 1000.0
+            logging.warning("_sync_server_time: offset=%+.3fs", self._time_offset)
         except Exception as e:
             logging.warning("_sync_server_time: %s — offset 유지: %.3fs", e, self._time_offset)
 

@@ -243,7 +243,7 @@ class YONAVanguardXPro(tk.Tk):
 
 if __name__ == "__main__":
     logging.basicConfig(
-        filename="logs/app.log",
+        filename=os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "app.log"),
         level=logging.WARNING,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         encoding="utf-8",
