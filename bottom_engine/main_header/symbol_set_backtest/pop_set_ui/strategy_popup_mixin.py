@@ -735,13 +735,12 @@ class StrategyPopupMixin:
                     _state_row(short_col, "15m K>D 불리시 추세 감지",
                                "→  숏 엔진 잠금", POSITIVE)
 
-            # ── 초기 선택값: 중단 모듈의 현재 Sort by 모드와 동기화 ──────
-            initial_mode = "24h Ticker"
-            if self._shared_sort_mode is not None:
-                cur = self._shared_sort_mode.get()
-                if cur in SORT_OPTIONS:
-                    initial_mode = cur
-            _selected_sort_ref[0] = initial_mode   # 초기값 동기화
+            # ── [W2] 초기 선택값: 하단이 마지막으로 확정한 Sort by 모드 ──
+            #    중단 1열의 랭킹 모드와는 무관하게 동작한다.
+            initial_mode = self._applied_sort_mode
+            if initial_mode not in SORT_OPTIONS:
+                initial_mode = "24h Ticker"
+            _selected_sort_ref[0] = initial_mode
             _select_sort_item(initial_mode)
 
             # ── 하단 공지 바 ─────────────────────────────────────────

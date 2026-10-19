@@ -15,9 +15,7 @@ class EventBus:
     """
 
     def __init__(self, master: tk.Misc) -> None:
-        # 중단 → 하단: 배정된 심볼
+        # 중단 → 하단: 배정된 심볼 (Assign 확정 — 유일한 통로)
         self.assigned_sym: tk.StringVar = tk.StringVar(master, value="")
-        # 중단 → 하단: 현재 Sort by 모드
-        self.shared_sort_mode: tk.StringVar = tk.StringVar(master, value="24h Ticker")
         # 앱 상태: 'IDLE' / 'RANKING' / 'ANALYSIS'
         self.app_state: tk.StringVar = tk.StringVar(master, value="IDLE")

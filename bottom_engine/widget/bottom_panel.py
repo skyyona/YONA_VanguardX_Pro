@@ -86,8 +86,7 @@ _BASE_SL,    _BASE_TRAIL = 2.5,  1.5
 # ══════════════════════════════════════════════════════════════════
 class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.Frame):
     def __init__(self, master: tk.Misc,
-                 shared_sym: tk.StringVar | None = None,
-                 shared_sort_mode: tk.StringVar | None = None) -> None:
+                 shared_sym: tk.StringVar | None = None) -> None:
         super().__init__(master, bg=DARK_HEADER)
         # Toplevel 전용 메서드(title/geometry/minsize) 제거 — 단일 창 통합 GUI
 
@@ -111,11 +110,6 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
         self._shared_sym = shared_sym if shared_sym is not None \
                            else tk.StringVar(self, value="")
         self._shared_sym.trace_add("write", self._on_symbol_received)
-
-        # middle module 과 공유하는 Sort by 모드 변수 — 없으면 독립 동작
-        self._shared_sort_mode = shared_sort_mode
-        if shared_sort_mode is not None:
-            shared_sort_mode.trace_add("write", self._on_sort_mode_changed)
 
         # ── 중앙 컨트롤 세션 — 실데이터 폴링 위젯 참조 ──────────
         self._pos_ind:        dict            = {}
@@ -335,20 +329,6 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
             # ── 중앙 컨트롤 세션 정지 + 초기화 ──────────────
             self._center_running = False
             self._reset_center()
-
-    def _on_sort_mode_changed(self, *_) -> None:
-        if not self._strategy_ready:
-            return
-        if self._strategy_msg is None:
-            return
-        self._strategy_ready = False
-        self._strategy_msg.configure(
-            text="  — Sort by 변경 — 재확정 필요 —  ", fg=NEGATIVE)
-        if self._trade_btn is not None:
-            self._trade_btn.configure(
-                state="disabled", cursor="arrow",
-                bg="#252525", fg="#888888",
-                activebackground="#303030", activeforeground=DARK_TEXT)
 
     def _restore_strategy_vars(self, sort_mode: str) -> None:
         """sort_mode에 저장된 전략 설정을 UI vars에 복원한다."""

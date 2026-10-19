@@ -101,13 +101,11 @@ from middle.widget.shared_context import (
 # ══════════════════════════════════════════════════════════════
 class MiddlePanel(_Col1Mixin, _Col2Mixin, _Col3Mixin, tk.Frame):
     def __init__(self, master: tk.Misc,
-                 shared_sym: tk.StringVar | None = None,
-                 shared_sort_mode: tk.StringVar | None = None) -> None:
+                 shared_sym: tk.StringVar | None = None) -> None:
         super().__init__(master, bg=DARK_BG)
         self._layout_cfg = load_layout_config()
         # Toplevel 전용 메서드(title/geometry/minsize/protocol) 제거 — 단일 창 통합 GUI
         self._shared_sym = shared_sym   # bottom module 과 공유하는 심볼 변수
-        self._shared_sort_mode = shared_sort_mode   # bottom module 과 공유하는 Sort by 모드
 
         # ── Blacklist Manager 초기화 ─────────────────────────
         global _bl_mgr
@@ -174,8 +172,6 @@ class MiddlePanel(_Col1Mixin, _Col2Mixin, _Col3Mixin, tk.Frame):
         # 정렬 드롭다운
         self._sort_mode  : str            = "24h Ticker"
         self._sort_btn   : tk.Button | None = None
-        if self._shared_sort_mode is not None:
-            self._shared_sort_mode.set(self._sort_mode)
 
         # 경과 시간 타이머
         self._elapsed_sec : int           = 0

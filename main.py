@@ -122,7 +122,6 @@ class YONAVanguardXPro(tk.Tk):
         self.middle = MiddlePanel(
             self._v_pane,
             self._bus.assigned_sym,
-            self._bus.shared_sort_mode,
         )
         self._v_pane.add(self.middle, stretch="always", minsize=400)
 
@@ -130,7 +129,6 @@ class YONAVanguardXPro(tk.Tk):
         self.bottom = BottomModuleMockup(
             self._v_pane,
             self._bus.assigned_sym,
-            self._bus.shared_sort_mode,
         )
         self._v_pane.add(self.bottom, stretch="always", minsize=380)
 
