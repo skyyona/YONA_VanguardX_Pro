@@ -46,9 +46,10 @@ class PlayerRanking:
                     if not det.tags:
                         continue
                     tags = [(t.tag_text, t.tag_color, t.strength_pct) for t in det.tags]
-                    detected_keys = {t.tag_key for t in det.tags}
-                    has_rise    = bool(detected_keys & TagDetector.RISE_KEYS)
-                    has_decline = bool(detected_keys & TagDetector.DECLINE_KEYS)
+                    # [W-C] TagDetector 가 절단 전 전체 태그로 계산한 결과를 그대로 사용.
+                    #       det.tags 로 재계산하면 상위 4개만 보게 되어 오판정한다.
+                    has_rise    = det.has_rise_tag
+                    has_decline = det.has_decline_tag
                     if has_rise and has_decline:
                         direction = "mixed"
                     elif has_rise:

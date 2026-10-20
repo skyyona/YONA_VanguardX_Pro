@@ -35,6 +35,11 @@ class NewlistedLifecycle:
       - is_high_from_open: ATH 형성 추정 (가격이 많이 올랐는지)
     """
 
+    # [W-E] 신규 상장 판정 상한 (일)
+    #       newlisted_scorer.get_sorted(`0 < r[1] <= 30`) ·
+    #       data_manager(`if 0 < days <= 30`) 와 동일 기준.
+    MAX_DAYS = 30
+
     @classmethod
     def analyze(
         cls,
@@ -44,8 +49,15 @@ class NewlistedLifecycle:
         price_change_pct: float = 0.0,   # 24h 변화율 (list_pct 근사)
         high_24h_pct:     float = 0.0,   # 24h 고점 vs 현재가 차이 % (ATH 형성 여부 근사)
     ) -> LifecycleResult | None:
-        """신규 상장 생애주기 단계 감지. days <= 0 이면 None 반환."""
-        if days <= 0:
+        """신규 상장 생애주기 단계 감지.
+
+        days 가 0 이하이거나 MAX_DAYS 를 초과하면 None 을 반환한다.
+        [W-E] 상한이 없으면 panel_col3.py 의 무필터 호출 경로
+              (`if _nl_row and _nl_row[1] > 0:`)를 통해 상장 수년 된
+              성숙 심볼에도 신규상장 생애주기 문구가 표시된다.
+              분기 ③·④ 는 days 조건이 없어 특히 영향을 받는다.
+        """
+        if days <= 0 or days > cls.MAX_DAYS:
             return None
 
         # ① 펌프 진행 중: 거래량 급등 + OI 급증 + 상장 초기

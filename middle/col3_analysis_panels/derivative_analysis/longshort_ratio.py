@@ -18,7 +18,7 @@ class LongShortAnalysis:
     bias:             str     # "롱 과쏠림" | "숏 과쏠림" | "균형"
     color_hint:       str     # "long_heavy" | "short_heavy" | "balanced"
     grade:            str     # 인간 친화적 등급 설명
-    squeeze_risk:     str     # "Sharp Rise 후보  (숏 스퀴즈↑)" | "Sharp Decline 후보  (롱 스퀴즈↑)" | "—"
+    squeeze_risk:     str     # "Sharp Rise 후보  (숏 스퀴즈↑)" | "Sharp Decline 후보  (롱 스퀴즈↑)" | "—  (완전 균형)"
     score_4tf:        int     # 4TF Optimization 롱숏균형 점수 (0~1)
     warning:          str     # ⚠️ 경고 문구 (과쏠림 시)
 
@@ -87,13 +87,16 @@ class LongShortPanel:
         else:
             grade = f"불균형 🟡  (주의)"
 
-        # 스퀴즈 위험 방향
-        if short_pct >= 50:
+        # [W-D] 스퀴즈 위험 방향 — 우세한 쪽으로 판정한다.
+        #       long_pct + short_pct = 100 이므로 '>= 50' 비교는
+        #       ① 50/50 을 숏 우세로 오분류하고
+        #       ② else 분기를 수학적으로 도달 불가(데드코드)로 만든다.
+        if short_pct > long_pct:
             squeeze_risk = "Sharp Rise 후보  (숏 스퀴즈↑)"
-        elif long_pct >= 50:
+        elif long_pct > short_pct:
             squeeze_risk = "Sharp Decline 후보  (롱 스퀴즈↑)"
         else:
-            squeeze_risk = "—"
+            squeeze_risk = "—  (완전 균형)"
 
         # 4TF 균형 점수
         score_4tf = 1 if 30.0 <= long_pct <= 70.0 else 0

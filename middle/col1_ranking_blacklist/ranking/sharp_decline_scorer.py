@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from middle.widget.shared_context import get_ind, _live_ranking
 
-_DECLINE_KEYWORDS = ("FR+", "FOMO", "롱 스퀴즈", "청산 헌터", "헌터", "세력 분산")
+# [W-B] tag_detector.DECLINE_KEYS 와 일치시킴 — "고래 매도" 누락 복구
+_DECLINE_KEYWORDS = ("FR+", "FOMO", "롱 스퀴즈", "청산 헌터", "헌터",
+                     "세력 분산", "고래 매도")
 
 
 class SharpDeclineScorer:

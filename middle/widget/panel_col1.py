@@ -1575,14 +1575,17 @@ class _Col1Mixin:
                         except Exception:
                             pass
 
-                # ── 장단계 라벨 업데이트 (전 모드, Time Fix와 무관) ──────────
-                # 장단계는 EMA/24h 기반 추세 표시로 Time Fix와 독립적
-                # Player Detection 행은 Col5에 태그 텍스트 표시 중 → 장단계 덮어쓰기 금지
-                # (Sharp rise/decline·Newly Listed·Volatility·4TF 모드는 Player 행도 장단계 갱신 대상)
-                if (sym in self._player_tags_map and
-                        self._sort_mode not in ("Sharp rise", "Sharp decline",
-                                                "Newly Listed", "Volatility",
-                                                "4TF Optimization")):
+                # ── [W-A] 장단계 라벨 업데이트 ─────────────────────────────
+                # Col5(_phase_labels)가 '장단계'를 표시하는 경우에만 갱신한다.
+                # _build_ranking_rows 의 Col5 분기와 정확히 대응:
+                #   Sharp rise/decline → _sq_txt      Newly Listed → _opp_txt
+                #   Volatility        → _grade_txt    4TF Optim    → _4tf_txt
+                #   그 외 + Player 태그 있음 → 태그 텍스트
+                #   그 외 + Player 태그 없음 → 장단계   ← 이 경우만 갱신 대상
+                if (self._sort_mode in ("Sharp rise", "Sharp decline",
+                                        "Newly Listed", "Volatility",
+                                        "4TF Optimization")
+                        or sym in self._player_tags_map):
                     continue
                 ph_pair = self._phase_labels.get(sym)
                 if ph_pair:

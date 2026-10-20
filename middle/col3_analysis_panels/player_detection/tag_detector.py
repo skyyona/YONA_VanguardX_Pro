@@ -160,14 +160,17 @@ class TagDetector:
             strength = min(100, int(fr_pct * 800 + 20))
             tags.append(_make_tag("FR+ 과열", strength))
 
-        # 강도 내림차순 정렬, 최대 4개
+        # 강도 내림차순 정렬
         tags.sort(key=lambda t: t.strength_pct, reverse=True)
-        tags = tags[:4]
 
-        # Sharp rise/decline 판정
+        # [W-C] Sharp rise/decline 판정은 '절단 전 전체 태그' 기준으로 한다.
+        #       표시용 4개 절단이 판정에 영향을 주면 안 된다 (태그 최대 10종).
         detected_keys = {t.tag_key for t in tags}
         has_rise    = bool(detected_keys & cls.RISE_KEYS)
         has_decline = bool(detected_keys & cls.DECLINE_KEYS)
+
+        # 표시용 상위 4개 절단 — 판정 이후에 수행
+        tags = tags[:4]
 
         return TagDetectionResult(
             tags=tags,
