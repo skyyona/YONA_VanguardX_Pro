@@ -42,7 +42,27 @@ class TechnicalVerdictPanel:
             suffix = "→ 방향 미결정"
             color  = _YELLOW
 
-        # RSI 과매도·과매수 추가 경고
+        # [W-G] BPR 보조 경고 — bpr.py 임계 재사용 (>0.65 Bull / <0.35 Bear)
+        # RSI 정상 범위(25~75)일 때만 반영. RSI 경고가 뒤에서 덮어쓰므로 우선순위 낮음.
+        if 25 < rsi_1h < 75:
+            if bpr < 0.35:   # 매도 압박 강함
+                if ema_align == "정배열":
+                    suffix = "→ 상승 구조 · 매도 압박 주의"
+                    color  = _YELLOW
+                elif ema_align == "혼조":
+                    suffix = "→ 매도 압박 강함"
+                    color  = _NEGATIVE
+                # 역배열은 이미 하락 판정 — suffix/color 유지
+            elif bpr > 0.65:  # 매수 압박 강함
+                if ema_align == "역배열":
+                    suffix = "→ 하락 구조 · 매수 압박 주목"
+                    color  = _YELLOW
+                elif ema_align == "혼조":
+                    suffix = "→ 매수 압박 강함"
+                    color  = _POSITIVE
+                # 정배열은 이미 상승 판정 — suffix/color 유지
+
+        # RSI 과매도·과매수 경고 — 최고 우선순위 (BPR 보조 경고를 덮어씀)
         if rsi_1h >= 75 and ema_align != "역배열":
             suffix = "→ 과매수 주의 (RSI 고점)"
             color  = _YELLOW

@@ -647,8 +647,9 @@ class _Col1Mixin:
             if _is_4tf:
                 _res4   = self._calc_4tf_score(symbol)
                 _total4 = _res4["total"]
-                if   _total4 >= 12: _stars4, _star4_col = "★★★★★", POSITIVE
-                elif _total4 >=  9: _stars4, _star4_col = "★★★★☆", "#8ad7b5"
+                # [W-F] 만점 13 → 12 (거시지지 0~3 → 0~2). 비율 보존: 11/8/6/3
+                if   _total4 >= 11: _stars4, _star4_col = "★★★★★", POSITIVE
+                elif _total4 >=  8: _stars4, _star4_col = "★★★★☆", "#8ad7b5"
                 elif _total4 >=  6: _stars4, _star4_col = "★★★☆☆", YELLOW
                 elif _total4 >=  3: _stars4, _star4_col = "★★☆☆☆", ORANGE
                 else:               _stars4, _star4_col = "★☆☆☆☆", DIM_TEXT
@@ -664,7 +665,7 @@ class _Col1Mixin:
                     _4tf_txt = f"✅ {_hit4}/8 충족 · 부족: {', '.join(_missing4[:2])}{_more}"
                     _4tf_col = YELLOW if _hit4 >= 6 else ORANGE
                 else:
-                    _4tf_txt = f"✅ {_hit4}/8 전부 충족!  (총 {_total4}/13점)"
+                    _4tf_txt = f"✅ {_hit4}/8 전부 충족!  (총 {_total4}/12점)"
                     _4tf_col = POSITIVE
 
             # ── Col 4 : Squeeze Str or 잠재력 크기 ────────────

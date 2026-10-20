@@ -1,7 +1,7 @@
 """
 middle/col1_ranking_blacklist/ranking/fourtf_scorer.py
 4TF Optimization Sort by — 4개 타임프레임 합의 기반 진입 최적화 스코어링
-8개 항목: 4TF정렬(0~4) + 1m진입근접(0~1) + 거시지지(0~3) + ATR적정(0~1)
+8개 항목: 4TF정렬(0~4) + 1m진입근접(0~1) + 거시지지(0~2) + ATR적정(0~1)
         + 거래량순위(0~1) + FR중립(0~1) + OI증가(0~1) + 롱숏균형(0~1)
 """
 from __future__ import annotations
@@ -37,9 +37,10 @@ class FourTFScorer:
         else:
             s_entry = 0
 
-        # ③ 거시 지지 수 — tf1h/tf4h/tf1d 중 base_dir 일치 개수 (0~3)
+        # ③ 거시 지지 수 — tf4h/tf1d 중 base_dir 일치 개수 (0~2)
+        # [W-F] tf1h 는 base_dir 의 출처이므로 항상 1점 보장 — 자기참조 제거
         if base_dir:
-            macro = [ind.get(k, {}) for k in ("tf1h", "tf4h", "tf1d")]
+            macro = [ind.get(k, {}) for k in ("tf4h", "tf1d")]
             s_macro = sum(1 for t in macro if t.get("dir", "↔") == base_dir)
         else:
             s_macro = 0
@@ -67,7 +68,7 @@ class FourTFScorer:
             },
             "total": (s_align + s_entry + s_macro + s_atr + s_volume
                       + s_fr + s_oi + s_balance),
-            "max": 13,
+            "max": 12,
         }
 
     @classmethod
