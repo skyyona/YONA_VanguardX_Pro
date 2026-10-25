@@ -1032,19 +1032,26 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
         pnl_pct: float, pnl_usdt: float,
         reason: str, phase: int, partial_closed: bool,
         entry_time: float, exit_time: float,
+        signal_mark: float, entry_slip_pct: float | None,
+        exit_trigger_price: float, exit_slip_pct: float | None,
     ) -> None:
-        """청산 완료 시 거래 내역 리스트에 추가하고 거래 내역 뷰를 갱신."""
+        """청산 완료 시 거래 내역 리스트에 추가하고 거래 내역 뷰를 갱신.
+        슬리피지 %: + = 불리, None = 기준가 미상(재시작 복구·외부 청산 등)."""
         record = {
-            "symbol":         symbol,
-            "entry":          entry,
-            "exit":           exit_p,
-            "pnl_pct":        pnl_pct,
-            "pnl_usdt":       pnl_usdt,
-            "reason":         reason,
-            "phase":          phase,
-            "partial_closed": partial_closed,
-            "entry_time":     entry_time,
-            "exit_time":      exit_time,
+            "symbol":             symbol,
+            "entry":              entry,
+            "exit":               exit_p,
+            "pnl_pct":            pnl_pct,
+            "pnl_usdt":           pnl_usdt,
+            "reason":             reason,
+            "phase":              phase,
+            "partial_closed":     partial_closed,
+            "entry_time":         entry_time,
+            "exit_time":          exit_time,
+            "signal_mark":        signal_mark,
+            "entry_slip_pct":     entry_slip_pct,
+            "exit_trigger_price": exit_trigger_price,
+            "exit_slip_pct":      exit_slip_pct,
         }
         if side == "long":
             self._long_trade_history.insert(0, record)
@@ -1584,8 +1591,13 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
                             ph  = getattr(pos, "phase",          1)
                             pc  = getattr(pos, "partial_closed", False)
                             pu  = pos.pnl_usdt
+                            sm  = getattr(pos, "signal_mark",        0.0)
+                            es  = getattr(pos, "entry_slip_pct",     None)
+                            xtp = getattr(pos, "exit_trigger_price", 0.0)
+                            xs  = getattr(pos, "exit_slip_pct",      None)
                         except AttributeError:
                             ep, er, et, xt, ph, pc, pu = 0.0, "", 0.0, 0.0, 1, False, 0.0
+                            sm, es, xtp, xs = 0.0, None, 0.0, None
                         if ep > 0:
                             self._exit_cache[side] = {
                                 "entry":  pos.entry_price,
@@ -1601,7 +1613,8 @@ class BottomModuleMockup(CenterCtrlMixin, StrategyPopupMixin, HeaderUiMixin, tk.
                                     side, sym,
                                     pos.entry_price, ep,
                                     pos.pnl_pct, pu,
-                                    er, ph, pc, et, xt)
+                                    er, ph, pc, et, xt,
+                                    sm, es, xtp, xs)
 
                 # IDLE 또는 PENDING → exit_cache 제거
                 if pos_state not in (PositionState.OPEN, PositionState.CLOSED):

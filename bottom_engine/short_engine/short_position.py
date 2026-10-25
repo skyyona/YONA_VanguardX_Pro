@@ -105,11 +105,16 @@ class ShortPosition:
         return pos
 
     @staticmethod
-    def close(pos: Position, exit_price: float = 0.0, exit_reason: str = "") -> Position:
+    def close(pos: Position, exit_price: float = 0.0, exit_reason: str = "",
+              trigger_price: float = 0.0) -> Position:
         pos.state       = PositionState.CLOSED
         pos.exit_price  = exit_price
         pos.exit_reason = exit_reason
         pos.exit_time   = _time.time()
+        # 청산 슬리피지 (숏 매수: 기준가보다 높게 체결되면 +)
+        pos.exit_trigger_price = trigger_price
+        pos.exit_slip_pct = ((exit_price - trigger_price) / trigger_price * 100.0
+                             if trigger_price > 0 and exit_price > 0 else None)
         _TAKER_FEE = 0.0004
         if exit_price > 0 and pos.entry_price > 0:
             _fee = (pos.entry_price + exit_price) * pos.quantity * _TAKER_FEE

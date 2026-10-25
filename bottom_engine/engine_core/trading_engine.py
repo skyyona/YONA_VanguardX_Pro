@@ -40,6 +40,8 @@ _DATA_SETTLE_SEC = 2   # 봉 마감 후 API 갱신 완료 대기 (초) — 7TF �
 _BALANCE_TTL_SEC    = 30  # 잔고 캐시 유효 시간 (초)
 _POS_SYNC_INTERVAL_SEC  = 10   # Binance 실제 포지션 동기화 주기 (초) — 외부 강제 청산 감지
 _SLIPPAGE_WARN_PCT      = 2.0  # 진입 슬리피지 경고 임계값 (%) — 체결가 vs 마크가 괴리
+_ALGO_FIRED_STATUSES    = ("TRIGGERING", "TRIGGERED", "FINISHED")  # Algo SL·Trailing 발동 상태
+_ALGO_STATUS_RETRY_SEC  = 1.5  # Algo 주문 조회 반영 지연(실측 ~1초) 대비 1회 재조회 대기
 
 
 @dataclass
@@ -945,6 +947,8 @@ class TradingEngine:
                 sl_pct=_sl_used,
                 trail_pct=_trail_used,
             )
+            pos.signal_mark    = mark
+            pos.entry_slip_pct = (_slip_pct if mark > 0 and result.fill_price > 0 else None)
             with self._lock:
                 self._state.long_pos = pos
             self._beep((1319, 200), (1047, 340))
@@ -1089,6 +1093,10 @@ class TradingEngine:
                 sl_pct=_sl_used,
                 trail_pct=_trail_used,
             )
+            # 진입 슬리피지 (숏 매도: 마크가보다 낮게 체결되면 +)
+            pos.signal_mark    = mark
+            pos.entry_slip_pct = ((mark - result.fill_price) / mark * 100.0
+                                  if mark > 0 and result.fill_price > 0 else None)
             with self._lock:
                 self._state.short_pos = pos
             self._beep((1319, 200), (1047, 340))
@@ -1233,7 +1241,9 @@ class TradingEngine:
         if result.success:
             exit_p = result.fill_price if result.fill_price > 0 else mark
             with self._lock:
-                self._state.long_pos    = LongPosition.close(lp, exit_price=exit_p, exit_reason=reason)
+                self._state.long_pos    = LongPosition.close(
+                    lp, exit_price=exit_p, exit_reason=reason,
+                    trigger_price=(lp.current_sl if reason == "SL" else mark))
                 self._state.last_signal = f"롱 청산({reason})"
             self._invalidate_balance()
             # 청산 완료 후 잔여 Binance SL 주문 취소
@@ -1271,17 +1281,20 @@ class TradingEngine:
             try:
                 actual = self._client.get_position(self._state.symbol)
                 if actual is not None and float(actual.get("positionAmt", 1)) == 0.0:
+                    _reason, _exit_p, _trig = self._resolve_exchange_exit(
+                        self._client, self._sl_order_id_long, mark)
                     with self._lock:
                         self._state.long_pos    = LongPosition.close(
-                            lp, exit_price=mark, exit_reason="SL")
-                        self._state.last_signal = "롱 청산(Binance SL 발동)"
+                            lp, exit_price=_exit_p, exit_reason=_reason, trigger_price=_trig)
+                        self._state.last_signal = ("롱 청산(Binance SL 발동)" if _reason == "SL"
+                                                   else "롱 강제 청산(외부)")
                     self._invalidate_balance()
                     self._sl_order_id_long = ""
                     self._trailing_placed_long      = False
                     self._profit_trigger_price_long = 0.0
                     self._clear_p3_state("long")
-                    # [B] Binance SL 발동 — mark vs entry로 손절 여부 판단
-                    if mark > 0 and lp.entry_price > 0 and mark < lp.entry_price:
+                    # [B] Binance SL 발동 — 체결가 vs entry로 손절 여부 판단
+                    if _exit_p > 0 and lp.entry_price > 0 and _exit_p < lp.entry_price:
                         self._consecutive_losses += 1
                     else:
                         self._consecutive_losses = 0
@@ -1308,7 +1321,9 @@ class TradingEngine:
         if result.success:
             exit_p = result.fill_price if result.fill_price > 0 else mark
             with self._lock:
-                self._state.short_pos   = ShortPosition.close(sp, exit_price=exit_p, exit_reason=reason)
+                self._state.short_pos   = ShortPosition.close(
+                    sp, exit_price=exit_p, exit_reason=reason,
+                    trigger_price=(sp.current_sl if reason == "SL" else mark))
                 self._state.last_signal = f"숏 청산({reason})"
             self._invalidate_balance()
             # 청산 완료 후 잔여 Binance SL 주문 취소
@@ -1346,17 +1361,20 @@ class TradingEngine:
             try:
                 actual = self._client.get_position(self._state.symbol)
                 if actual is not None and float(actual.get("positionAmt", 1)) == 0.0:
+                    _reason, _exit_p, _trig = self._resolve_exchange_exit(
+                        self._client, self._sl_order_id_short, mark)
                     with self._lock:
                         self._state.short_pos   = ShortPosition.close(
-                            sp, exit_price=mark, exit_reason="SL")
-                        self._state.last_signal = "숏 청산(Binance SL 발동)"
+                            sp, exit_price=_exit_p, exit_reason=_reason, trigger_price=_trig)
+                        self._state.last_signal = ("숏 청산(Binance SL 발동)" if _reason == "SL"
+                                                   else "숏 강제 청산(외부)")
                     self._invalidate_balance()
                     self._sl_order_id_short          = ""
                     self._trailing_placed_short      = False
                     self._profit_trigger_price_short = 0.0
                     self._clear_p3_state("short")
-                    # [B] Binance SL 발동 — mark vs entry로 손절 여부 판단
-                    if mark > 0 and sp.entry_price > 0 and mark > sp.entry_price:
+                    # [B] Binance SL 발동 — 체결가 vs entry로 손절 여부 판단
+                    if _exit_p > 0 and sp.entry_price > 0 and _exit_p > sp.entry_price:
                         self._consecutive_losses += 1
                     else:
                         self._consecutive_losses = 0
@@ -1397,6 +1415,32 @@ class TradingEngine:
         if "-4120" in err:
             return " — [-4120] 조건부 주문은 Algo 주문(/fapi/v1/algoOrder) 전용"
         return f" — {err}" if err else ""
+
+    @staticmethod
+    def _resolve_exchange_exit(client, algo_id: str, mark: float) -> "tuple[str, float, float]":
+        """포지션 0 감지 시 청산 사유·체결가·청산 기준가 판정.
+        YONA Algo SL·Trailing 발동 확인 → ("SL", actualPrice, triggerPrice) — UI가 phase로 P1손절/P2 BEP/P3트레일 표시.
+        발동 미확인(강제청산·외부 청산) → ("LIQD", mark, 0.0). 값이 없으면 체결가는 mark, 기준가는 0.0(미상)."""
+        if not algo_id:
+            return "LIQD", mark, 0.0
+        for attempt in range(2):
+            info   = client.get_algo_order(algo_id)
+            status = info.get("algoStatus", "") if info else ""
+            if status in _ALGO_FIRED_STATUSES:
+                try:
+                    px = float(info.get("actualPrice") or 0.0)
+                except (TypeError, ValueError):
+                    px = 0.0
+                try:
+                    trig = float(info.get("triggerPrice") or 0.0)
+                except (TypeError, ValueError):
+                    trig = 0.0
+                return "SL", (px if px > 0 else mark), trig
+            if status and status != "NEW":
+                break   # CANCELED·EXPIRED·REJECTED — YONA 주문 발동 아님
+            if attempt == 0:
+                time.sleep(_ALGO_STATUS_RETRY_SEC)
+        return "LIQD", mark, 0.0
 
     def _update_binance_sl_long(self, new_sl_price: float, mark: float = 0.0) -> None:
         """롱 포지션 Binance STOP_MARKET SL 교체 (새 SL 등록 성공 시에만 기존 취소)."""
@@ -1479,10 +1523,13 @@ class TradingEngine:
                         self._close_short("BACKSTOP", mark)
                     return
             if lp and lp.state == PositionState.OPEN and pos_amt == 0.0:
+                _reason_l, _exit_l, _trig_l = self._resolve_exchange_exit(
+                    self._client, self._sl_order_id_long, mark)
                 with self._lock:
                     self._state.long_pos    = LongPosition.close(
-                        lp, exit_price=mark, exit_reason="LIQD")
-                    self._state.last_signal = "롱 강제 청산(외부)"
+                        lp, exit_price=_exit_l, exit_reason=_reason_l, trigger_price=_trig_l)
+                    self._state.last_signal = ("롱 청산(Binance SL 발동)" if _reason_l == "SL"
+                                               else "롱 강제 청산(외부)")
                 self._invalidate_balance()
                 if self._sl_order_id_long:
                     self._client.cancel_order(sym, self._sl_order_id_long)
@@ -1491,10 +1538,13 @@ class TradingEngine:
                 self._profit_trigger_price_long  = 0.0
                 self._clear_p3_state("long")
             if sp and sp.state == PositionState.OPEN and pos_amt == 0.0:
+                _reason_s, _exit_s, _trig_s = self._resolve_exchange_exit(
+                    self._client, self._sl_order_id_short, mark)
                 with self._lock:
                     self._state.short_pos   = ShortPosition.close(
-                        sp, exit_price=mark, exit_reason="LIQD")
-                    self._state.last_signal = "숏 강제 청산(외부)"
+                        sp, exit_price=_exit_s, exit_reason=_reason_s, trigger_price=_trig_s)
+                    self._state.last_signal = ("숏 청산(Binance SL 발동)" if _reason_s == "SL"
+                                               else "숏 강제 청산(외부)")
                 self._invalidate_balance()
                 if self._sl_order_id_short:
                     self._client.cancel_order(sym, self._sl_order_id_short)

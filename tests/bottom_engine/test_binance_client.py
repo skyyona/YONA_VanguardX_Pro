@@ -208,11 +208,28 @@ class TestAlgoOrders:
         captured = []
         client._signed_delete = self._capture_delete(captured, True)
         assert client.cancel_order("BTCUSDT", "2146760") is True
-        path, p, _ = captured[0]
+        path, p, ok_codes = captured[0]
         assert path == "/fapi/v1/algoOrder"
         assert p["algoId"] == "2146760"
         assert "symbol" not in p
         assert "orderId" not in p
+        # 이미 취소·발동된 Algo 재취소 시 실측 응답 -2011 → 성공 처리
+        assert ok_codes == (-2011,)
+
+    def test_get_algo_order_queries_by_algo_id(self):
+        """Algo 단건 조회는 GET /fapi/v1/algoOrder + algoId, dict 아니면 None."""
+        client = self._make_client()
+        queried = []
+        def _get(path, params=None):
+            queried.append((path, dict(params or {})))
+            return {"algoId": 5, "algoStatus": "FINISHED", "actualPrice": "101.5"}
+        client._signed_get = _get
+        info = client.get_algo_order("5")
+        assert queried[0] == ("/fapi/v1/algoOrder", {"algoId": "5"})
+        assert info["actualPrice"] == "101.5"
+        client._signed_get = lambda path, params=None: None
+        assert client.get_algo_order("5") is None
+        assert client.get_algo_order("") is None
 
     def test_cancel_order_already_finished_is_success(self):
         """취소 실패 후 상태 조회에서 NEW가 아니면(이미 발동·종료) True."""

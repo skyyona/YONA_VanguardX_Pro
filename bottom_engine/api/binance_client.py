@@ -154,22 +154,34 @@ class BottomBinanceClient:
         성공 또는 이미 발동·취소·만료되어 취소할 대상이 없는 경우 True."""
         if not self._has_keys or not order_id:
             return False
+        # -2011(Unknown order sent): 이미 취소·발동된 Algo 주문 재취소 시 실측 응답 (2026-10-25)
         ok = self._signed_delete(
             "/fapi/v1/algoOrder",
             {"algoId": order_id, "timestamp": str(self._ts())},
-            "cancel_order")
+            "cancel_order", ok_codes=(-2011,))
         if ok:
             return True
         if self._rate_limited_until > time.time():
             return False
-        # 이미 종료된 Algo 주문의 취소 오류 코드는 공식 문서 미기재 → 주문 상태로 판정
+        # 그 외 취소 실패 → 주문 상태로 판정 (NEW가 아니면 취소할 대상 없음)
         cancel_err = self._last_api_error
-        info   = self._signed_get("/fapi/v1/algoOrder", {"algoId": order_id})
-        status = info.get("algoStatus", "") if isinstance(info, dict) else ""
+        info   = self.get_algo_order(order_id)
+        status = info.get("algoStatus", "") if info else ""
         if status and status != "NEW":
             return True
         self._last_api_error = cancel_err
         return False
+
+    def get_algo_order(self, algo_id: str) -> "dict | None":
+        """Algo 주문 단건 조회 (GET /fapi/v1/algoOrder) — algoStatus·actualPrice(발동 후 평균 체결가) 확인용.
+        등록·취소 직후 약 1초간 -2013 또는 이전 상태가 반환될 수 있음(실측). 실패 시 None."""
+        if not self._has_keys or not algo_id:
+            return None
+        try:
+            result = self._signed_get("/fapi/v1/algoOrder", {"algoId": algo_id})
+            return result if isinstance(result, dict) else None
+        except Exception:
+            return None
 
     def _cancel_limit_order(self, symbol: str, order_id: str) -> bool:
         """진입 LIMIT(GTX) 미체결 일반 주문 취소 (DELETE /fapi/v1/order).

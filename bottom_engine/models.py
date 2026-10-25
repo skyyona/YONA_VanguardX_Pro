@@ -132,6 +132,11 @@ class Position:
     exit_reason:   str             = ""    # 청산 사유 (CLOSED 시 기록)
     entry_time:    float           = 0.0   # 진입 체결 시각 (unix timestamp)
     exit_time:     float           = 0.0   # 청산 체결 시각 (unix timestamp)
+    # 실측 슬리피지 기록 (+ = 불리: 롱 고가 매수·저가 매도 / 숏 저가 매도·고가 매수)
+    signal_mark:        float        = 0.0   # 진입 판단 시 마크가 (0 = 미상, 재시작 복구 포지션)
+    entry_slip_pct:     float | None = None  # 진입 체결가 vs signal_mark (%)
+    exit_trigger_price: float        = 0.0   # 청산 기준가: SL·트레일링 발동가 또는 청산 판단 시 마크가 (0 = 미상)
+    exit_slip_pct:      float | None = None  # 청산 체결가 vs exit_trigger_price (%)
 
 
 # ── 리스크 체크 ──────────────────────────────────────────────────
