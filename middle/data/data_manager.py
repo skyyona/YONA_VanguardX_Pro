@@ -30,6 +30,13 @@ _STAGE2_WORKERS  = 5     # 경량 갱신 병렬 스레드 수 (3→5: 15초 주�
 _STAGE3_WORKERS  = 7     # klines 갱신 병렬 스레드 수 (3→7: 34초→15초, Rate 36% 유지)
 # STAGE3에서 갱신할 TF (1m·3m·5m·15m·1h·4h·1d — 4TF거시지지 s_macro 정확도 확보)
 _KLINES_TFS      = ("1m", "3m", "5m", "15m", "1h", "4h", "1d")
+# 5m klines 봉 수 — STAGE3·_refresh_detail 두 경로 동일(미완성 봉 제외 199봉).
+# 5m StochRSI(G_K·KD 익절·Zone·다이버전스)를 백테스트(전체 기록)와 일치시킴 — stochrsi_window_check.py:
+# 59봉 Zone 7.11%·G_K 1.2%·KD 0.6% 불일치 → 199봉 ≈0. 두 경로가 60·80으로 달라 같은 tf5를 번갈아 덮어쓰던 경합도 제거.
+_KLINES_5M_LIMIT = 200
+# VWAP·5m ATR%는 5m 봉 전체를 쓰므로 기존 창 유지 (기존 limit − 미완성 봉 1개)
+_VWAP_ATR5M_BARS_TOPN   = 59   # STAGE3 기존 5m limit 60
+_VWAP_ATR5M_BARS_DETAIL = 79   # _refresh_detail 기존 5m limit 80
 # ── 단계별 필드 소유권 ────────────────────────────────────────
 # 각 갱신 단계는 자기가 담당하는 필드만 캐시에 병합한다.
 # 통째 교체 방식은 네트워크 대기 중 다른 단계가 쓴 결과를 되돌린다.
@@ -372,7 +379,7 @@ class MiddleDataManager:
                 # ── klines 수집 ──────────────────────────────
                 bars: dict = {}
                 for tf in _KLINES_TFS:
-                    limit = 80 if tf in ("1m", "3m") else 60
+                    limit = _KLINES_5M_LIMIT if tf == "5m" else (80 if tf in ("1m", "3m") else 60)
                     b = self._ohlcv_svc.fetch(sym, tf, limit)
                     if b:
                         bars[tf] = b
@@ -381,12 +388,13 @@ class MiddleDataManager:
 
                 b1h = bars.get("1h", [])
                 b5m = bars.get("5m", [])
+                b5m_w = b5m[-_VWAP_ATR5M_BARS_TOPN:]   # VWAP·5m ATR% 기존 창
 
                 # ── 지표 계산 ────────────────────────────────
                 atr    = AtrPercent.calculate(b1h) if b1h              else 2.0
-                atr_5m = AtrPercent.calculate(b5m) if len(b5m) >= 15  else 0.0
+                atr_5m = AtrPercent.calculate(b5m_w) if len(b5m_w) >= 15  else 0.0
                 ema = EMAAlignment.calculate(b1h) if b1h else None
-                vwap_r = VWAP.calculate(b5m or b1h) if (b5m or b1h) else None
+                vwap_r = VWAP.calculate(b5m_w or b1h) if (b5m_w or b1h) else None
                 pat  = CandlePattern.detect(b5m or b1h) if (b5m or b1h) else "분석 중 …"
 
                 stoch:        dict[str, StochRSIResult] = {}
@@ -609,7 +617,8 @@ class MiddleDataManager:
             # OHLCV 7 TF 병렬 수집
             with ThreadPoolExecutor(max_workers=len(_DETAIL_TFS)) as ex:
                 futs = {tf: ex.submit(self._ohlcv_svc.fetch, symbol, tf,
-                                      80 if tf in ("1m", "3m", "5m", "15m") else 60)
+                                      _KLINES_5M_LIMIT if tf == "5m"
+                                      else (80 if tf in ("1m", "3m", "15m") else 60))
                         for tf in _DETAIL_TFS}
                 bars: dict[str, list[OHLCVBar]] = {tf: fut.result() for tf, fut in futs.items()}
 
@@ -621,13 +630,14 @@ class MiddleDataManager:
             # 지표 계산 (1h 기준)
             b1h  = bars.get("1h", [])
             b5m  = bars.get("5m", [])
+            b5m_w = b5m[-_VWAP_ATR5M_BARS_DETAIL:]   # VWAP·5m ATR% 기존 창
             rsi  = RSI.calculate(b1h)
             bpr  = BPR.from_candles(b1h)
             vss  = VSS.calculate(b5m or b1h)
             atr    = AtrPercent.calculate(b1h)
-            atr_5m = AtrPercent.calculate(b5m) if len(b5m) >= 15 else 0.0
+            atr_5m = AtrPercent.calculate(b5m_w) if len(b5m_w) >= 15 else 0.0
             ema  = EMAAlignment.calculate(b1h)
-            vwap_r = VWAP.calculate(b5m or b1h)
+            vwap_r = VWAP.calculate(b5m_w or b1h)
             pat  = CandlePattern.detect(b5m or b1h)
 
             # StochRSI 7 TF
