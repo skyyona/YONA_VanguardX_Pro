@@ -102,66 +102,95 @@ class BottomBinanceClient:
 
     def place_stop_market(self, symbol: str, side: str,
                           stop_price: float) -> str:
-        """STOP_MARKET SL 주문 등록 (Binance UI TP/SL 표시용, closePosition=true).
-        side: "SELL"(롱SL) / "BUY"(숏SL). 성공 시 orderId 문자열, 실패 시 ""."""
+        """STOP_MARKET SL Algo 주문 등록 (Binance UI TP/SL 표시용, closePosition=true).
+        2025-12-09부터 조건부 주문은 /fapi/v1/algoOrder 전용(/fapi/v1/order는 -4120 거절).
+        side: "SELL"(롱SL) / "BUY"(숏SL). 성공 시 algoId 문자열, 실패 시 ""."""
         if not self._has_keys or stop_price <= 0:
             return ""
         try:
             params = {
-                "symbol":           symbol,
-                "side":             side,
-                "type":             "STOP_MARKET",
-                "stopPrice":        f"{stop_price:.8f}",
-                "closePosition":    "true",
-                "workingType":      "MARK_PRICE",
-                "newClientOrderId": f"sl_{uuid.uuid4().hex[:20]}",
-                "timestamp":        str(self._ts()),
+                "algoType":      "CONDITIONAL",
+                "symbol":        symbol,
+                "side":          side,
+                "type":          "STOP_MARKET",
+                "triggerPrice":  f"{stop_price:.8f}",
+                "closePosition": "true",
+                "workingType":   "MARK_PRICE",
+                "clientAlgoId":  f"sl_{uuid.uuid4().hex[:20]}",
+                "timestamp":     str(self._ts()),
             }
-            result = self._signed_post("/fapi/v1/order", params)
-            return str(result.get("orderId", "")) if result else ""
+            result = self._signed_post("/fapi/v1/algoOrder", params)
+            return str(result.get("algoId", "")) if result else ""
         except Exception:
             return ""
 
     def place_trailing_stop(self, symbol: str, side: str,
                             callback_rate: float, quantity: float) -> str:
-        """TRAILING_STOP_MARKET 주문 등록 (Phase3 잔여 수량 보호용).
-        side: "SELL"(롱) / "BUY"(숏). 성공 시 orderId 문자열, 실패 시 ""."""
+        """TRAILING_STOP_MARKET Algo 주문 등록 (Phase3 잔여 수량 보호용).
+        side: "SELL"(롱) / "BUY"(숏). 성공 시 algoId 문자열, 실패 시 ""."""
         if not self._has_keys or quantity <= 0 or not (0.1 <= callback_rate <= 10.0):
             return ""
         try:
             prec   = self.get_qty_precision(symbol)
             params = {
-                "symbol":           symbol,
-                "side":             side,
-                "type":             "TRAILING_STOP_MARKET",
-                "callbackRate":     f"{callback_rate:.1f}",
-                "quantity":         f"{quantity:.{prec}f}",
-                "reduceOnly":       "true",
-                "workingType":      "MARK_PRICE",
-                "newClientOrderId": f"tr_{uuid.uuid4().hex[:20]}",
-                "timestamp":        str(self._ts()),
+                "algoType":     "CONDITIONAL",
+                "symbol":       symbol,
+                "side":         side,
+                "type":         "TRAILING_STOP_MARKET",
+                "callbackRate": f"{callback_rate:.1f}",
+                "quantity":     f"{quantity:.{prec}f}",
+                "reduceOnly":   "true",
+                "workingType":  "MARK_PRICE",
+                "clientAlgoId": f"tr_{uuid.uuid4().hex[:20]}",
+                "timestamp":    str(self._ts()),
             }
-            result = self._signed_post("/fapi/v1/order", params)
-            return str(result.get("orderId", "")) if result else ""
+            result = self._signed_post("/fapi/v1/algoOrder", params)
+            return str(result.get("algoId", "")) if result else ""
         except Exception:
             return ""
 
     def cancel_order(self, symbol: str, order_id: str) -> bool:
-        """등록된 SL/Trailing 주문 취소. 성공 또는 이미 체결·취소된 경우 True."""
+        """등록된 SL/Trailing Algo 주문 취소 (DELETE /fapi/v1/algoOrder — symbol 불필요, algoId 사용).
+        성공 또는 이미 발동·취소·만료되어 취소할 대상이 없는 경우 True."""
         if not self._has_keys or not order_id:
             return False
+        ok = self._signed_delete(
+            "/fapi/v1/algoOrder",
+            {"algoId": order_id, "timestamp": str(self._ts())},
+            "cancel_order")
+        if ok:
+            return True
+        if self._rate_limited_until > time.time():
+            return False
+        # 이미 종료된 Algo 주문의 취소 오류 코드는 공식 문서 미기재 → 주문 상태로 판정
+        cancel_err = self._last_api_error
+        info   = self._signed_get("/fapi/v1/algoOrder", {"algoId": order_id})
+        status = info.get("algoStatus", "") if isinstance(info, dict) else ""
+        if status and status != "NEW":
+            return True
+        self._last_api_error = cancel_err
+        return False
+
+    def _cancel_limit_order(self, symbol: str, order_id: str) -> bool:
+        """진입 LIMIT(GTX) 미체결 일반 주문 취소 (DELETE /fapi/v1/order).
+        성공 또는 이미 체결·취소(-2011)된 경우 True."""
+        if not self._has_keys or not order_id:
+            return False
+        return self._signed_delete(
+            "/fapi/v1/order",
+            {"symbol": symbol, "orderId": order_id, "timestamp": str(self._ts())},
+            "cancel_limit_order", ok_codes=(-2011,))
+
+    def _signed_delete(self, path: str, params: dict, label: str,
+                       ok_codes: tuple[int, ...] = ()) -> bool:
+        """서명 DELETE 요청. 성공 또는 Binance 오류 코드가 ok_codes에 속하면 True."""
         if self._rate_limited_until > time.time():
             return False
         try:
-            params = {
-                "symbol":    symbol,
-                "orderId":   order_id,
-                "timestamp": str(self._ts()),
-            }
             qs  = urllib.parse.urlencode(params)
             sig = hmac.new(self._api_secret.encode(), qs.encode(),
                            hashlib.sha256).hexdigest()
-            url = f"{_FUTURES_BASE}/fapi/v1/order?{qs}&signature={sig}"
+            url = f"{_FUTURES_BASE}{path}?{qs}&signature={sig}"
             req = urllib.request.Request(
                 url, method="DELETE",
                 headers={"X-MBX-APIKEY": self._api_key},
@@ -172,11 +201,11 @@ class BottomBinanceClient:
             try:
                 body = json.loads(e.read().decode())
                 code = body.get("code", 0)
-                if code == -2011:
+                if code in ok_codes:
                     return True
-                self._last_api_error = f"cancel_order [{code}] {body.get('msg', str(e))}"
+                self._last_api_error = f"{label} [{code}] {body.get('msg', str(e))}"
             except Exception:
-                self._last_api_error = f"cancel_order HTTP {e.code}"
+                self._last_api_error = f"{label} HTTP {e.code}"
             if e.code == 429:
                 try:
                     retry_after = int(e.headers.get("Retry-After") or 60)
@@ -188,7 +217,7 @@ class BottomBinanceClient:
                 self._last_api_error = "[긴급] Binance IP 차단(418) — 5분 후 자동 해제. API 호출 즉시 중단 필요"
             return False
         except Exception as e:
-            self._last_api_error = f"cancel_order {e}"
+            self._last_api_error = f"{label} {e}"
             return False
 
     # ── 심볼 정보 ─────────────────────────────────────────────────
@@ -289,11 +318,12 @@ class BottomBinanceClient:
             return None
 
     def get_open_orders(self, symbol: str) -> "list | None":
-        """미체결 주문 목록 조회 (SL order_id 복구용). 성공 시 list, API 실패 시 None."""
+        """미체결 Algo 주문 목록 조회 (SL·Trailing algoId 복구용, GET /fapi/v1/openAlgoOrders).
+        성공 시 list(항목 키: algoId·orderType·side 등), API 실패 시 None."""
         if not self._has_keys:
             return []
         try:
-            result = self._signed_get("/fapi/v1/openOrders", {"symbol": symbol})
+            result = self._signed_get("/fapi/v1/openAlgoOrders", {"symbol": symbol})
             return result if isinstance(result, list) else None
         except Exception:
             return None
@@ -398,7 +428,7 @@ class BottomBinanceClient:
                 if order.order_type == OrderType.LIMIT:
                     oid = str(result.get("orderId", ""))
                     if oid:
-                        self.cancel_order(order.symbol, oid)
+                        self._cancel_limit_order(order.symbol, oid)
                     return OrderResult(False, error="LIMIT 미체결(GTX) — MARKET으로 재시도")
                 return OrderResult(False, error="executedQty=0 — 체결 수량 없음")
             return OrderResult(

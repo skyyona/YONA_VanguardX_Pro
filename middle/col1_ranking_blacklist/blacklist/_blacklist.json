@@ -772,5 +772,47 @@
     "added_utc": "2026-09-05 11:51 UTC",
     "status": "SETTLING",
     "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "1000000BOBUSDT",
+    "added_utc": "2026-10-25 00:46 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "EPICUSDT",
+    "added_utc": "2026-10-25 00:46 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "MITOUSDT",
+    "added_utc": "2026-10-25 00:46 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "PROMPTUSDT",
+    "added_utc": "2026-10-25 00:46 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "PTBUSDT",
+    "added_utc": "2026-10-25 00:46 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "PUMPBTCUSDT",
+    "added_utc": "2026-10-25 00:46 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
+  },
+  {
+    "symbol": "STGUSDT",
+    "added_utc": "2026-10-25 00:46 UTC",
+    "status": "SETTLING",
+    "reason": "Settling Update 자동 감지"
   }
 ]

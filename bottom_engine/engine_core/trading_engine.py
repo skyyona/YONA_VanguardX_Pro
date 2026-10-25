@@ -310,10 +310,10 @@ class TradingEngine:
             _trailing_oid_short: str = ""
             _stop_oid_short:     str = ""
             for o in _open_orders:
-                otype = o.get("type", "")
+                otype = o.get("orderType", "")
                 if otype not in ("STOP_MARKET", "TRAILING_STOP_MARKET"):
                     continue
-                oid  = str(o.get("orderId", ""))
+                oid  = str(o.get("algoId", ""))
                 side = o.get("side", "")
                 if not oid:
                     continue
@@ -569,7 +569,8 @@ class TradingEngine:
                                             self._clear_p3_state("long")
                                         else:
                                             with self._lock:
-                                                self._state.error_msg = "[경보] 롱 Trailing Stop 등록 실패 — Binance 연결 확인 필요"
+                                                self._state.error_msg = ("[경보] 롱 Trailing Stop 등록 실패 — Binance 연결 확인 필요"
+                                                                         + self._api_error_suffix())
                             # Phase1 Time-out: N봉(5m) 초과 시 청산
                             if (updated.phase == 1 and self._params.phase1_timeout_bars > 0
                                     and not RiskManager.should_stop_loss(updated, mark)):
@@ -627,7 +628,8 @@ class TradingEngine:
                                             self._clear_p3_state("short")
                                         else:
                                             with self._lock:
-                                                self._state.error_msg = "[경보] 숏 Trailing Stop 등록 실패 — Binance 연결 확인 필요"
+                                                self._state.error_msg = ("[경보] 숏 Trailing Stop 등록 실패 — Binance 연결 확인 필요"
+                                                                         + self._api_error_suffix())
                             # Phase1 Time-out: N봉(5m) 초과 시 청산
                             if (updated.phase == 1 and self._params.phase1_timeout_bars > 0
                                     and not RiskManager.should_stop_loss(updated, mark)):
@@ -962,7 +964,8 @@ class TradingEngine:
                 self._sl_order_id_long = oid
                 if not oid:
                     with self._lock:
-                        self._state.error_msg = "[경보] 롱 SL 주문 등록 실패 — Binance 연결·잔고 확인 필요"
+                        self._state.error_msg = ("[경보] 롱 SL 주문 등록 실패 — Binance 연결·잔고 확인 필요"
+                                                 + self._api_error_suffix())
             return True
         else:
             with self._lock:
@@ -1105,7 +1108,8 @@ class TradingEngine:
                 self._sl_order_id_short = oid
                 if not oid:
                     with self._lock:
-                        self._state.error_msg = "[경보] 숏 SL 주문 등록 실패 — Binance 연결·잔고 확인 필요"
+                        self._state.error_msg = ("[경보] 숏 SL 주문 등록 실패 — Binance 연결·잔고 확인 필요"
+                                                 + self._api_error_suffix())
             return True
         else:
             with self._lock:
@@ -1387,6 +1391,13 @@ class TradingEngine:
             return round(price, 8)
         return round(round(price / tick_size) * tick_size, 8)
 
+    def _api_error_suffix(self) -> str:
+        """직전 Binance API 오류 문구 — SL·Trailing 등록 실패 경보에 원인 표시용."""
+        err = self._client._last_api_error
+        if "-4120" in err:
+            return " — [-4120] 조건부 주문은 Algo 주문(/fapi/v1/algoOrder) 전용"
+        return f" — {err}" if err else ""
+
     def _update_binance_sl_long(self, new_sl_price: float, mark: float = 0.0) -> None:
         """롱 포지션 Binance STOP_MARKET SL 교체 (새 SL 등록 성공 시에만 기존 취소)."""
         sym      = self._state.symbol
@@ -1404,7 +1415,8 @@ class TradingEngine:
             self._sl_order_id_long = oid
         else:
             with self._lock:
-                self._state.error_msg = "[경보] 롱 SL 갱신 실패 — Binance 연결 확인 필요"
+                self._state.error_msg = ("[경보] 롱 SL 갱신 실패 — Binance 연결 확인 필요"
+                                         + self._api_error_suffix())
 
     def _update_binance_sl_short(self, new_sl_price: float, mark: float = 0.0) -> None:
         """숏 포지션 Binance STOP_MARKET SL 교체 (새 SL 등록 성공 시에만 기존 취소)."""
@@ -1423,7 +1435,8 @@ class TradingEngine:
             self._sl_order_id_short = oid
         else:
             with self._lock:
-                self._state.error_msg = "[경보] 숏 SL 갱신 실패 — Binance 연결 확인 필요"
+                self._state.error_msg = ("[경보] 숏 SL 갱신 실패 — Binance 연결 확인 필요"
+                                         + self._api_error_suffix())
 
     # ── 잔고 캐시 ─────────────────────────────────────────────
     def _get_balance(self) -> "float | None":
