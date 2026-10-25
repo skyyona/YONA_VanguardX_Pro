@@ -2,7 +2,7 @@
 bottom/backtest/backtest_runner.py
 백테스팅 실행 — 4개 시간프레임(1m/3m/5m/15m) 실제 StochRSI 합의 전략 적용.
 기존 _mac_tfs bisect 패턴을 1m/3m/5m/15m에 확장 적용.
-수수료(0.09%) · 슬리피지(0.02%) · 펀딩비(0.01%/8h) 거래별 PnL에 차감.
+수수료(0.09%) · 슬리피지(0.02%) · 펀딩비(보유 구간 실제 펀딩 기록, 기록 없으면 0.01%/8h) 거래별 PnL에 차감.
 Sort by 6개 필터 + Prohibition 필터 적용.
 quality_grade_req 는 QualityGrader(Cascade/Zone/Duration/Swing 4축)로 반영.
 
@@ -214,14 +214,19 @@ class BacktestRunner:
                             _tf_d,
                         ))
 
-        # ── common_fr 펀딩비 이력 로드 ───────────────────────────────
+        # ── 펀딩비 이력 로드 — common_fr·common_liq 판정 + 보유 구간 실제 펀딩비(_funding_cost) ──
         _fr_times:    list[int]   = []
         _fr_pct_list: list[float] = []
-        if params.prohibition.common_fr or params.prohibition.common_liq:
-            if preloaded is not None and "fr" in preloaded:
-                _fr_times, _fr_pct_list = preloaded["fr"]
-            else:
-                _fr_times, _fr_pct_list = HistoricalDataLoader.load_funding_rate(symbol)
+        if preloaded is not None and "fr" in preloaded:
+            _fr_times, _fr_pct_list = preloaded["fr"]
+        else:
+            _fr_times, _fr_pct_list = HistoricalDataLoader.load_funding_rate(symbol)
+        _open_1m = [b.open_time for b in bars_1m]
+
+        def _fund(side_: str, exit_ms: int) -> float:
+            """현재 포지션(entry_time·entry_price)의 보유 구간 펀딩비 — 진입 체결 = 진입 1m 봉 종가 시각."""
+            return cls._funding_cost(_leff, side_, entry_time + 59_999, exit_ms, entry_price,
+                                     _fr_times, _fr_pct_list, _open_1m, bars_1m)
 
         # ── common_liq L/S ratio 이력 로드 ──────────────────────────
         _lr_times:    list[int]   = []
@@ -365,7 +370,7 @@ class BacktestRunner:
                 if exit_variant == "M4":
                     # SL (Phase 1 고정 — M4는 Phase 2/3 없음)
                     if bar.low <= sl_phase1:
-                        cost = cls._cost(_leff, bars_held)
+                        cost = cls._cost(_leff, _fund("long", bar.close_time))
                         pnl  = (sl_phase1 - entry_price) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
@@ -385,7 +390,7 @@ class BacktestRunner:
                         continue
                     # K80-5M: 5m K 80 하향 돌파 청산
                     if _k5m_prev_bar >= 80.0 and _k5m_cur < 80.0:
-                        cost = cls._cost(_leff, bars_held)
+                        cost = cls._cost(_leff, _fund("long", bar.close_time))
                         pnl  = (close - entry_price) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
@@ -407,7 +412,7 @@ class BacktestRunner:
                 elif exit_variant == "SIMPLE_TP":
                     tp_price = entry_price + R * 1.5
                     if bar.low <= sl_phase1:
-                        cost = cls._cost(_leff, bars_held)
+                        cost = cls._cost(_leff, _fund("long", bar.close_time))
                         pnl  = (sl_phase1 - entry_price) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
@@ -426,7 +431,7 @@ class BacktestRunner:
                         in_long = False; phase = 1; trail_ref = 0.0
                         continue
                     if bar.high >= tp_price:
-                        cost = cls._cost(_leff, bars_held)
+                        cost = cls._cost(_leff, _fund("long", bar.close_time))
                         pnl  = (tp_price - entry_price) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
@@ -443,7 +448,7 @@ class BacktestRunner:
                     # Phase1 Time-out: N봉 초과 시 close 가격으로 전량 청산
                     if (phase == 1 and params.phase1_timeout_bars > 0
                             and bars_held >= params.phase1_timeout_bars * 5):
-                        cost = cls._cost(_leff, bars_held)
+                        cost = cls._cost(_leff, _fund("long", bar.close_time))
                         pnl  = (close - entry_price) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(
                             params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
@@ -478,7 +483,7 @@ class BacktestRunner:
                         k_cur=_k5m_cur,
                     )
                     if dec.reason:
-                        cost = cls._cost(_leff, bars_held)
+                        cost = cls._cost(_leff, _fund("long", bar.close_time))
                         pnl  = (dec.exit_price - entry_price) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(
                             dec.qty_ratio * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
@@ -522,7 +527,7 @@ class BacktestRunner:
                 if exit_variant == "M4":
                     # SL (Phase 1 고정 — M4는 Phase 2/3 없음)
                     if bar.high >= sl_phase1:
-                        cost = cls._cost(_leff, bars_held)
+                        cost = cls._cost(_leff, _fund("short", bar.close_time))
                         pnl  = (entry_price - sl_phase1) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
@@ -542,7 +547,7 @@ class BacktestRunner:
                         continue
                     # K20-5M: 5m K 20 상향 돌파 청산
                     if _k5m_prev_bar <= 20.0 and _k5m_cur > 20.0:
-                        cost = cls._cost(_leff, bars_held)
+                        cost = cls._cost(_leff, _fund("short", bar.close_time))
                         pnl  = (entry_price - close) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
@@ -564,7 +569,7 @@ class BacktestRunner:
                 elif exit_variant == "SIMPLE_TP":
                     tp_price = entry_price - R * 1.5
                     if bar.high >= sl_phase1:
-                        cost = cls._cost(_leff, bars_held)
+                        cost = cls._cost(_leff, _fund("short", bar.close_time))
                         pnl  = (entry_price - sl_phase1) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
@@ -583,7 +588,7 @@ class BacktestRunner:
                         in_short = False; phase = 1; trail_ref = 0.0
                         continue
                     if bar.low <= tp_price:
-                        cost = cls._cost(_leff, bars_held)
+                        cost = cls._cost(_leff, _fund("short", bar.close_time))
                         pnl  = (entry_price - tp_price) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
                         trades.append(BacktestTrade(
@@ -600,7 +605,7 @@ class BacktestRunner:
                     # Phase1 Time-out: N봉 초과 시 close 가격으로 전량 청산
                     if (phase == 1 and params.phase1_timeout_bars > 0
                             and bars_held >= params.phase1_timeout_bars * 5):
-                        cost = cls._cost(_leff, bars_held)
+                        cost = cls._cost(_leff, _fund("short", bar.close_time))
                         pnl  = (entry_price - close) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(
                             params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
@@ -635,7 +640,7 @@ class BacktestRunner:
                         k_cur=_k5m_cur,
                     )
                     if dec.reason:
-                        cost = cls._cost(_leff, bars_held)
+                        cost = cls._cost(_leff, _fund("short", bar.close_time))
                         pnl  = (entry_price - dec.exit_price) / entry_price * 100.0 * _leff - cost
                         _pnl_usdt_val = round(
                             dec.qty_ratio * params.portfolio_usdt * params.funds_pct / 100.0 * pnl / 100.0, 4)
@@ -905,15 +910,36 @@ class BacktestRunner:
 
     # ── 거래 비용 계산 ──────────────────────────────────────────
     @staticmethod
-    def _cost(leverage: float, bars_held: int) -> float:
+    def _cost(leverage: float, funding: float) -> float:
         """레버리지 반영 거래 비용 (수수료 + 슬리피지 + 펀딩비) — PnL%에서 차감할 값.
         PnL = price_change_ratio * 100 * leff 단위(자본 대비 %)이므로 cost도 동일 단위.
         round_trip: 2 × leff × (fee + slip) × 100  (소수율 → % 변환)
-        funding:    leff × fund_rate × (bars/8h)  × 100
+        funding:    _funding_cost() 결과 (보유 구간 실제 펀딩비, + = 비용 / − = 수령)
         """
         round_trip = 2 * leverage * (_TAKER_FEE_RATE + _SLIPPAGE) * 100
-        funding    = leverage * _FUNDING_RATE * (bars_held / _FUNDING_BARS) * 100
         return round_trip + funding
+
+    @staticmethod
+    def _funding_cost(leverage: float, side: str, entry_fill_ms: int, exit_ms: int,
+                      entry_price: float, fr_times: list[int], fr_pct: list[float],
+                      open_1m: list[int], bars_1m: list) -> float:
+        """보유 구간 실제 펀딩비 — PnL%와 같은 자본 대비 % 단위 (+ = 비용, − = 수령).
+        entry_fill_ms < fundingTime ≤ exit_ms 인 펀딩마다 rate% × (펀딩 시각 1m 봉 시가 / 진입가) × leverage.
+        롱은 양(+) 펀딩을 지불, 숏은 수령 (Binance 공식). Freqtrade exchange.py 4163·4194-4202 방식
+        (마크가 대신 1m 봉 시가 — 캐시에 마크가 없음).
+        펀딩 기록이 없으면 기존 고정 추정치(0.01%/8h, _FUNDING_RATE·_FUNDING_BARS)로 대체.
+        """
+        if not fr_times:
+            bars_held = max(0, round((exit_ms - entry_fill_ms) / 60_000))
+            return leverage * _FUNDING_RATE * (bars_held / _FUNDING_BARS) * 100
+        lo = bisect.bisect_right(fr_times, entry_fill_ms)
+        hi = bisect.bisect_right(fr_times, exit_ms)
+        total = 0.0
+        for k in range(lo, hi):
+            j  = bisect.bisect_right(open_1m, fr_times[k]) - 1
+            px = bars_1m[j].open if j >= 0 else entry_price
+            total += fr_pct[k] * (px / entry_price)
+        return total * leverage * (1.0 if side == "long" else -1.0)
 
     # ── ATR% 시리즈 계산 ─────────────────────────────────────────
 

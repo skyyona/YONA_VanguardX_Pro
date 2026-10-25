@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import time
 import threading
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
@@ -14,6 +15,17 @@ _FUTURES_BASE = "https://fapi.binance.com"
 
 # Binance klines API 1회 요청 최대 봉 수
 _MAX_LIMIT = 1500
+
+# 레이트리밋 보호 — exchangeInfo REQUEST_WEIGHT 2400/분/IP (2026-10-25 확인).
+# 같은 IP의 실거래 앱 몫을 남기도록 IP 전체 사용 가중치(X-MBX-USED-WEIGHT-1M)가 상한 이상이면 다음 분까지 대기.
+_WEIGHT_SOFT_CAP = 1500
+_PAGE_RETRY      = 3       # 페이지 실패(타임아웃·429 등) 재시도 횟수
+# /fapi/v1/fundingRate: 1회 최대 1000건, 500회/5분/IP 공유 한도 (공식 문서) → 페이지 간 0.7초
+_FUNDING_LIMIT      = 1000
+_FUNDING_PAGE_SLEEP = 0.7
+
+# 직전 응답 상태 — 0: 없음, 200: 성공, -1: 네트워크 예외, 그 외 HTTP 오류 코드
+_rate_state: dict = {"status": 0, "used_weight": 0, "retry_after": 0}
 
 # 기간별 캔들 수 (백테스팅용)
 # 7일: 5m×2016봉 — 1m 기반 4TF 전략에 가장 근접한 실용 TF
@@ -43,20 +55,43 @@ def _fetch_url(url: str, wall_timeout: float = 30.0) -> "list | None":
 
     urlopen timeout=30(소켓 레벨)만으로는 느린 스트리밍 응답에서 무한 대기가 되므로
     threading을 이용한 벽시계 타임아웃(30초)을 이중 안전망으로 추가한다.
+    응답 상태·IP 사용 가중치를 _rate_state에 기록하고 _throttle()로 레이트리밋을 지킨다.
     """
     _result: list = [None]
+    _rate_state["status"] = -1
 
     def _fetch() -> None:
         try:
             with urllib.request.urlopen(url, timeout=30) as resp:
+                _rate_state["used_weight"] = int(resp.headers.get("X-MBX-USED-WEIGHT-1M") or 0)
                 _result[0] = json.loads(resp.read().decode("utf-8"))
+                _rate_state["status"] = 200
+        except urllib.error.HTTPError as e:
+            _rate_state["status"] = e.code
+            try:
+                _rate_state["retry_after"] = int(e.headers.get("Retry-After") or 0)
+            except (TypeError, ValueError):
+                _rate_state["retry_after"] = 0
         except Exception:
             pass
 
     t = threading.Thread(target=_fetch, daemon=True)
     t.start()
     t.join(timeout=wall_timeout)
+    _throttle()
     return _result[0]
+
+
+def _throttle() -> None:
+    """직전 응답 기준 레이트리밋 대기.
+    429·418 → Retry-After(없으면 60초·300초), IP 사용 가중치 ≥ _WEIGHT_SOFT_CAP → 다음 분까지."""
+    status = _rate_state["status"]
+    if status in (429, 418):
+        time.sleep(_rate_state["retry_after"] or (300 if status == 418 else 60))
+        _rate_state["used_weight"] = 0
+    elif _rate_state["used_weight"] >= _WEIGHT_SOFT_CAP:
+        time.sleep(61 - time.time() % 60)
+        _rate_state["used_weight"] = 0
 
 
 class HistoricalDataLoader:
@@ -92,6 +127,8 @@ class HistoricalDataLoader:
 
         total ≤ _MAX_LIMIT(1500)이면 1회 요청. 초과하면 최신 배치부터 역방향으로
         누적 후 시간 오름차순으로 병합한다.
+        페이지 실패(타임아웃·429 등)는 _PAGE_RETRY회 재시도. 재시도 후에도 실패하면
+        그때까지 수집분을 반환하므로 호출처(캐시 빌더 등)에서 기간 포함 여부를 검증해야 한다.
         """
         if total <= _MAX_LIMIT:
             return HistoricalDataLoader.load(symbol, interval, total)
@@ -102,7 +139,12 @@ class HistoricalDataLoader:
 
         while need > 0:
             n     = min(need, _MAX_LIMIT)
-            page  = HistoricalDataLoader.load(symbol, interval, n, end_time_ms)
+            page: list[HistoricalBar] = []
+            for attempt in range(_PAGE_RETRY):
+                page = HistoricalDataLoader.load(symbol, interval, n, end_time_ms)
+                if page or _rate_state["status"] == 200:   # 200 + 빈 응답 = 더 이전 데이터 없음
+                    break
+                time.sleep(2.0 * (attempt + 1))
             if not page:
                 break
             pages.append(page)
@@ -191,18 +233,33 @@ class HistoricalDataLoader:
         return times, long_pct
 
     @staticmethod
-    def load_funding_rate(symbol: str, limit: int = 360) -> tuple[list[int], list[float]]:
-        """과거 펀딩비 이력 로드. (times_ms, fr_pct_list) 튜플 반환.
+    def load_funding_rate(symbol: str, period_days: int = 180) -> tuple[list[int], list[float]]:
+        """과거 펀딩비 이력 로드 — 최근 period_days일 전체. (times_ms, fr_pct_list) 시간 오름차순.
 
-        limit=360 → 90일 기준 약 360건 (8시간마다 1건).
-        fundingRate raw float에 100.0을 곱해 % 단위로 변환.
-        공개 API — 인증 불필요.
+        startTime 기준 1000건(공식 1회 최대)씩 페이지 수집 → 펀딩 간격(8h·4h·1h)과 무관하게 기간 전체 포함.
+        (기존 limit=360 단일 요청은 8h 간격 약 120일·4h 약 60일만 포함해 백테스트 앞 구간 펀딩이 0으로 처리됨)
+        fundingRate 500회/5분/IP 공유 한도 → 페이지 간 _FUNDING_PAGE_SLEEP초.
+        fundingRate raw float에 100.0을 곱해 % 단위로 변환. 공개 API — 인증 불필요.
+        페이지 실패(재시도 후) 시 그때까지 수집분 반환 — 호출처에서 기간 포함 여부 검증.
         """
-        url = (f"{_FUTURES_BASE}/fapi/v1/fundingRate"
-               f"?symbol={symbol}&limit={limit}")
-        raw = _fetch_url(url)
-        if not raw:
-            return [], []
-        times  = [int(r["fundingTime"])           for r in raw]
-        fr_pct = [float(r["fundingRate"]) * 100.0 for r in raw]
+        start_ms = int((time.time() - period_days * 86400) * 1000)
+        times:  list[int]   = []
+        fr_pct: list[float] = []
+        while True:
+            url = (f"{_FUTURES_BASE}/fapi/v1/fundingRate"
+                   f"?symbol={symbol}&startTime={start_ms}&limit={_FUNDING_LIMIT}")
+            raw = None
+            for attempt in range(_PAGE_RETRY):
+                raw = _fetch_url(url)
+                if raw is not None:
+                    break
+                time.sleep(2.0 * (attempt + 1))
+            if not raw:
+                break
+            times.extend(int(r["fundingTime"]) for r in raw)
+            fr_pct.extend(float(r["fundingRate"]) * 100.0 for r in raw)
+            if len(raw) < _FUNDING_LIMIT:
+                break
+            start_ms = times[-1] + 1
+            time.sleep(_FUNDING_PAGE_SLEEP)
         return times, fr_pct
