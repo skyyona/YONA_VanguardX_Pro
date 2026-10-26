@@ -53,15 +53,6 @@ class TestValidateEntry:
         )
         assert result.allowed is False
 
-    def test_portfolio_loss_exceeded_rejected(self):
-        loss = -(MAX_PORTFOLIO_LOSS_PCT + 1.0)
-        result = RiskManager.validate_entry(
-            _params(), PositionSide.LONG,
-            _idle(PositionSide.LONG), _idle(PositionSide.SHORT),
-            current_loss_pct=loss,
-        )
-        assert result.allowed is False
-
     def test_one_open_blocks_opposite_entry(self):
         """원웨이 모드: 롱 OPEN → 숏 진입 시도도 동시 한도(1)로 차단."""
         result = RiskManager.validate_entry(

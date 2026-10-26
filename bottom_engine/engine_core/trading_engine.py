@@ -54,7 +54,7 @@ class EngineState:
     tick_count:   int   = 0
     error_msg:    str   = ""
     last_balance:        float | None = None  # start() 성공 시 확인된 USDT 잔고 (UI 표시용)
-    initial_balance:     float = 0.0          # start() 기준 잔고 — current_loss_pct 계산용
+    initial_balance:     float = 0.0          # start() 기준 잔고 — 포트폴리오 손실 경고 계산용
     last_blocked_reason: str  = ""            # 마지막 진입 차단 사유 (G0~G8 게이트)
     last_blocked_side:   str  = ""            # "long" | "short" | ""
     last_blocked_long:   str  = ""            # 롱 전용 차단 사유
@@ -257,7 +257,8 @@ class TradingEngine:
         with self._lock:
             self._state.error_msg        = ""       # 이전 에러 클리어
             self._state.last_balance     = balance  # UI 잔고 표시용
-            self._state.initial_balance  = balance  # 기준 잔고 저장 — current_loss_pct 계산용
+            self._state.initial_balance  = balance  # 기준 잔고 저장 — 포트폴리오 손실 경고 계산용
+        self._warn_loss_limits(balance)             # 일일 한도 초과 상태로 재시작 시 경고 (시작은 허용)
         self._stop_event.clear()
         lev = self._params.leverage
         # 포지션 선조회 — 포지션 존재 시 레버리지 변경 건너뜀 (Binance 거부 방지)
@@ -483,6 +484,26 @@ class TradingEngine:
     def get_state(self) -> EngineState:
         """현재 엔진 상태 반환 (UI 폴링용)."""
         return self._state
+
+    def _warn_loss_limits(self, balance: float) -> None:
+        """일일(KST 자정 기준)·포트폴리오(start 기준) 손실 한도 초과 시 경고만 표시.
+
+        엔진 정지·진입 차단 없음 — 거래 계속 여부는 사용자 판단 (백테스트도 차단 없음).
+        """
+        DailyLossTracker.ensure_initialized(balance)
+        with self._lock:
+            init_b = self._state.initial_balance
+        session_pct = (balance - init_b) / init_b * 100.0 if init_b > 0 else 0.0
+        parts = []
+        if RiskManager.should_daily_stop(DailyLossTracker.loss_pct(balance)):
+            parts.append(f"일일 손실 한도(-{MAX_DAILY_LOSS_PCT:.0f}%)")
+        if RiskManager.should_auto_stop(session_pct):
+            parts.append(f"포트폴리오 손실 한도(-{MAX_PORTFOLIO_LOSS_PCT:.0f}%)")
+        if parts:
+            with self._lock:
+                self._state.error_msg = (
+                    f"[경고] {' · '.join(parts)} 초과 — 거래 계속 여부는 사용자 판단 "
+                    "([거래 정지]로 중단 가능)")
 
     # ── SL 루프 ── 1초 주기, 포지션 있을 때만 API 호출 ─────────
     def _sl_loop(self) -> None:
@@ -830,37 +851,19 @@ class TradingEngine:
         with self._lock:
             lp      = self._state.long_pos
             sp      = self._state.short_pos
-            init_b  = self._state.initial_balance
         balance = self._get_balance()
         if balance is None:
             with self._lock:
                 self._state.error_msg = "잔고 조회 실패 — 진입 차단"
             return False
-        # [C] 일일 손실 한도 게이트 (KST 자정 기준, 재시작 내성)
-        DailyLossTracker.ensure_initialized(balance)
-        _daily_loss_pct = DailyLossTracker.loss_pct(balance)
-        if RiskManager.should_daily_stop(_daily_loss_pct):
-            self.stop()
-            with self._lock:
-                self._state.error_msg = (
-                    f"[긴급] 일일 손실 한도(-{MAX_DAILY_LOSS_PCT:.0f}%) 초과 — 엔진 자동 정지")
-            return False
-        current_loss_pct = (
-            (balance - init_b) / init_b * 100.0 if init_b > 0 else 0.0)
+        # [C] 일일·포트폴리오 손실 한도 — 경고만 (정지·진입 차단 없음)
+        self._warn_loss_limits(balance)
         rr = RiskManager.validate_entry(
             self._params, PositionSide.LONG, lp, sp,
-            portfolio_usdt=balance,
-            current_loss_pct=current_loss_pct)
+            portfolio_usdt=balance)
         if not rr.allowed:
-            # [A] 포트폴리오 손실 한도 초과 시 엔진 자동 정지
-            if RiskManager.should_auto_stop(current_loss_pct):
-                self.stop()
-                with self._lock:
-                    self._state.error_msg = (
-                        f"[긴급] 포트폴리오 손실 한도(-{MAX_PORTFOLIO_LOSS_PCT:.0f}%) 초과 — 엔진 자동 정지")
-            else:
-                with self._lock:
-                    self._state.error_msg = rr.reason
+            with self._lock:
+                self._state.error_msg = rr.reason
             return False
         prec    = self._client.get_qty_precision(self._state.symbol)
         min_qty = self._client.get_min_qty(self._state.symbol)
@@ -986,37 +989,19 @@ class TradingEngine:
         with self._lock:
             lp      = self._state.long_pos
             sp      = self._state.short_pos
-            init_b  = self._state.initial_balance
         balance = self._get_balance()
         if balance is None:
             with self._lock:
                 self._state.error_msg = "잔고 조회 실패 — 진입 차단"
             return False
-        # [C] 일일 손실 한도 게이트 (KST 자정 기준, 재시작 내성)
-        DailyLossTracker.ensure_initialized(balance)
-        _daily_loss_pct = DailyLossTracker.loss_pct(balance)
-        if RiskManager.should_daily_stop(_daily_loss_pct):
-            self.stop()
-            with self._lock:
-                self._state.error_msg = (
-                    f"[긴급] 일일 손실 한도(-{MAX_DAILY_LOSS_PCT:.0f}%) 초과 — 엔진 자동 정지")
-            return False
-        current_loss_pct = (
-            (balance - init_b) / init_b * 100.0 if init_b > 0 else 0.0)
+        # [C] 일일·포트폴리오 손실 한도 — 경고만 (정지·진입 차단 없음)
+        self._warn_loss_limits(balance)
         rr = RiskManager.validate_entry(
             self._params, PositionSide.SHORT, lp, sp,
-            portfolio_usdt=balance,
-            current_loss_pct=current_loss_pct)
+            portfolio_usdt=balance)
         if not rr.allowed:
-            # [A] 포트폴리오 손실 한도 초과 시 엔진 자동 정지
-            if RiskManager.should_auto_stop(current_loss_pct):
-                self.stop()
-                with self._lock:
-                    self._state.error_msg = (
-                        f"[긴급] 포트폴리오 손실 한도(-{MAX_PORTFOLIO_LOSS_PCT:.0f}%) 초과 — 엔진 자동 정지")
-            else:
-                with self._lock:
-                    self._state.error_msg = rr.reason
+            with self._lock:
+                self._state.error_msg = rr.reason
             return False
         prec    = self._client.get_qty_precision(self._state.symbol)
         min_qty = self._client.get_min_qty(self._state.symbol)
@@ -1267,15 +1252,11 @@ class TradingEngine:
             if self._consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
                 self._loss_cooldown_until = time.time() + _LOSS_COOLDOWN_SEC
                 self._consecutive_losses = 0
-            # [B4] 청산 직후 일일 손실 한도 재확인 — _invalidate_balance() 이미 호출됨
+            # [B4] 청산 직후 손실 한도 재확인(경고만) — _invalidate_balance() 이미 호출됨
             if _is_loss:
                 _post_b = self._get_balance()
-                if _post_b is not None and RiskManager.should_daily_stop(
-                        DailyLossTracker.loss_pct(_post_b)):
-                    self.stop()
-                    with self._lock:
-                        self._state.error_msg = (
-                            f"[긴급] 일일 손실 한도(-{MAX_DAILY_LOSS_PCT:.0f}%) 초과 — 엔진 자동 정지")
+                if _post_b is not None:
+                    self._warn_loss_limits(_post_b)
         else:
             # Binance SL이 먼저 발동해 포지션이 이미 없는 경우 확인
             try:
@@ -1347,15 +1328,11 @@ class TradingEngine:
             if self._consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
                 self._loss_cooldown_until = time.time() + _LOSS_COOLDOWN_SEC
                 self._consecutive_losses = 0
-            # [B4] 청산 직후 일일 손실 한도 재확인 — _invalidate_balance() 이미 호출됨
+            # [B4] 청산 직후 손실 한도 재확인(경고만) — _invalidate_balance() 이미 호출됨
             if _is_loss:
                 _post_b = self._get_balance()
-                if _post_b is not None and RiskManager.should_daily_stop(
-                        DailyLossTracker.loss_pct(_post_b)):
-                    self.stop()
-                    with self._lock:
-                        self._state.error_msg = (
-                            f"[긴급] 일일 손실 한도(-{MAX_DAILY_LOSS_PCT:.0f}%) 초과 — 엔진 자동 정지")
+                if _post_b is not None:
+                    self._warn_loss_limits(_post_b)
         else:
             # Binance SL이 먼저 발동해 포지션이 이미 없는 경우 확인
             try:

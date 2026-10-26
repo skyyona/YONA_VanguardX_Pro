@@ -11,6 +11,7 @@ from bottom_engine.models import (
 from bottom_engine.constants import MAX_DAILY_LOSS_PCT, _MAX_R_PCT, _TAKER_FEE_RATE
 
 # 세션(엔진 start 시점) 기준 누적 손실 한도 (%). initial_balance 기준이므로 앱 재시작 시 리셋된다.
+# 초과 시 경고만 표시 — 정지·진입 차단 없음 (거래 계속 여부는 사용자 판단).
 MAX_PORTFOLIO_LOSS_PCT = 30.0
 # 엔진 레이어 하드 리밋: Binance Futures 절대 상한(125x). UI(AppliedLeverage: 1~20x)와 역할 다름.
 # UI를 우회하는 비정상 경로에 대한 최후 백스탑.
@@ -32,19 +33,14 @@ class RiskManager:
         long_pos:     Position,
         short_pos:    Position,
         portfolio_usdt: float | None = None,
-        current_loss_pct: float = 0.0,
     ) -> RiskCheckResult:
-        """진입 가능 여부 검증 — 모든 조건 통과 시 allowed=True."""
+        """진입 가능 여부 검증 — 모든 조건 통과 시 allowed=True.
+        포트폴리오·일일 손실 한도는 차단하지 않음 (TradingEngine._warn_loss_limits 경고만)."""
 
         # ① 레버리지 한도 (하한 1x ~ 상한 125x)
         if not (1 <= params.leverage <= MAX_LEVERAGE):
             return RiskCheckResult(False,
                 f"레버리지 {params.leverage}x — 유효 범위 1~{MAX_LEVERAGE}x")
-
-        # ② 포트폴리오 최대 손실 한도
-        if current_loss_pct < -MAX_PORTFOLIO_LOSS_PCT:
-            return RiskCheckResult(False,
-                f"포트폴리오 손실 {current_loss_pct:.1f}% — 한도 -{MAX_PORTFOLIO_LOSS_PCT}% 초과")
 
         # ③ 동시 포지션 한도
         open_count = (
@@ -72,12 +68,12 @@ class RiskManager:
 
     @classmethod
     def should_auto_stop(cls, current_loss_pct: float) -> bool:
-        """세션 포트폴리오 손실 한도 초과 시 엔진 자동 정지 여부."""
+        """세션 포트폴리오 손실 한도 초과 여부 (경고 표시용 — 엔진 정지 없음)."""
         return current_loss_pct < -MAX_PORTFOLIO_LOSS_PCT
 
     @classmethod
     def should_daily_stop(cls, daily_loss_pct: float) -> bool:
-        """KST 일일 실현 손실 한도 초과 시 엔진 자동 정지 여부."""
+        """KST 일일 실현 손실 한도 초과 여부 (경고 표시용 — 엔진 정지 없음)."""
         return daily_loss_pct < -MAX_DAILY_LOSS_PCT
 
     @classmethod

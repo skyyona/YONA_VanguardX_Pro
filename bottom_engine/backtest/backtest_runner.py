@@ -33,7 +33,7 @@ from bottom_engine.models import BacktestResult, BacktestTrade, StrategyParams
 from bottom_engine.strategy.m4_entry import M4Entry
 from bottom_engine.strategy.m4_exit import M4Exit
 from bottom_engine.constants import (
-    MAX_DAILY_LOSS_PCT, _TAKER_FEE_RATE, _FR_THRESHOLD, _NEW_DAYS_MIN,
+    _TAKER_FEE_RATE, _FR_THRESHOLD, _NEW_DAYS_MIN,
     _LIQ_GAUGE_MAX, _LIQ_BASE_MULT, _LIQ_FR_BIAS,
     _MAX_CONSECUTIVE_LOSSES, _LOSS_COOLDOWN_SEC, _PROFIT_TRIGGER_PCT, _MIN_SPREAD,
 )
@@ -81,8 +81,6 @@ def _bt_fmt_elapsed(seconds: float) -> str:
 # BT에서는 bar.open_time (Unix ms) 기준: _cooldown_until_ms = t + _LOSS_COOLDOWN_SEC * 1_000
 
 # [P10] profit-trigger 지연 — _PROFIT_TRIGGER_PCT는 constants.py 참조
-# [B-6] 일일 손실 정지 — MAX_DAILY_LOSS_PCT는 constants.py 참조
-_KST_OFFSET_MS      = 9 * 3600 * 1000  # KST = UTC+9 (ms 단위)
 
 
 class BacktestRunner:
@@ -257,10 +255,6 @@ class BacktestRunner:
         _consecutive_losses = 0
         _cooldown_until_ms = 0
 
-        # [B-6] 일일 손실 정지 상태 — KST 일 경계 기준
-        _daily_pnl_usdt = 0.0   # 당일 누적 PnL (USDT)
-        _daily_date_key = -1    # 추적 중인 날짜 (KST 일 단위 정수)
-
         # [C-2] SL/Trail 사전 계산 — liq_safe 상한 적용. leverage·mmr 불변 → 루프 전 1회 계산
         sl_used, trail_used = SLCalculator.clamp(
             params.stop_loss, params.trail_stop, params.leverage, mmr=params.mmr,
@@ -301,12 +295,6 @@ class BacktestRunner:
             bar   = bars_1m[i]
             close = bar.close
             t     = bar.open_time
-
-            # [B-6] KST 일 경계 감지 → 당일 누적 PnL 리셋
-            _bar_day = (t + _KST_OFFSET_MS) // 86_400_000
-            if _bar_day != _daily_date_key:
-                _daily_pnl_usdt = 0.0
-                _daily_date_key = _bar_day
 
             # ── [P3] 1h 기준 ATR% bisect 조회 ──────────────────────
             pos_1h  = max(0, bisect.bisect_right(times_1h, t) - 1) if times_1h else 0
@@ -378,7 +366,6 @@ class BacktestRunner:
                             side="long", entry_price=entry_price, exit_price=sl_phase1,
                             pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="SL",
                         ))
-                        _daily_pnl_usdt += _pnl_usdt_val
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
@@ -398,7 +385,6 @@ class BacktestRunner:
                             side="long", entry_price=entry_price, exit_price=close,
                             pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="K80-5M",
                         ))
-                        _daily_pnl_usdt += _pnl_usdt_val
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
@@ -420,7 +406,6 @@ class BacktestRunner:
                             side="long", entry_price=entry_price, exit_price=sl_phase1,
                             pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="SL",
                         ))
-                        _daily_pnl_usdt += _pnl_usdt_val
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
@@ -439,7 +424,6 @@ class BacktestRunner:
                             side="long", entry_price=entry_price, exit_price=tp_price,
                             pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="TP",
                         ))
-                        _daily_pnl_usdt += _pnl_usdt_val
                         _consecutive_losses = 0
                         in_long = False; phase = 1; trail_ref = 0.0
                         continue
@@ -458,7 +442,6 @@ class BacktestRunner:
                             pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val,
                             exit_reason="TIMEOUT", qty_ratio=1.0,
                         ))
-                        _daily_pnl_usdt += _pnl_usdt_val
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
@@ -494,7 +477,6 @@ class BacktestRunner:
                             pnl_usdt=_pnl_usdt_val,
                             exit_reason=dec.reason, qty_ratio=dec.qty_ratio,
                         ))
-                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
@@ -535,7 +517,6 @@ class BacktestRunner:
                             side="short", entry_price=entry_price, exit_price=sl_phase1,
                             pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="SL",
                         ))
-                        _daily_pnl_usdt += _pnl_usdt_val
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
@@ -555,7 +536,6 @@ class BacktestRunner:
                             side="short", entry_price=entry_price, exit_price=close,
                             pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="K20-5M",
                         ))
-                        _daily_pnl_usdt += _pnl_usdt_val
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
@@ -577,7 +557,6 @@ class BacktestRunner:
                             side="short", entry_price=entry_price, exit_price=sl_phase1,
                             pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="SL",
                         ))
-                        _daily_pnl_usdt += _pnl_usdt_val
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
@@ -596,7 +575,6 @@ class BacktestRunner:
                             side="short", entry_price=entry_price, exit_price=tp_price,
                             pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val, exit_reason="TP",
                         ))
-                        _daily_pnl_usdt += _pnl_usdt_val
                         _consecutive_losses = 0
                         in_short = False; phase = 1; trail_ref = 0.0
                         continue
@@ -615,7 +593,6 @@ class BacktestRunner:
                             pnl_pct=round(pnl, 3), pnl_usdt=_pnl_usdt_val,
                             exit_reason="TIMEOUT", qty_ratio=1.0,
                         ))
-                        _daily_pnl_usdt += _pnl_usdt_val
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
@@ -651,7 +628,6 @@ class BacktestRunner:
                             pnl_usdt=_pnl_usdt_val,
                             exit_reason=dec.reason, qty_ratio=dec.qty_ratio,
                         ))
-                        _daily_pnl_usdt += _pnl_usdt_val  # [B-6]
                         if pnl < 0:
                             _consecutive_losses += 1
                             if _consecutive_losses >= _MAX_CONSECUTIVE_LOSSES:
@@ -677,9 +653,6 @@ class BacktestRunner:
 
             # ── 신규 진입 (포지션 없을 때만) ─────────────────────
             if not in_long and not in_short:
-                # [B-6] 일일 손실 정지 — 당일 누적 PnL이 -30% 이하이면 진입 억제
-                if _daily_pnl_usdt / params.portfolio_usdt * 100.0 <= -MAX_DAILY_LOSS_PCT:
-                    continue
                 # [P9] 연패 쿨다운 — _MAX_CONSECUTIVE_LOSSES 연속 손실 시 진입 억제
                 if t < _cooldown_until_ms:
                     continue
