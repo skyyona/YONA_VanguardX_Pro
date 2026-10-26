@@ -2,8 +2,10 @@
 middle/data/websocket_ticker.py
 Binance USDT-M Futures 실시간 Ticker WebSocket 클라이언트
 
-스트림: wss://fstream.binance.com/stream?streams=!miniTicker@arr
-주기:   1초마다 서버 자동 Push
+스트림: wss://fstream.binance.com/market/stream?streams=!miniTicker@arr
+        (구 /stream 경로는 Binance가 2026-04-23 폐지 — 연결은 되나 데이터 없음, 2026-10-26 실측)
+주기:   1초마다 서버 자동 Push — 직전 대비 변경된 심볼만 포함(실측 747개 중 메시지당 136~361개)
+        → 수신 측(DataManager._on_ws_ticker_update)에서 기존 목록에 병합
 비용:   Rate Limit 0 weight (완전 무료)
 
 메시지 형식:
@@ -25,7 +27,7 @@ import websocket   # websocket-client
 
 from middle.models import SymbolTicker
 
-_STREAM_URL      = "wss://fstream.binance.com/stream?streams=!miniTicker@arr"
+_STREAM_URL      = "wss://fstream.binance.com/market/stream?streams=!miniTicker@arr"
 _RECONNECT_DELAY = 5   # 재연결 대기 (초)
 
 

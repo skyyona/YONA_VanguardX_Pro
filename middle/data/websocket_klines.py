@@ -2,7 +2,8 @@
 middle/data/websocket_klines.py
 선택 심볼 kline WebSocket 클라이언트
 
-스트림: wss://fstream.binance.com/stream?streams={sym}@kline_1m/.../@kline_1h
+스트림: wss://fstream.binance.com/market/stream?streams={sym}@kline_1m/.../@kline_1h
+        (구 /stream 경로는 Binance가 2026-04-23 폐지 — 연결은 되나 데이터 없음, 2026-10-26 실측)
 주기:   봉 마감(x=True) 시 콜백 호출
 비용:   Rate Limit 0 weight (완전 무료)
 지연 개선 범위: 1m·3m·5m·15m·1h TF에 한함. 4h·1d는 REST 폴링 의존.
@@ -95,7 +96,7 @@ class WebSocketKlines:
     def _build_url(self) -> str:
         sym     = self._symbol.lower()
         streams = "/".join(f"{sym}@kline_{tf}" for tf in _TFS)
-        return f"wss://fstream.binance.com/stream?streams={streams}"
+        return f"wss://fstream.binance.com/market/stream?streams={streams}"
 
     def _loop(self) -> None:
         """재연결 자동화 루프."""

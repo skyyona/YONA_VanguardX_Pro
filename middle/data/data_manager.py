@@ -503,16 +503,26 @@ class MiddleDataManager:
         """WebSocket 1초 Push 수신 콜백.
         _tickers / _tkr_map / _sorted_tickers 갱신 → 소프트 UI 업데이트.
         5회(5초)마다 _rebuild_ranking_rows() 실행 (Sharp/4TF 모드 풀 갱신).
+
+        !miniTicker@arr는 변경된 심볼만 담으므로(실측 747개 중 메시지당 136~361개) 기존 목록에 병합한다.
+        시작 시 REST(_refresh_tickers)가 채운 전체 목록을 유지하고, REST와 같은 기준으로
+        TRADING 심볼만 남긴다(_get_trading_symbols 5분 캐시 — 거래정지·상장폐지 심볼 제거).
         """
         if not tickers:
             return
-        sorted_vol = sorted(tickers, key=lambda t: t.volume_usdt, reverse=True)
-        vol_rank   = {t.symbol: i + 1 for i, t in enumerate(sorted_vol)}
+        trading = self._client._get_trading_symbols()
         with self._lock:
-            self._tickers        = tickers
+            merged = dict(self._tkr_map)
+            for t in tickers:
+                merged[t.symbol] = t
+            if trading:
+                merged = {s: t for s, t in merged.items() if s in trading}
+            all_tickers = list(merged.values())
+            sorted_vol  = sorted(all_tickers, key=lambda t: t.volume_usdt, reverse=True)
+            self._tickers        = all_tickers
             self._sorted_tickers = sorted_vol
-            self._tkr_map        = {t.symbol: t for t in tickers}
-            self._vol_rank       = vol_rank
+            self._tkr_map        = merged
+            self._vol_rank       = {t.symbol: i + 1 for i, t in enumerate(sorted_vol)}
 
         # 5회(=5초)마다 ranking_rows 재빌드 (Sharp/4TF 모드용)
         self._ws_update_count += 1
