@@ -136,6 +136,11 @@ class MiddleBinanceClient:
         data = self._get(f"{_FUTURES_BASE}/fapi/v1/ticker/24hr?symbol={symbol}")
         return data if isinstance(data, dict) else None
 
+    def fetch_all_book_tickers(self) -> list[dict]:
+        """전체 심볼 최우선 호가(bidPrice·askPrice) — 심볼 미지정 가중치 5."""
+        data = self._get(f"{_FUTURES_BASE}/fapi/v1/ticker/bookTicker")
+        return [d for d in data if isinstance(d, dict)] if isinstance(data, list) else []
+
     # ── OHLCV (Klines) ────────────────────────────────────────
     def fetch_klines(self, symbol: str, interval: str, limit: int = 100) -> list[list]:
         """OHLCV 캔들 데이터."""

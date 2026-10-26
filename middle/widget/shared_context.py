@@ -22,6 +22,17 @@ def is_blacklisted(symbol: str) -> bool:
     return False
 
 
+MAX_SPREAD_PCT = 0.2   # 배정 차단 기준 — 최근 10분 호가 스프레드 중앙값(%) (2026-10-26 실측 상위100 최대 0.0945%)
+
+
+def get_wide_spread(symbol: str) -> float | None:
+    """호가 스프레드 중앙값(%)이 MAX_SPREAD_PCT 초과면 그 값, 아니면 None (표본·매니저 없음 포함)."""
+    if _data_mgr is None:
+        return None
+    med = _data_mgr.get_spread_median(symbol)
+    return med if med is not None and med > MAX_SPREAD_PCT else None
+
+
 def get_ind(symbol: str) -> dict:
     """실데이터 DataManager에서 지표 반환. DataManager 없으면 빈 dict."""
     if _data_mgr is not None:

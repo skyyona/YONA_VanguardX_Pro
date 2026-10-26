@@ -859,6 +859,12 @@ class _Col1Mixin:
                 self._set_header_message(
                     f"⛔ {symbol} — 블랙리스트 등록 심볼이므로 배정할 수 없습니다")
                 return
+            _wide = _ctx.get_wide_spread(symbol)
+            if _wide is not None:
+                self._set_header_message(
+                    f"⛔ {symbol} — 호가 스프레드 {_wide:.3f}% (최근 10분 이내 표본 중앙값)가 "
+                    f"기준 {_ctx.MAX_SPREAD_PCT}%를 초과해 배정할 수 없습니다")
+                return
             self._assigned_sym = symbol
             if self._shared_sym is not None:
                 self._shared_sym.set(symbol)    # bottom module 에 즉시 전달

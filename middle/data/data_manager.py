@@ -12,8 +12,10 @@ middle/data/data_manager.py
 from __future__ import annotations
 
 import logging
+import statistics
 import threading
 import time
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 
 # ── 배경 갱신 주기 상수 ────────────────────────────────────────
@@ -26,6 +28,8 @@ _STAGE2_INTERVAL = 60    # 경량 갱신: L/S·FR·OI (초) — Rate Limit 예�
 _STAGE2_TOPN     = 100
 _STAGE3_INTERVAL = 60    # klines 갱신: 4TF OHLCV+지표 (초)
 _LOOP_BASE       = 5     # 루프 기본 단위 (초) — TICKER_INTERVAL과 동기화
+_SPREAD_INTERVAL = 60    # 호가 스프레드 표본 주기 (초) — bookTicker 전체 1회 가중치 5
+_SPREAD_SAMPLES  = 10    # 심볼별 보관 표본 수 → 최근 10분 중앙값 (배정 단계 스프레드 필터)
 _STAGE2_WORKERS  = 5     # 경량 갱신 병렬 스레드 수 (3→5: 15초 주기 여유 확보)
 _STAGE3_WORKERS  = 7     # klines 갱신 병렬 스레드 수 (3→7: 34초→15초, Rate 36% 유지)
 # STAGE3에서 갱신할 TF (1m·3m·5m·15m·1h·4h·1d — 4TF거시지지 s_macro 정확도 확보)
@@ -136,6 +140,7 @@ class MiddleDataManager:
         self._ranking_rows:    list                       = []
         self._onboard_map:     dict[str, int]             = {}
         self._cross_ts_cache:  dict[str, dict[str, float]] = {}  # sym→{tf_key→교차 unix ts}
+        self._spread_hist:     dict[str, deque]           = {}   # symbol → 최근 스프레드(%) 표본
 
         # ── 상태 ───────────────────────────────────────────────
         self._last_tkr_refresh: float = 0.0
@@ -192,6 +197,7 @@ class MiddleDataManager:
             self._ohlcv_cache.clear()
             self._ranking_rows.clear()
             self._cross_ts_cache.clear()
+            self._spread_hist.clear()
 
     def request_selected(self, symbol: str) -> None:
         """선택 심볼 상세 데이터 비동기 갱신 요청."""
@@ -240,6 +246,12 @@ class MiddleDataManager:
         return [{"o": b.open, "h": b.high, "l": b.low,
                  "c": b.close, "v": b.quote_volume} for b in bars[-n:]]
 
+    def get_spread_median(self, symbol: str) -> float | None:
+        """최근 표본(최대 _SPREAD_SAMPLES개) 호가 스프레드 중앙값(%). 표본 없으면 None."""
+        with self._lock:
+            hist = self._spread_hist.get(symbol)
+            return statistics.median(hist) if hist else None
+
     def get_player_tags(self, symbol: str) -> list:
         """(tag_text, tag_color, strength_pct) 목록 반환."""
         return self._ind_cache.get(symbol, {}).get("_player_tags", [])
@@ -286,6 +298,7 @@ class MiddleDataManager:
         threading.Thread(target=self._refresh_topn_scores,
                          args=(_STAGE2_TOPN,), daemon=True).start()
         threading.Thread(target=self._refresh_topn_klines,  args=(100,), daemon=True).start()
+        threading.Thread(target=self._refresh_spreads, daemon=True).start()
 
         # ── 주기 카운터 (5초 단위) ────────────────────────────
         _elapsed = 0   # 누적 경과 시간 (초)
@@ -326,10 +339,30 @@ class MiddleDataManager:
                             logging.warning("middle WS: %s", _ws_err)
                         self.request_selected(_fallback_sym)
 
+            # ── 호가 스프레드: 60초마다 전체 표본 1회 ─────────
+            if _elapsed % _SPREAD_INTERVAL == 0:
+                threading.Thread(target=self._refresh_spreads, daemon=True).start()
+
             # ── 카운터 리셋 (1시간 기준) + onboard_map 갱신 ──
             if _elapsed >= 3600:
                 threading.Thread(target=self._fetch_onboard_map, daemon=True).start()
                 _elapsed = 0
+
+    def _refresh_spreads(self) -> None:
+        """전체 심볼 호가 스프레드 (ask−bid)/mid×100 표본 1개씩 추가 — 조회 실패 시 기존 표본 유지."""
+        rows = self._client.fetch_all_book_tickers()
+        with self._lock:
+            for d in rows:
+                sym = d.get("symbol", "")
+                try:
+                    bid = float(d.get("bidPrice", 0))
+                    ask = float(d.get("askPrice", 0))
+                except (TypeError, ValueError):
+                    continue
+                if not sym or bid <= 0 or ask < bid:
+                    continue
+                hist = self._spread_hist.setdefault(sym, deque(maxlen=_SPREAD_SAMPLES))
+                hist.append((ask - bid) / ((ask + bid) / 2) * 100.0)
 
     def _refresh_topn_scores(self, n: int = 100) -> None:
         """STAGE2: 상위 N개 심볼 L/S·FR·OI 병렬 갱신 (5스레드, ~15초).
