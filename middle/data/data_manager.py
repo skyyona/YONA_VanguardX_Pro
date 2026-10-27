@@ -106,6 +106,15 @@ def _fmt_elapsed(seconds: float) -> str:
     return f"{int(seconds // 3600)}시간 전"
 
 
+def _has_newer(cur: dict, bars: dict) -> bool:
+    """캐시(cur)에 bars보다 최신 마감 봉이 있는 TF가 하나라도 있으면 True — 늦게 도착한 오래된 봉의 덮어쓰기 방지."""
+    for tf, cb in cur.items():
+        nb = bars.get(tf)
+        if cb and (not nb or cb[-1].close_time > nb[-1].close_time):
+            return True
+    return False
+
+
 def _stoch_tf_dict(r: StochRSIResult | None) -> dict:
     """StochRSIResult → tf dict (SYMBOL_IND 포맷)."""
     if r is None:
@@ -141,6 +150,7 @@ class MiddleDataManager:
         self._onboard_map:     dict[str, int]             = {}
         self._cross_ts_cache:  dict[str, dict[str, float]] = {}  # sym→{tf_key→교차 unix ts}
         self._spread_hist:     dict[str, deque]           = {}   # symbol → 최근 스프레드(%) 표본
+        self._deriv_cache:     dict[str, tuple]           = {}   # symbol → (fr, oi, ls) 마지막 REST 값 — WS 봉 마감 재계산용
 
         # ── 상태 ───────────────────────────────────────────────
         self._last_tkr_refresh: float = 0.0
@@ -150,6 +160,7 @@ class MiddleDataManager:
         self._on_klines_ready_cb:  "callable | None" = None   # STAGE3 완료 콜백 → TF합의 즉시 반영
         self._last_detail_sym:  str   = ""
         self._last_detail_time: float = 0.0
+        self._engine_sym:       str   = ""   # 거래 엔진 종목 — 설정 중에는 WS klines가 이 종목에 고정
         self._lock = threading.Lock()
         # WebSocket 실시간 ticker (1초 Push)
         self._ws_ticker: WebSocketTicker | None = None
@@ -170,7 +181,7 @@ class MiddleDataManager:
         self._ws_ticker = WebSocketTicker(on_update=self._on_ws_ticker_update)
         self._ws_ticker.start()
         self._ws_klines = WebSocketKlines(on_closed=self._on_kline_closed)
-        self._ws_klines.start(self._last_detail_sym)
+        self._ws_klines.start(self._engine_sym or self._last_detail_sym)
         threading.Thread(target=self._auto_refresh_loop, daemon=True).start()
 
     def stop_auto_refresh(self) -> None:
@@ -198,6 +209,7 @@ class MiddleDataManager:
             self._ranking_rows.clear()
             self._cross_ts_cache.clear()
             self._spread_hist.clear()
+            self._deriv_cache.clear()
 
     def request_selected(self, symbol: str) -> None:
         """선택 심볼 상세 데이터 비동기 갱신 요청."""
@@ -208,9 +220,30 @@ class MiddleDataManager:
                 return
             self._last_detail_sym  = symbol
             self._last_detail_time = now
-        if self._ws_klines is not None:
+            pinned = bool(self._engine_sym)
+        if self._ws_klines is not None and not pinned:
             self._ws_klines.set_symbol(symbol)
         threading.Thread(target=self._refresh_detail, args=(symbol,), daemon=True).start()
+
+    def set_engine_symbol(self, symbol: str) -> None:
+        """거래 엔진 종목 고정("" = 해제). 고정 중에는 WS klines가 이 종목만 구독 — 중단 모듈 클릭으로 바뀌지 않음."""
+        with self._lock:
+            self._engine_sym = symbol
+            ws_sym = symbol or self._last_detail_sym
+        if self._ws_klines is not None and ws_sym:
+            self._ws_klines.set_symbol(ws_sym)
+        if symbol:
+            threading.Thread(target=self._refresh_detail, args=(symbol,), daemon=True).start()
+
+    def refresh_detail_now(self, symbol: str) -> None:
+        """쿨다운 없이 즉시 상세 갱신(백그라운드) — 엔진 봉 마감 대기 중 WS 미도착 보완용."""
+        threading.Thread(target=self._refresh_detail, args=(symbol,), daemon=True).start()
+
+    def get_last_close(self, symbol: str, tf: str) -> int:
+        """캐시된 마지막 마감 봉 close_time(ms). 봉이 없으면 0."""
+        with self._lock:
+            bars = self._ohlcv_cache.get(symbol, {}).get(tf)
+            return bars[-1].close_time if bars else 0
 
     def get_ind(self, symbol: str) -> dict:
         """SYMBOL_IND 포맷 dict 반환 (캐시 우선, 없으면 ticker 기반 기본값)."""
@@ -407,6 +440,8 @@ class MiddleDataManager:
 
         def _one(ticker: "SymbolTicker") -> None:
             sym      = ticker.symbol
+            if sym == self._engine_sym:
+                return   # 엔진 종목은 상세 갱신·WS 봉 마감 경로만 사용 (STAGE3 limit 차이·시점 경합 차단)
             existing = self._ind_cache.get(sym, {})
             try:
                 # ── klines 수집 ──────────────────────────────
@@ -504,6 +539,8 @@ class MiddleDataManager:
 
                 ind["_data_ready"] = True
                 with self._lock:
+                    if _has_newer(self._ohlcv_cache.get(sym, {}), bars):
+                        return   # 수집 중 더 최신 봉이 반영됨 — 이번 STAGE3 결과로 되돌리지 않음
                     # 네트워크 대기 중 다른 단계가 갱신한 필드를 되돌리지 않도록
                     # 현재 캐시를 기준으로 이 단계 담당 필드만 덮어쓴다.
                     cur = self._ind_cache.get(sym)
@@ -572,16 +609,29 @@ class MiddleDataManager:
             except Exception:
                 pass
 
-    def _on_kline_closed(self, symbol: str, tf: str) -> None:
-        """WebSocket klines 봉 마감 감지 콜백 — 쿨다운 없이 즉시 상세 갱신."""
+    def _on_kline_closed(self, symbol: str, tf: str, bar: OHLCVBar) -> None:
+        """WebSocket klines 봉 마감 콜백 — 마감 봉 최종값을 캐시에 즉시 접합 후 지표 재계산 (REST 없음).
+
+        캐시·파생 데이터가 없거나 봉이 이어지지 않으면(누락) REST 상세 갱신으로 보완.
+        """
         with self._lock:
-            if symbol != self._last_detail_sym:
+            if symbol not in (self._engine_sym, self._last_detail_sym):
                 return
-            now = time.time()
-            if now - self._last_detail_time < 2.0:   # 동일 봉 중복 트리거 방지 (2초)
-                return
-            self._last_detail_time = now
-        threading.Thread(target=self._refresh_detail, args=(symbol,), daemon=True).start()
+            cached = self._ohlcv_cache.get(symbol, {})
+            cur    = cached.get(tf)
+            deriv  = self._deriv_cache.get(symbol)
+            bars: dict | None = None
+            if cur and deriv is not None and all(cached.get(t) for t in _DETAIL_TFS):
+                last = cur[-1]
+                if bar.close_time <= last.close_time:
+                    return                                   # 이미 반영된 봉
+                if bar.open_time == last.close_time + 1:
+                    bars = dict(cached)
+                    bars[tf] = cur[1:] + [bar]               # 봉 수 유지 — 지표 계산 창 불변
+        if bars is None:
+            threading.Thread(target=self._refresh_detail, args=(symbol,), daemon=True).start()
+            return
+        self._compute_detail(symbol, bars, *deriv)
 
     def _refresh_tickers(self) -> None:
         try:
@@ -655,7 +705,7 @@ class MiddleDataManager:
             pass
 
     def _refresh_detail(self, symbol: str) -> None:
-        """선택 심볼 전체 지표 갱신."""
+        """선택 심볼 전체 지표 갱신 (REST)."""
         try:
             # OHLCV 7 TF 병렬 수집
             with ThreadPoolExecutor(max_workers=len(_DETAIL_TFS)) as ex:
@@ -670,6 +720,25 @@ class MiddleDataManager:
             oi  = self._oi_svc.fetch_change_pct(symbol)
             ls  = self._ls_svc.fetch(symbol)
 
+            with self._lock:
+                self._deriv_cache[symbol] = (fr, oi, ls)
+                # 단조 가드 — WS로 이미 반영된 더 최신 봉을 REST 응답(마감 직후 이전 봉까지)으로 되돌리지 않음
+                cached = self._ohlcv_cache.get(symbol, {})
+                for tf in _DETAIL_TFS:
+                    cb = cached.get(tf)
+                    if cb and (not bars.get(tf) or cb[-1].close_time > bars[tf][-1].close_time):
+                        bars[tf] = cb
+        except Exception as e:
+            with self._lock:
+                self._last_refresh_error      = f"[detail:{symbol}] {e}"
+                self._last_refresh_error_time = time.time()
+            logging.warning("middle detail %s: %s", symbol, e)
+            return
+        self._compute_detail(symbol, bars, fr, oi, ls)
+
+    def _compute_detail(self, symbol: str, bars: dict, fr, oi, ls) -> None:
+        """봉·파생 데이터로 상세 지표 계산 후 캐시 반영 — REST 갱신·WS 봉 마감 접합 공용."""
+        try:
             # 지표 계산 (1h 기준)
             b1h  = bars.get("1h", [])
             b5m  = bars.get("5m", [])
@@ -750,6 +819,8 @@ class MiddleDataManager:
             ind["swing_bear"] = s_bear
 
             with self._lock:
+                if _has_newer(self._ohlcv_cache.get(symbol, {}), bars):
+                    return   # 계산 중 더 최신 봉이 반영됨 — 그 결과 유지
                 self._ind_cache[symbol] = ind
                 self._ohlcv_cache[symbol] = bars
 

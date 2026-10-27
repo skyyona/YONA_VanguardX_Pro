@@ -31,12 +31,25 @@ from bottom_engine.constants import _PROFIT_TRIGGER_PCT, _MAX_CONSECUTIVE_LOSSES
 
 try:
     from middle.widget.shared_context import is_blacklisted as _is_blacklisted
+    from middle.widget.shared_context import pin_engine_symbol as _pin_engine_symbol
+    from middle.widget.shared_context import get_last_close as _get_last_close
+    from middle.widget.shared_context import refresh_detail_now as _refresh_detail_now
+    from middle.widget.shared_context import generate_ohlcv as _generate_ohlcv
 except ImportError:
     def _is_blacklisted(_s: str) -> bool: return False   # type: ignore[misc]
+    def _pin_engine_symbol(_s: str) -> None: pass         # type: ignore[misc]
+    def _get_last_close(_s: str, _tf: str) -> int: return 0                       # type: ignore[misc]
+    def _refresh_detail_now(_s: str) -> None: pass                                # type: ignore[misc]
+    def _generate_ohlcv(_s: str, n: int = 60, interval: str = "5m") -> list: return []  # type: ignore[misc]
 
 _ENGINE_DIR = pathlib.Path(__file__).parent  # Phase3 상태 파일 저장 디렉터리
 SL_INTERVAL_SEC  = 1   # SL/Trailing 체크 주기 — 포지션 보유 중
-_DATA_SETTLE_SEC = 2   # 봉 마감 후 API 갱신 완료 대기 (초) — 7TF 병렬화 후 실측 1초 내외
+# 봉 마감 즉시 판단 — 경계에 마감되는 TF 봉이 중단 캐시에 반영(WS 최종값, 실측 마감 후 0.01~3초)되면 바로 신호 평가
+_BAR_TF_MS = (("1m", 60_000), ("3m", 180_000), ("5m", 300_000), ("15m", 900_000),
+              ("1h", 3_600_000), ("4h", 14_400_000), ("1d", 86_400_000))
+_BAR_REST_AT_SEC = (4.0, 7.0)   # WS 미도착 시 REST 강제 갱신 시점 (경계 후 초 — REST 최종값 실측 4.75~7.5초)
+_BAR_WAIT_MAX_SEC = 10.0        # 이 시간까지 미반영이면 이번 봉 판단 건너뜀
+_BAR_POLL_SEC     = 0.1         # 반영 확인 주기 (초)
 _BALANCE_TTL_SEC    = 30  # 잔고 캐시 유효 시간 (초)
 _POS_SYNC_INTERVAL_SEC  = 10   # Binance 실제 포지션 동기화 주기 (초) — 외부 강제 청산 감지
 _SLIPPAGE_WARN_PCT      = 2.0  # 진입 슬리피지 경고 임계값 (%) — 체결가 vs 마크가 괴리
@@ -411,6 +424,9 @@ class TradingEngine:
                     self._state.error_msg = f"[경보] 포지션 복구 실패 — {e}  수동 포지션 확인 후 재시작"
                 self._state.running = False
                 return False
+        # 엔진 종목 WS 봉 마감 수신 고정 — 중단 모듈 클릭으로 구독 종목이 바뀌지 않게 함
+        if sym:
+            _pin_engine_symbol(sym)
         # SL 루프 + 신호 루프 각각 별도 스레드
         self._sl_thread  = threading.Thread(
             target=self._sl_loop, daemon=True, name="sl_loop")
@@ -424,6 +440,7 @@ class TradingEngine:
         """엔진 중지 (두 스레드 모두 즉시 종료)."""
         self._stop_event.set()
         self._state.running = False
+        _pin_engine_symbol("")
         with self._lock:
             self._state.error_msg           = ""
             self._state.last_blocked_reason = ""
@@ -683,17 +700,42 @@ class TradingEngine:
             self._stop_event.wait(SL_INTERVAL_SEC)
 
     # ── 신호 루프 ── 1m 봉 마감 동기화, 봉 마감마다 4TF 신호 평가 ──
-    def _signal_loop(self) -> None:
-        # 다음 1m 봉 마감 직후로 초기 동기화 (최초 1회)
-        now_sec  = time.time() % 60
-        wait_sec = 60.0 - now_sec   # 분봉 마감까지만 대기 (settle은 루프 내부에서)
-        if self._stop_event.wait(wait_sec):
-            return
+    def _server_now(self) -> float:
+        """Binance 서버 시각(초) — 주문 서명과 같은 시간 오프셋 사용."""
+        return time.time() + self._client._time_offset
 
+    def _wait_bar_close(self, sym: str, boundary_ms: int) -> bool:
+        """boundary_ms에 마감되는 봉(1m + 경계가 겹치는 3m·5m·15m·1h·4h·1d)이 중단 캐시에 반영될 때까지 대기.
+
+        캐시에 봉이 없는 상위 TF(상장 직후 4h·1d 등)는 대기 대상에서 제외.
+        WS 미도착 시 _BAR_REST_AT_SEC 시점에 REST 강제 갱신.
+        반환: 반영 완료 True / 엔진 정지·_BAR_WAIT_MAX_SEC 초과 False.
+        """
+        due = [tf for tf, ms in _BAR_TF_MS
+               if boundary_ms % ms == 0 and (tf == "1m" or _get_last_close(sym, tf) > 0)]
+        rest_at = list(_BAR_REST_AT_SEC)
+        while True:
+            if all(_get_last_close(sym, tf) >= boundary_ms - 1 for tf in due):
+                return True
+            elapsed = self._server_now() - boundary_ms / 1000.0
+            if elapsed >= _BAR_WAIT_MAX_SEC:
+                return False
+            if rest_at and elapsed >= rest_at[0]:
+                rest_at.pop(0)
+                _refresh_detail_now(sym)
+            if self._stop_event.wait(_BAR_POLL_SEC):
+                return False
+
+    def _signal_loop(self) -> None:
         while not self._stop_event.is_set():
+            # 다음 1m 봉 마감 경계(서버 시각)까지 대기
+            boundary_ms = (int(self._server_now() // 60) + 1) * 60_000
+            self._state.next_scan_at = boundary_ms / 1000.0 - self._client._time_offset   # UI 카운트다운용 (로컬 시각)
+            if self._stop_event.wait(max(0.0, boundary_ms / 1000.0 - self._server_now())):
+                break
             try:
                 sym = self._state.symbol
-                # 1m 봉 마감 직후: klines 갱신 요청 (백그라운드 비차단)
+                # 1m 봉 마감 직후: 파생 데이터(펀딩·OI·롱숏) 포함 REST 갱신 요청 (백그라운드 비차단)
                 if sym and self._sel_refresher:
                     try:
                         self._sel_refresher(sym)
@@ -701,9 +743,15 @@ class TradingEngine:
                         with self._lock:
                             self._state.error_msg = f"[경고] klines 갱신 요청 실패 — {e}"
 
-                # API 갱신 완료 대기 (_DATA_SETTLE_SEC 초)
-                if self._stop_event.wait(_DATA_SETTLE_SEC):
-                    break
+                # 마감 봉 반영 확인 즉시 판단 — 백테스트(봉 i 마감 직후, 그 봉 포함)와 같은 시점
+                if sym and not self._wait_bar_close(sym, boundary_ms):
+                    if self._stop_event.is_set():
+                        break
+                    with self._lock:
+                        self._state.last_blocked_reason = (
+                            f"봉 마감 데이터 미수신 ({_BAR_WAIT_MAX_SEC:.0f}초 초과) — 이번 봉 판단 건너뜀")
+                        self._state.last_blocked_side   = ""
+                    continue
 
                 with self._lock:
                     lp = self._state.long_pos
@@ -761,12 +809,10 @@ class TradingEngine:
                         _tf15_rsi = 50.0
                         if sym:
                             _rsi_n15 = 14 + 5
-                            _bars15 = self._client.get_klines(sym, "15m", limit=_rsi_n15 + 3)
-                            # 진행 중 봉 제외 — BT 는 bisect_right(close_time) 로 마감 봉만 사용
-                            _now_ms15 = int(time.time() * 1000) - 500
-                            _bars15 = [b for b in _bars15 if b["close_time"] < _now_ms15]
+                            # 중단 캐시의 마감 확정 15m 봉 — 경계 봉 반영 확인 후라 BT(봉 마감 시각 기준)와 같은 구간
+                            _bars15 = _generate_ohlcv(sym, _rsi_n15, "15m")
                             if len(_bars15) >= _rsi_n15:
-                                _cls15 = [b["close"] for b in _bars15[-_rsi_n15:]]
+                                _cls15 = [b["c"] for b in _bars15[-_rsi_n15:]]
                                 _rsi15_list = calc_rsi_series(_cls15, period=14)
                                 if _rsi15_list:
                                     _tf15_rsi = _rsi15_list[-1]
@@ -833,12 +879,6 @@ class TradingEngine:
             except Exception as e:
                 with self._lock:
                     self._state.error_msg = str(e)
-
-            # 다음 1m 봉 마감까지 동적 대기 — 처리 시간 drift 보정
-            _next_close = (int(time.time() // 60) + 1) * 60
-            self._state.next_scan_at = _next_close      # UI 카운트다운용
-            if self._stop_event.wait(max(0.0, _next_close - time.time())):
-                break
 
     # ── 진입 ─────────────────────────────────────────────────
     def _enter_long(self, mark: float, ind: dict | None = None) -> bool:

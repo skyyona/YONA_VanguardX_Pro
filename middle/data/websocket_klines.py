@@ -2,16 +2,17 @@
 middle/data/websocket_klines.py
 선택 심볼 kline WebSocket 클라이언트
 
-스트림: wss://fstream.binance.com/market/stream?streams={sym}@kline_1m/.../@kline_1h
+스트림: wss://fstream.binance.com/market/stream?streams={sym}@kline_1m/.../@kline_1d
         (구 /stream 경로는 Binance가 2026-04-23 폐지 — 연결은 되나 데이터 없음, 2026-10-26 실측)
-주기:   봉 마감(x=True) 시 콜백 호출
+주기:   봉 마감(x=True) 시 콜백 호출 — 마감 봉 최종 OHLCV 함께 전달
+        (2026-10-26 실측: 마감 후 0.01~3초 도착, 64/64 REST 최종값과 일치.
+         REST klines는 마감 봉 최종값을 마감 후 4.75~7.5초부터 안정 제공)
 비용:   Rate Limit 0 weight (완전 무료)
-지연 개선 범위: 1m·3m·5m·15m·1h TF에 한함. 4h·1d는 REST 폴링 의존.
 
 메시지 형식:
   {"stream":"btcusdt@kline_1m","data":{"e":"kline","s":"BTCUSDT",
-   "k":{"i":"1m","x":true,"c":"64000",...}}}
-  x=True 가 봉 마감 신호
+   "k":{"t":..,"T":..,"i":"1m","x":true,"o":..,"h":..,"l":..,"c":"64000","v":..,"q":..}}}
+  x=True 가 봉 마감 신호, t/T = 봉 시작/마감 시각(ms)
 """
 from __future__ import annotations
 
@@ -21,20 +22,22 @@ import time
 
 import websocket   # websocket-client
 
+from middle.models import OHLCVBar
+
 _RECONNECT_DELAY = 5   # 재연결 대기 (초)
-_TFS = ("1m", "3m", "5m", "15m", "1h")   # 봉 마감 감지 TF. 4h·1d는 REST 폴링 의존.
+_TFS = ("1m", "3m", "5m", "15m", "1h", "4h", "1d")   # 봉 마감 감지 TF — data_manager _DETAIL_TFS 전체
 
 
 class WebSocketKlines:
     """선택 심볼 kline 스트림 WebSocket 클라이언트.
 
-    봉 마감(x=True) 감지 시 on_closed(symbol, tf) 콜백 호출.
+    봉 마감(x=True) 감지 시 on_closed(symbol, tf, bar) 콜백 호출 (bar = 마감 봉 최종 OHLCVBar).
     set_symbol()로 심볼 교체 가능.
     """
 
     def __init__(self, on_closed: "callable") -> None:
         """
-        on_closed: (symbol: str, tf: str) -> None
+        on_closed: (symbol: str, tf: str, bar: OHLCVBar) -> None
         """
         self._on_closed             = on_closed
         self._ws: websocket.WebSocketApp | None = None
@@ -145,8 +148,18 @@ class WebSocketKlines:
             sym = data.get("s", "")
             tf  = kline.get("i", "")
             if sym and tf and sym == self._symbol:
+                bar = OHLCVBar(
+                    open_time=int(kline["t"]),
+                    open=float(kline["o"]),
+                    high=float(kline["h"]),
+                    low=float(kline["l"]),
+                    close=float(kline["c"]),
+                    volume=float(kline["v"]),
+                    quote_volume=float(kline["q"]),
+                    close_time=int(kline["T"]),
+                )
                 self._data_received = True
-                self._on_closed(sym, tf)
+                self._on_closed(sym, tf, bar)
         except Exception as e:
             self._last_error      = f"[klines:{self._symbol}] msg: {e}"
             self._last_error_time = time.time()

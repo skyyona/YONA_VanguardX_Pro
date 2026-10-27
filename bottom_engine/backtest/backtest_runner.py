@@ -295,9 +295,12 @@ class BacktestRunner:
             bar   = bars_1m[i]
             close = bar.close
             t     = bar.open_time
+            # 판정 시점 = 봉 i 마감 직후(진입가 = 봉 i 종가) — 지표 조회 키는 bar.close_time:
+            # 이 시각에 마감된 봉(1m 봉 i, 경계가 겹치는 상위 TF 봉)까지 포함. 실거래도 마감 봉 반영 즉시 판단.
+            # 펀딩·롱숏 비율 조회는 t 유지.
 
             # ── [P3] 1h 기준 ATR% bisect 조회 ──────────────────────
-            pos_1h  = max(0, bisect.bisect_right(times_1h, t) - 1) if times_1h else 0
+            pos_1h  = max(0, bisect.bisect_right(times_1h, bar.close_time) - 1) if times_1h else 0
             atr_pct = atr_pct_1h[pos_1h] if (times_1h and pos_1h < len(atr_pct_1h)) else 2.0
 
             # ── [FR] common_fr 펀딩비 진입 차단 판정 ─────────────────
@@ -341,7 +344,7 @@ class BacktestRunner:
             _5m_tf = tf_data.get("5m")
             if _5m_tf:
                 _5m_t, _5m_o, _5m_ks, _5m_ds = _5m_tf
-                _5m_pos = bisect.bisect_right(_5m_t, t) - 1
+                _5m_pos = bisect.bisect_right(_5m_t, bar.close_time) - 1
                 _5m_idx = _5m_pos - _5m_o
                 if 0 <= _5m_idx < len(_5m_ks):
                     _k5m_cur, _d5m_cur = _5m_ks[_5m_idx], _5m_ds[_5m_idx]
@@ -662,7 +665,7 @@ class BacktestRunner:
                 _tf_pos: dict = {}
 
                 for tf_key, (tf_times, tf_off, tf_k, tf_d) in tf_data.items():
-                    pos_tf = bisect.bisect_right(tf_times, t) - 1
+                    pos_tf = bisect.bisect_right(tf_times, bar.close_time) - 1
                     idx    = pos_tf - tf_off
                     if 0 <= idx < len(tf_k):
                         k, d = tf_k[idx], tf_d[idx]
@@ -703,7 +706,7 @@ class BacktestRunner:
                 if _mac_tfs:
                     _mac_score = 0
                     for _tf_times, _tf_off, _tf_k, _tf_d in _mac_tfs:
-                        _pos = bisect.bisect_right(_tf_times, t) - 1
+                        _pos = bisect.bisect_right(_tf_times, bar.close_time) - 1
                         _idx = _pos - _tf_off
                         if 0 <= _idx < len(_tf_k):
                             _k = _tf_k[_idx]
@@ -716,7 +719,7 @@ class BacktestRunner:
                     _mac_ok_short = (_mac_score <  1)
 
                 # [P7] G7 Swing — 15m봉 기준 bisect (실거래 data_manager: b15m_kr[-6:] 동일)
-                _pos_15m  = max(0, bisect.bisect_right(times_15m, t) - 1)
+                _pos_15m  = max(0, bisect.bisect_right(times_15m, bar.close_time) - 1)
                 _sw_long  = cls._swing_bull(bars_15m, _pos_15m)
                 _sw_short = cls._swing_bear(bars_15m, _pos_15m)
 
@@ -727,7 +730,7 @@ class BacktestRunner:
                     e5  = ema5_1h[pos_1h]  if (ema5_1h  and pos_1h < len(ema5_1h))  else 0.0
                     _mac_ind: dict = {}
                     for _i_m, (_mt, _mo, _mk_s, _md_s) in enumerate(_mac_tfs):
-                        _pm = bisect.bisect_right(_mt, t) - 1 - _mo
+                        _pm = bisect.bisect_right(_mt, bar.close_time) - 1 - _mo
                         if 0 <= _pm < len(_mk_s):
                             _mac_ind[("tf1h", "tf4h", "tf1d")[_i_m]] = {
                                 "k": _mk_s[_pm], "d": _md_s[_pm],

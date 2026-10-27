@@ -5,8 +5,6 @@ RSI·ATR·EMA·VWAP·StochRSI·캔들 패턴 계산의 원천 데이터
 """
 from __future__ import annotations
 
-import time
-
 from middle.api.binance_client import MiddleBinanceClient
 from middle.models import OHLCVBar
 
@@ -21,13 +19,14 @@ _DEFAULT_LIMITS: dict[str, int] = {
 
 
 def _parse_klines(raw: list[list]) -> list[OHLCVBar]:
+    """마감 확정 봉만 반환 — 응답의 마지막 원소(진행 중 봉, 또는 마감 직후 미확정 값의 봉)는 제외.
+
+    뒤에 다음 봉이 있는 봉만 최종값이다(2026-10-26 실측 130/130). 로컬 시계와 무관.
+    """
     result: list[OHLCVBar] = []
-    current_ms = int(time.time() * 1000) - 500  # 500ms 여유: 서버 클록 드리프트로 인한 마감 봉 누락 방지
-    for k in raw:
+    for k in raw[:-1]:
         try:
             close_time = int(k[6])
-            if close_time >= current_ms:
-                continue  # 미완성 봉(진행 중 캔들) 건너뜀 — 리페인팅 방지
             result.append(OHLCVBar(
                 open_time=int(k[0]),
                 open=float(k[1]),

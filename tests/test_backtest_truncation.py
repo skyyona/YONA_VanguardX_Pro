@@ -4,7 +4,8 @@ tests/test_backtest_truncation.py
 진입 M4 / 청산 CURRENT = 실거래 동일 경로).
 
 Freqtrade lookahead-analysis 방식(freqtrade/optimize/analysis/lookahead.py 139-190):
-포지션마다 진입 시각 +1봉, 청산 시각 +1봉까지만 남긴 데이터로 다시 실행해 결과가 같은지 비교.
+포지션마다 진입 봉·청산 봉의 마감까지만(+0봉) 남긴 데이터로 다시 실행해 결과가 같은지 비교 —
+판정 시점(봉 마감 직후) 이후 데이터를 쓰지 않음을 보증.
   - 청산 절단: 절단 시점까지 끝난 모든 거래 행(PARTIAL 포함)의 비교 키가 전체 실행과 같아야 함.
   - 진입 절단: BacktestRunner는 데이터 끝에 열린 포지션을 결과에서 제외하므로 진입 판정은
     M4Entry.evaluate 실제 호출을 관찰해 비교 — 절단 실행의 판정 순서가 전체 실행의 앞부분과 같고,
@@ -118,15 +119,15 @@ def test_backtest_has_no_lookahead_on_truncation(run_bt):
         for p, (idx, side) in zip(positions, taken):
             assert side == p.side, f"{sym} 진입 순서 매핑 오류"
 
-            # ── 청산 절단: 청산 봉 +1봉 (exit_time = 청산 1m 봉 close_time = open_time + 59999) ──
+            # ── 청산 절단: 청산 봉 마감까지 (exit_time = 청산 1m 봉 close_time = open_time + 59999) ──
             exit_open        = p.exit_time - (_BAR_MS - 1)
-            data_x, cut_x    = _truncate(data, exit_open + _BAR_MS)
+            data_x, cut_x    = _truncate(data, exit_open)
             cut_res, _       = run_bt(sym, data_x)
             assert [_key(t) for t in cut_res.trades] == [r for r in rows if r[3] <= cut_x], \
                 f"{sym} 청산 절단 불일치 — entry {p.entry_time} exit {p.exit_time} {p.exit_reason}"
 
-            # ── 진입 절단: 진입 봉 +1봉 ──
-            data_e, cut_e = _truncate(data, p.entry_time + _BAR_MS)
+            # ── 진입 절단: 진입 봉 마감까지 ──
+            data_e, cut_e = _truncate(data, p.entry_time)
             ent_res, ent_rec = run_bt(sym, data_e)
             assert len(ent_rec.calls) > idx, f"{sym} 진입 절단 실행에서 진입 판정 미도달 — entry {p.entry_time}"
             assert ent_rec.calls[:idx + 1] == full_rec.calls[:idx + 1], \

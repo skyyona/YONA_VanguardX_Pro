@@ -46,6 +46,25 @@ def request_detail(symbol: str) -> None:
         _data_mgr.request_selected(symbol)
 
 
+def pin_engine_symbol(symbol: str) -> None:
+    """거래 엔진 종목 고정("" = 해제) — WS 봉 마감 수신이 중단 모듈 클릭으로 바뀌지 않게 함."""
+    if _data_mgr is not None:
+        _data_mgr.set_engine_symbol(symbol)
+
+
+def get_last_close(symbol: str, tf: str) -> int:
+    """캐시된 마지막 마감 봉 close_time(ms) — 엔진 봉 마감 반영 확인용. 없으면 0."""
+    if _data_mgr is not None:
+        return _data_mgr.get_last_close(symbol, tf)
+    return 0
+
+
+def refresh_detail_now(symbol: str) -> None:
+    """쿨다운 없이 즉시 상세 갱신 — 엔진 봉 마감 대기 중 WS 미도착 보완용."""
+    if _data_mgr is not None:
+        _data_mgr.refresh_detail_now(symbol)
+
+
 def generate_ohlcv(symbol: str, n: int = 60, interval: str = "5m") -> list:
     """실데이터 DataManager에서 OHLCV 반환. interval 미지정 시 5m 기본값."""
     if _data_mgr is not None:
