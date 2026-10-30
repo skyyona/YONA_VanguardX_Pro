@@ -75,7 +75,6 @@ from middle.col3_analysis_panels.derivative_analysis.liquidation_proximity impor
 from middle.col3_analysis_panels.comprehensive_analysis.recommended_leverage import RecommendedLeverage
 from middle.col3_analysis_panels.player_detection.tag_detector import TagDetector
 from middle.col3_analysis_panels.player_detection.energy_balance import EnergyBalance
-from middle.col1_ranking_blacklist.ranking.newlisted_scorer import NewlistedScorer
 
 # ── 색상 상수 (middle_panel.py 와 동일 팔레트) ─────────────────
 _POS  = "#11de93"
@@ -104,6 +103,24 @@ def _fmt_elapsed(seconds: float) -> str:
     if seconds < 60:   return "방금"
     if seconds < 3600: return f"{int(seconds // 60)}분 전"
     return f"{int(seconds // 3600)}시간 전"
+
+
+def _days_since_listing(onboard_date_ms: int) -> int:
+    """상장 후 경과일 (소수점 버림) — onboard_date_ms: exchangeInfo symbols[i].onboardDate (Unix ms).
+    엔진 신규 상장 금지(G8 common_new) 판정 입력(_days_listed)이자 Newly Listed·신규 배지 기준."""
+    diff_ms = int(time.time() * 1000) - onboard_date_ms
+    return max(0, diff_ms // (24 * 60 * 60 * 1000))
+
+
+def _build_onboard_map(exchange_info: dict) -> dict[str, int]:
+    """exchangeInfo 응답에서 symbol → onboardDate(ms) 매핑 생성."""
+    result: dict[str, int] = {}
+    for sym_info in exchange_info.get("symbols", []):
+        symbol = sym_info.get("symbol", "")
+        onboard = sym_info.get("onboardDate")
+        if symbol and onboard:
+            result[symbol] = int(onboard)
+    return result
 
 
 def _has_newer(cur: dict, bars: dict) -> bool:
@@ -251,7 +268,7 @@ class MiddleDataManager:
         if cached:
             ob = self._onboard_map.get(symbol, 0)
             cached["_days_listed"] = (
-                NewlistedScorer.get_days_since_listing(ob) if ob else 9999
+                _days_since_listing(ob) if ob else 9999
             )
             return cached
         tkr = self._tkr_map.get(symbol)
@@ -689,7 +706,7 @@ class MiddleDataManager:
             ob = onboard_snap.get(t.symbol, 0)
             if not ob:
                 continue
-            days = NewlistedScorer.get_days_since_listing(ob)
+            days = _days_since_listing(ob)
             if 0 < days <= 30:
                 result.append(self._make_row(t))
         return result
@@ -698,7 +715,7 @@ class MiddleDataManager:
         try:
             ei = self._client.fetch_exchange_info()
             if ei:
-                m = NewlistedScorer.build_onboard_map(ei)
+                m = _build_onboard_map(ei)
                 with self._lock:
                     self._onboard_map = m
         except Exception:
@@ -988,7 +1005,7 @@ class MiddleDataManager:
 
         # [1] 신규 상장 days
         ob   = self._onboard_map.get(sym, 0)
-        days = NewlistedScorer.get_days_since_listing(ob) if ob else 0
+        days = _days_since_listing(ob) if ob else 0
 
         # [2,3] M4 진입 준비 상태 (G2 15m추세 + G7.5 거시 점수)
         ind = self._ind_cache.get(sym)

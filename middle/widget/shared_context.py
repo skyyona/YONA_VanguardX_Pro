@@ -22,6 +22,13 @@ def is_blacklisted(symbol: str) -> bool:
     return False
 
 
+def blacklist_problem() -> str:
+    """블랙리스트 보호 이상 사유 ("" = 정상) — 매니저 미생성(import·생성 실패) 또는 파일 로드 실패·일부 손실."""
+    if _bl_mgr is None:
+        return "블랙리스트 미로드"
+    return _bl_mgr.load_error
+
+
 MAX_SPREAD_PCT = 0.2   # 배정 차단 기준 — 최근 10분 호가 스프레드 중앙값(%) (2026-10-26 실측 상위100 최대 0.0945%)
 
 

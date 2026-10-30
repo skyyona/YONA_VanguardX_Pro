@@ -31,12 +31,14 @@ from bottom_engine.constants import _PROFIT_TRIGGER_PCT, _MAX_CONSECUTIVE_LOSSES
 
 try:
     from middle.widget.shared_context import is_blacklisted as _is_blacklisted
+    from middle.widget.shared_context import blacklist_problem as _blacklist_problem
     from middle.widget.shared_context import pin_engine_symbol as _pin_engine_symbol
     from middle.widget.shared_context import get_last_close as _get_last_close
     from middle.widget.shared_context import refresh_detail_now as _refresh_detail_now
     from middle.widget.shared_context import generate_ohlcv as _generate_ohlcv
 except ImportError:
     def _is_blacklisted(_s: str) -> bool: return False   # type: ignore[misc]
+    def _blacklist_problem() -> str: return "중단 모듈 연결 실패 — 블랙리스트 미로드"  # type: ignore[misc]
     def _pin_engine_symbol(_s: str) -> None: pass         # type: ignore[misc]
     def _get_last_close(_s: str, _tf: str) -> int: return 0                       # type: ignore[misc]
     def _refresh_detail_now(_s: str) -> None: pass                                # type: ignore[misc]
@@ -272,6 +274,7 @@ class TradingEngine:
             self._state.last_balance     = balance  # UI 잔고 표시용
             self._state.initial_balance  = balance  # 기준 잔고 저장 — 포트폴리오 손실 경고 계산용
         self._warn_loss_limits(balance)             # 일일 한도 초과 상태로 재시작 시 경고 (시작은 허용)
+        self._warn_blacklist()                      # 블랙리스트 미로드·파일 오류 시 경고 (시작은 허용)
         self._stop_event.clear()
         lev = self._params.leverage
         # 포지션 선조회 — 포지션 존재 시 레버리지 변경 건너뜀 (Binance 거부 방지)
@@ -522,6 +525,17 @@ class TradingEngine:
                     f"[경고] {' · '.join(parts)} 초과 — 거래 계속 여부는 사용자 판단 "
                     "([거래 정지]로 중단 가능)")
 
+    def _warn_blacklist(self) -> None:
+        """블랙리스트 보호 이상(미로드·파일 오류) 시 경고만 표시 — 정지·진입 차단 없음.
+        다른 오류 표시는 덮어쓰지 않음(비어 있을 때만 기록, 신호 루프에서 매 주기 재확인)."""
+        problem = _blacklist_problem()
+        if not problem:
+            return
+        with self._lock:
+            if not self._state.error_msg:
+                self._state.error_msg = (
+                    f"[경고] {problem} — 블랙리스트 종목 신규 진입 차단이 동작하지 않을 수 있음")
+
     # ── SL 루프 ── 1초 주기, 포지션 있을 때만 API 호출 ─────────
     def _sl_loop(self) -> None:
         while not self._stop_event.is_set():
@@ -761,6 +775,7 @@ class TradingEngine:
                 has_short = (sp and sp.state == PositionState.OPEN)
 
                 if not (has_long and has_short):
+                    self._warn_blacklist()
                     ind = self._get_ind_data()
 
                     if not ind:

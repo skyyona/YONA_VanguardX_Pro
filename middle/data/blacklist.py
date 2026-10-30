@@ -1,7 +1,7 @@
 """
-middle/col1_ranking_blacklist/blacklist.py
+middle/data/blacklist.py
 블랙리스트 관리 · 영속화 (JSON 파일 기반)
-거래 금지·상장폐지·이슈 심볼을 관리하고 랭킹에서 제외
+거래 금지·상장폐지·이슈 심볼을 관리 — 랭킹 제외·Assign 차단·하단 엔진 신규 진입 차단 공용
 """
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ class BlacklistManager:
     def __init__(self, path: Path = _BLACKLIST_PATH) -> None:
         self._path    = path
         self._entries: dict[str, BlacklistEntry] = {}
+        self.load_error = ""   # 로드 실패·일부 손실 사유 — 비어 있지 않으면 차단 목록이 불완전
         self.load()
 
     # ── CRUD ──────────────────────────────────────────────────
@@ -55,7 +56,10 @@ class BlacklistManager:
     # ── 영속화 ────────────────────────────────────────────────
     def load(self) -> None:
         self._entries = {}
+        self.load_error = ""
         if not self._path.exists():
+            self.load_error = f"블랙리스트 파일 없음 ({self._path.name})"
+            logging.warning("BlacklistManager.load — %s", self.load_error)
             return
         try:
             data = json.loads(self._path.read_text(encoding="utf-8"))
@@ -63,6 +67,7 @@ class BlacklistManager:
             # 파일 전체 파싱 실패 — 원본을 보존한다.
             # 보존하지 않으면 다음 add() 의 save() 가 빈 목록으로 덮어써
             # 기존 등록분이 영구 소실된다.
+            self.load_error = "블랙리스트 파일 파싱 실패"
             bad = self._path.with_name(self._path.name + ".corrupt")
             try:
                 os.replace(self._path, bad)
@@ -72,6 +77,7 @@ class BlacklistManager:
                 logging.warning("BlacklistManager.load 파싱 실패: %s", e)
             return
         if not isinstance(data, list):
+            self.load_error = "블랙리스트 파일 형식 오류 (최상위가 list 아님)"
             logging.warning("BlacklistManager.load — 최상위가 list 가 아님")
             return
         skipped = 0
@@ -81,6 +87,7 @@ class BlacklistManager:
             except Exception:
                 skipped += 1
         if skipped:
+            self.load_error = f"블랙리스트 손상 항목 {skipped}건 제외"
             logging.warning("BlacklistManager.load — 손상 항목 %d건 건너뜀, %d건 로드",
                             skipped, len(self._entries))
 

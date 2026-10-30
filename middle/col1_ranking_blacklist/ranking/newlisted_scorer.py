@@ -7,38 +7,15 @@ Newly Listed Sort by — 신규 상장 심볼 활동성 선정
   × 연령 가중치 (7일↓=2.0, 14일↓=1.6, 30일↓=1.3)
   get_sorted()의 30일 필터로 60일↓/90일↓/이상 구간은 도달 불가 → 제거
 
-상장일 취득: Binance exchangeInfo의 onboardDate 필드 사용
+상장 경과일(행 r[1])은 data_manager가 exchangeInfo onboardDate로 계산해 전달
 """
 from __future__ import annotations
-
-import time
 
 from middle.widget.shared_context import get_ind
 
 
 class NewlistedScorer:
     """Newly Listed 모드: 신규 상장 심볼 활동성 스코어링."""
-
-    # ── 상장일 계산 (data_manager.py에서 사용) ──────────────────
-    @staticmethod
-    def get_days_since_listing(onboard_date_ms: int) -> int:
-        """상장 후 경과일 계산.
-        onboard_date_ms: exchangeInfo symbols[i].onboardDate (Unix ms)
-        """
-        now_ms = int(time.time() * 1000)
-        diff_ms = now_ms - onboard_date_ms
-        return max(0, diff_ms // (24 * 60 * 60 * 1000))
-
-    @staticmethod
-    def build_onboard_map(exchange_info: dict) -> dict[str, int]:
-        """exchangeInfo 응답에서 symbol → onboardDate(ms) 매핑 생성."""
-        result: dict[str, int] = {}
-        for sym_info in exchange_info.get("symbols", []):
-            symbol = sym_info.get("symbol", "")
-            onboard = sym_info.get("onboardDate")
-            if symbol and onboard:
-                result[symbol] = int(onboard)
-        return result
 
     # ── 점수 계산 (panel_col1.py에서 사용) ──────────────────────
     @staticmethod

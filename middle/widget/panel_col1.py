@@ -26,7 +26,6 @@ from middle.col3_analysis_panels.technical_analysis.atr_percent import AtrPercen
 
 # Blacklist/Settling/Pending 관련 (middle_panel.py 와 동일한 선택적 import)
 try:
-    from middle.col1_ranking_blacklist.blacklist.blacklist import BlacklistManager as _BlacklistManager
     from middle.col1_ranking_blacklist.blacklist.settling import SettlingDetector as _SettlingDetector
     from middle.col1_ranking_blacklist.ranking.pending_listing import (
         PendingEntry as _PendingEntry,
