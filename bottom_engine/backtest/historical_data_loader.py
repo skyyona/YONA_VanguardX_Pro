@@ -5,6 +5,7 @@ bottom/backtest/historical_data_loader.py
 from __future__ import annotations
 
 import json
+import logging
 import time
 import threading
 import urllib.error
@@ -26,6 +27,9 @@ _FUNDING_PAGE_SLEEP = 0.7
 
 # 직전 응답 상태 — 0: 없음, 200: 성공, -1: 네트워크 예외, 그 외 HTTP 오류 코드
 _rate_state: dict = {"status": 0, "used_weight": 0, "retry_after": 0}
+
+# symbol → onboardDate(ms) — exchangeInfo 1회 조회 후 프로세스 내 재사용 (load_onboard_date)
+_onboard_map: dict[str, int] | None = None
 
 # 기간별 캔들 수 (백테스팅용)
 # 7일: 5m×2016봉 — 1m 기반 4TF 전략에 가장 근접한 실용 TF
@@ -187,6 +191,26 @@ class HistoricalDataLoader:
 
         # 시간 오름차순 병합: 오래된 봉(second) + 최신 봉(first)
         return second + first
+
+    @staticmethod
+    def load_onboard_date(symbol: str) -> int:
+        """상장 시각 exchangeInfo symbols[i].onboardDate (Unix ms) — 실거래 _days_listed와 같은 원본.
+        exchangeInfo는 프로세스당 1회 조회(성공 시 재사용). 조회 실패·심볼 없음이면 0 (호출처: 상장일수 미상)."""
+        global _onboard_map
+        if _onboard_map is None:
+            info = None
+            for attempt in range(_PAGE_RETRY):
+                info = _fetch_url(f"{_FUTURES_BASE}/fapi/v1/exchangeInfo")
+                if isinstance(info, dict):
+                    break
+                time.sleep(2.0 * (attempt + 1))
+            if not isinstance(info, dict):
+                logging.warning("load_onboard_date: exchangeInfo 조회 실패 — %s 상장일 미상", symbol)
+                return 0
+            _onboard_map = {s["symbol"]: int(s["onboardDate"])
+                            for s in info.get("symbols", [])
+                            if s.get("symbol") and s.get("onboardDate")}
+        return _onboard_map.get(symbol, 0)
 
     @staticmethod
     def load_long_short_ratio(symbol: str, period_days: int = 30) -> tuple[list[int], list[float]]:

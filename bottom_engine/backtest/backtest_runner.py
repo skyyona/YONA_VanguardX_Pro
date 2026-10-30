@@ -182,14 +182,12 @@ class BacktestRunner:
             ema5_1h   = cls._calc_ema_series(closes_1h, _EMA_SHORT)
             ema50_1h  = cls._calc_ema_series(closes_1h, _EMA_LONG)
 
-        # ── common_new 상장 일수 ─────────────────────────────────
-        _days_listed = 9999
+        # ── common_new 상장 시각 — exchangeInfo onboardDate(ms), 실거래 _days_listed와 같은 원본 ──
+        # 상장일수는 봉마다 판정 시점(봉 i 마감) 기준으로 계산 (아래 루프). 0 = 미상 → 9999(차단 없음, 실거래와 동일)
+        _onboard_ms = 0
         if params.prohibition.common_new:
-            if preloaded is not None and "1d" in preloaded:
-                _days_listed = len(preloaded["1d"])
-            else:
-                _dlisted     = HistoricalDataLoader.load(symbol, "1d", _NEW_DAYS_MIN + 5)
-                _days_listed = len(_dlisted)
+            _onboard_ms = (preloaded.get("onboard", 0) if preloaded is not None else 0) \
+                          or HistoricalDataLoader.load_onboard_date(symbol)
 
         # ── common_macro·use_macro HTF StochRSI (기존 bisect 패턴 유지) ─
         _mac_tfs: list = []
@@ -298,6 +296,8 @@ class BacktestRunner:
             # 판정 시점 = 봉 i 마감 직후(진입가 = 봉 i 종가) — 지표 조회 키는 bar.close_time:
             # 이 시각에 마감된 봉(1m 봉 i, 경계가 겹치는 상위 TF 봉)까지 포함. 실거래도 마감 봉 반영 즉시 판단.
             # 펀딩·롱숏 비율 조회는 t 유지.
+            # 상장일수 = (판정 시점 − onboardDate) // 1일 — 실거래 data_manager._days_since_listing과 같은 정의
+            _days_listed = max(0, (bar.close_time - _onboard_ms) // 86_400_000) if _onboard_ms else 9999
 
             # ── [P3] 1h 기준 ATR% bisect 조회 ──────────────────────
             pos_1h  = max(0, bisect.bisect_right(times_1h, bar.close_time) - 1) if times_1h else 0

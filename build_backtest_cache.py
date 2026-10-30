@@ -4,10 +4,10 @@ build_backtest_cache.py — 150심볼 × 기간(90일·180일) 데이터를 pick
 저장 경로: backtest_cache/{기간}/{symbol}.pkl
   키: "1m"/"3m"/"5m"/"15m"/"1h" (list[HistoricalBar])
       "fr"/"liq" (tuple[list[int], list[float]])  — fr: 기간 전체(페이지 수집), liq: 최근 30일(Binance 상한)
-      "1d" (list[HistoricalBar], 19봉 — common_new 판정용)
+      "onboard" (int, exchangeInfo onboardDate ms — common_new 상장일수 계산, 실거래와 같은 원본)
 
 검증: 저장 전 TF별 연속성(누락 ≤0.5%)·최신성·TF 간 시작 시각 일치(부분 실패 vs 신규 상장 구분)·
-      fr·liq 기간 포함·1d 존재를 확인. 실패 시 심볼 재시도(최대 2회), 끝내 실패하면 저장하지 않고
+      fr·liq 기간 포함·onboard 존재를 확인. 실패 시 심볼 재시도(최대 2회), 끝내 실패하면 저장하지 않고
       기존(손상) 파일을 제거한 뒤 _meta.json "failed"에 사유 기록.
       (로더가 페이지 실패 시 부분 데이터를 반환하던 문제로 2026-10 캐시 대부분이 비거나 잘려 있었음)
 
@@ -35,7 +35,6 @@ sys.path.insert(0, str(_ROOT))
 
 from bottom_engine.backtest.backtest_runner import BacktestRunner, _TF_BARS
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
-from bottom_engine.constants import _NEW_DAYS_MIN
 
 SYMBOLS = [
     "BTCUSDT", "ETHUSDT", "SOLUSDT", "ZECUSDT", "XRPUSDT",
@@ -167,13 +166,13 @@ def _validate(data: dict, period: str, ref_ms: int | None = None) -> tuple[list[
     liq_need_start = max(data_start, now_ms - _LIQ_DAYS * _DAY_MS)
     if not liq_t or liq_t[0] > liq_need_start + _DAY_MS:
         problems.append("liq 최근 30일 미포함")
-    if not data.get("1d"):
-        problems.append("1d 비어 있음")
+    if not data.get("onboard"):
+        problems.append("onboard(상장 시각) 미상")
     return problems, coverage
 
 
 def _slice_to_period(data: dict, period: str) -> dict:
-    """긴 기간 캐시를 period의 TF별 봉 수(_TF_BARS)만큼 최근 구간으로 자른 사본. fr·liq·1d는 그대로."""
+    """긴 기간 캐시를 period의 TF별 봉 수(_TF_BARS)만큼 최근 구간으로 자른 사본. fr·liq·onboard는 그대로."""
     out = dict(data)
     for tf, n in _TF_BARS[period].items():
         out[tf] = list(data[tf][-n:])
@@ -186,7 +185,7 @@ def main():
 
     print(f"[캐시 빌더] {len(SYMBOLS)}심볼 × {PERIOD}")
     print(f"[저장 경로] {_CACHE_DIR}")
-    print(f"[캐시 키] 1m/3m/5m/15m/1h/1d/fr/liq (8개)")
+    print(f"[캐시 키] 1m/3m/5m/15m/1h/fr/liq/onboard (8개)")
     if completed:
         print(f"[체크포인트] {len(completed)}/{len(SYMBOLS)} 완료, "
               f"{len(SYMBOLS)-len(completed)}개 이어서 실행")
@@ -218,7 +217,7 @@ def main():
                 preloaded = BacktestRunner.load_tf_bars(sym, PERIOD)
                 preloaded["fr"]  = HistoricalDataLoader.load_funding_rate(sym, _PERIOD_DAYS)
                 preloaded["liq"] = HistoricalDataLoader.load_long_short_ratio(sym, _PERIOD_DAYS)
-                preloaded["1d"]  = HistoricalDataLoader.load(sym, "1d", _NEW_DAYS_MIN + 5)
+                preloaded["onboard"] = HistoricalDataLoader.load_onboard_date(sym)
             ref_ms = (preloaded["1m"][-1].close_time + 1) if (_FROM_180 and preloaded.get("1m")) else None
             problems, coverage = _validate(preloaded, PERIOD, ref_ms)
             if not problems or _FROM_180:
