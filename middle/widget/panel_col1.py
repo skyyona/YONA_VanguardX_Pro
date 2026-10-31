@@ -355,6 +355,7 @@ class _Col1Mixin:
         self._cum_labels.clear()
         self._change_labels.clear()
         self._phase_labels.clear()
+        self._nl_rows.clear()
 
         # ③ pack_forget (0.17ms) — 즉시 화면에서 제거
         for w in old_children:
@@ -559,6 +560,7 @@ class _Col1Mixin:
                 elif days <= 90: _age_txt, _age_col = f"D+{days}  Recent", DIM_TEXT
                 else:            _age_txt, _age_col = f"D+{days}  Mature", "#555555"
                 # Col5: 자격 미달 시 경고, 충족 시 라이프사이클 단축 레이블
+                self._nl_rows[symbol] = _row_data   # 3열 Newly 점수·순위 공유 (표시 순서)
                 _res_nl = self._calc_newlist_score(symbol, _row_data)
                 if not _res_nl["qualified"]:
                     _opp_txt, _opp_col = "⚠ 자격 미달 (VSS/OI 부족)", DIM_TEXT

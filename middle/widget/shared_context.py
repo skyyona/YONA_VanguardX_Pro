@@ -54,6 +54,13 @@ def get_player(symbol: str):
     return None
 
 
+def get_listing_days(symbol: str) -> int:
+    """상장 경과일 — 1열 행·Newly Listed와 같은 정의 (거래량 상위 200 밖 포함). 매니저 없거나 미상이면 0."""
+    if _data_mgr is not None:
+        return _data_mgr.get_listing_days(symbol)
+    return 0
+
+
 def get_player_map() -> dict:
     """랭킹 풀 Player 감지 맵 {symbol: {tags, direction, has_rise, has_decline}}. 매니저 없으면 빈 dict."""
     if _data_mgr is not None:

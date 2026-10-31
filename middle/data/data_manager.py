@@ -296,6 +296,11 @@ class MiddleDataManager:
         return [{"o": b.open, "h": b.high, "l": b.low,
                  "c": b.close, "v": b.quote_volume} for b in bars[-n:]]
 
+    def get_listing_days(self, symbol: str) -> int:
+        """상장 경과일 — 랭킹 행 [1]·신규 배지·Newly Listed 기준과 같은 정의 (onboardDate 미상 → 0)."""
+        ob = self._onboard_map.get(symbol, 0)
+        return _days_since_listing(ob) if ob else 0
+
     def get_ticker(self, symbol: str) -> SymbolTicker | None:
         """심볼 최신 24h ticker (WS·REST 병합본). 없으면 None."""
         return self._tkr_map.get(symbol)
@@ -1072,8 +1077,7 @@ class MiddleDataManager:
         chg  = tkr.price_change_pct
 
         # [1] 신규 상장 days
-        ob   = self._onboard_map.get(sym, 0)
-        days = _days_since_listing(ob) if ob else 0
+        days = self.get_listing_days(sym)
 
         # [2,3] M4 진입 준비 상태 (G2 15m추세 + G7.5 거시 점수)
         ind = self._ind_cache.get(sym)

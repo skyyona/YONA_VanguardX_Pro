@@ -67,6 +67,9 @@ class _DM:
     def get_spread_median(self, sym):
         return None
 
+    def get_listing_days(self, sym):
+        return 0
+
 
 class _BL:
     def __init__(self, syms=()):

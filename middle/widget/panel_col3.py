@@ -8,7 +8,7 @@ import tkinter.ttk as ttk
 from middle.widget.constants import *
 
 # ── shared_context에서 헬퍼 함수 import (단일 정의, 중복 없음) ──
-from middle.widget.shared_context import get_ind, _live_ranking, get_ticker_info, get_player
+from middle.widget.shared_context import get_ind, _live_ranking, get_ticker_info, get_player, get_listing_days
 import middle.widget.shared_context as _ctx
 from middle.col3_analysis_panels.derivative_analysis.open_interest import OpenInterestPanel
 from middle.col3_analysis_panels.derivative_analysis.funding_rate import FundingRatePanel
@@ -153,8 +153,7 @@ class _Col3Mixin:
 
         sym  = self._sel_var.get()
         ind  = get_ind(sym)
-        _row = next((d for d in _live_ranking() if d[0] == sym), None)
-        _days = _row[1] if _row else 0
+        _days = get_listing_days(sym)   # 1열 행·Newly Listed와 같은 정의 (거래량 상위 200 밖 포함)
 
         # ── 신규 상장 코인 분석 신뢰도 경고 배너 ────────────────
         if _days > 0:
@@ -711,18 +710,24 @@ class _Col3Mixin:
 
         # ── Sort by="Newly Listed" 선정 근거 (4요소 점수 + 연령가중 + 전체 순위) ──
         elif self._sort_mode == "Newly Listed":
-            res = self._calc_newlist_score(sym)
+            # 1열에 표시한 같은 행(상장 경과일·24h 등락률)으로 계산 → 점수·순위 1열과 일치
+            _nl_shown = self._nl_rows.get(sym)
+            res = self._calc_newlist_score(sym, _nl_shown) if _nl_shown is not None else None
             ctx_f = tk.Frame(self._verdict_f, bg=DARK_PANEL)
             ctx_f.pack(fill="x", padx=10, pady=(2, 1))
-            if not res["qualified"]:
+            if res is None:
+                tk.Label(ctx_f,
+                         text="⚠ Newly Listed 대상 아님 (1열 목록 밖 — 상장 30일 초과·미상 또는 상위 30위 밖)",
+                         bg=DARK_PANEL, fg=ORANGE,
+                         font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
+            elif not res["qualified"]:
                 tk.Label(ctx_f,
                          text=(f"⚠ Newly Listed 자격 미달 "
                                f"(VSS {res['vss']:.2f}<1.2 & OI {res['oi']:.1f}%<3%) — 참고용 분석"),
                          bg=DARK_PANEL, fg=ORANGE,
                          font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
             else:
-                _sorted = self._get_sorted_ranking()
-                _rank = next((i + 1 for i, r in enumerate(_sorted) if r[0] == sym), None)
+                _rank = list(self._nl_rows).index(sym) + 1   # 1열 표시 순위
                 tk.Label(ctx_f, text="🎯 Newly Listed 선정 근거 ", bg=DARK_PANEL, fg=ACCENT_BLUE,
                          font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
                 tk.Label(ctx_f, text=f"전체 {_rank}위 · 총 {res['total']}/{res['max']}점 × 연령가중 {res['age_weight']:.1f} = {res['weighted']:.1f}점",
@@ -754,15 +759,15 @@ class _Col3Mixin:
                      font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
 
         # ── Newly Listed 전용 분석 블록 ───────────────────────────
-        _nl_row = next((d for d in _live_ranking() if d[0] == sym), None)
-        if _nl_row and _nl_row[1] > 0:
-            _lc_res = lifecycle_summary(_nl_row[1], ind)
+        _nl_days = get_listing_days(sym)   # 1열 행·Newly Listed와 같은 정의 (거래량 상위 200 밖 포함)
+        if _nl_days > 0:
+            _lc_res = lifecycle_summary(_nl_days, ind)
             if _lc_res:
                 _lc_stage, _lc_lbl, _lc_col, _lc_strat = _lc_res
                 _pchg = ind.get("price_change_pct", 0.0)
                 _h24p = ind.get("high_24h_pct",     0.0)
                 _vss  = ind.get("vss",              1.0)
-                _dv   = _nl_row[1]
+                _dv   = _nl_days
                 # 헤더
                 tk.Frame(self._verdict_f, bg="#333333", height=1).pack(
                     fill="x", padx=10, pady=(4, 2))
