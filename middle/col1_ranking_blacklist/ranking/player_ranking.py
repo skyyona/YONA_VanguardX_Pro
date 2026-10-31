@@ -9,7 +9,7 @@ gold_ranking.py 와 동일한 shared_context 접근 패턴 사용.
 from __future__ import annotations
 
 from middle.widget.shared_context import get_ind, _live_ranking
-from middle.col3_analysis_panels.player_detection.tag_detector import TagDetector
+from middle.analysis.tag_detector import TagDetector
 
 
 class PlayerRanking:

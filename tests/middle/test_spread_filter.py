@@ -15,7 +15,7 @@ import pytest
 import middle.widget.shared_context as _ctx
 from middle.data import data_manager as _dm_mod
 from middle.data.data_manager import MiddleDataManager
-from middle.widget.panel_col1 import _Col1Mixin
+from middle.widget.panel_col3 import _Col3Mixin
 
 
 def _book(sym: str, bid: float, ask: float) -> dict:
@@ -88,7 +88,7 @@ def test_wide_spread_threshold(ctx_dm):
     assert _ctx.get_wide_spread("ZUSDT") is None
 
 
-class _Panel(_Col1Mixin):
+class _Panel(_Col3Mixin):
     """_on_assign이 쓰는 속성만 가진 대역 (Tk 미사용)."""
 
     def __init__(self):

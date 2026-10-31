@@ -19,14 +19,9 @@ try:
 except ImportError:
     _HAS_DATA_MANAGER = False
 
-# ── Blacklist / Settling / Pending (선택적 임포트) ─────────────
+# ── Blacklist (선택적 임포트) — 엔진 진입 차단 원본이므로 다른 모듈 import와 분리 ──
 try:
     from middle.data.blacklist import BlacklistManager as _BlacklistManager
-    from middle.col1_ranking_blacklist.blacklist.settling import SettlingDetector as _SettlingDetector
-    from middle.col1_ranking_blacklist.ranking.pending_listing import (
-        PendingEntry as _PendingEntry,
-        PendingListingDetector as _PendingListingDetector,
-    )
     _HAS_BLACKLIST = True
 except ImportError:
     _HAS_BLACKLIST = False
@@ -65,6 +60,7 @@ from middle.widget.constants import (
 )
 
 from middle.widget.panel_col1 import _Col1Mixin
+from middle.widget.panel_col1_blacklist import _Col1BlacklistMixin
 from middle.widget.panel_col2 import _Col2Mixin
 from middle.widget.panel_col3 import _Col3Mixin
 
@@ -93,13 +89,14 @@ def save_layout_config(cfg: dict) -> None:
 
 # ── 헬퍼 함수: shared_context 단일 정의에서 import (중복 없음) ──
 import middle.widget.shared_context as _ctx
+from middle.widget.style import setup_style
 from middle.widget.shared_context import (
     get_ind, generate_ohlcv, _live_ranking,
 )
 
 
 # ══════════════════════════════════════════════════════════════
-class MiddlePanel(_Col1Mixin, _Col2Mixin, _Col3Mixin, tk.Frame):
+class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Frame):
     def __init__(self, master: tk.Misc,
                  shared_sym: tk.StringVar | None = None) -> None:
         super().__init__(master, bg=DARK_BG)
@@ -200,7 +197,7 @@ class MiddlePanel(_Col1Mixin, _Col2Mixin, _Col3Mixin, tk.Frame):
         self._verdict_f : tk.Frame | None = None
         self._verdict_title_lbl: tk.Label | None = None
 
-        self._setup_style()
+        setup_style()
 
         self._pane = tk.PanedWindow(self, orient="horizontal",
                                     bg=DARK_BG, sashwidth=5,
@@ -584,6 +581,32 @@ class MiddlePanel(_Col1Mixin, _Col2Mixin, _Col3Mixin, tk.Frame):
             except tk.TclError:
                 pass
             self._recolor(child, bg, skip)
+
+    # ── 1열 Sort by 전환 연동: 2열 기본 탭 + 3열 종합분석 제목·판정 갱신 ──
+    def _on_sort_mode_changed(self, mode: str) -> None:
+        # Sort by 모드와 가장 관련 높은 Coin Chart/MTF Stoch RSI/Macro & 4TF Entry
+        # 탭을 기본으로 먼저 보여줌 (탭 콘텐츠 자체는 변경 없음)
+        if mode == "4TF Optimization":
+            self._switch_chart_tab("macro")
+        elif mode in ("Sharp rise", "Sharp decline"):
+            self._switch_chart_tab("mtf")
+        else:
+            self._switch_chart_tab("chart")
+        # 종합 분석 패널 제목을 현재 Sort by 모드에 맞게 갱신
+        if self._verdict_title_lbl is not None:
+            self._verdict_title_lbl.configure(text=f"📋 {mode} 분석 및 권장 레버리지")
+        self._refresh_verdict()
+
+    # ── 1열 Time Fix 타이머 1초 틱 연동: 30초마다 3열 선택 심볼 보조 갱신 ──
+    def _on_time_fix_tick(self) -> None:
+        # 30초마다 선택 심볼 패널 갱신 — ANALYSIS 상태에서만 실행
+        # (콜백 기반 갱신으로 전환되었으므로 ANALYSIS 중에도 보조 갱신 역할)
+        if self._elapsed_sec % 30 == 0:
+            if getattr(self, '_app_state', 'IDLE') == "ANALYSIS":
+                if _ctx._data_mgr is not None:
+                    sym = self._sel_var.get()
+                    if sym:
+                        _ctx._data_mgr.request_selected(sym)
 
     # ── 헤더 메시지 헬퍼 ────────────────────────────────────────────
     def _set_header_message(self, msg: str) -> None:

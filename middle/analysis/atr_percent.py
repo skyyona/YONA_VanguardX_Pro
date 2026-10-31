@@ -1,5 +1,5 @@
 ﻿"""
-middle/col3_analysis_panels/technical_analysis/atr_percent.py
+middle/analysis/atr_percent.py
 ATR% 변동성 — Volatility Sort by 스코어의 핵심 지표
 ATR(Average True Range)을 현재가 대비 % 로 표현
 """

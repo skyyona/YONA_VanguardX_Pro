@@ -2,8 +2,8 @@
 middle/col1_ranking_blacklist/ranking/pending_listing.py
 Sort by: Pending Listing — PENDING_TRADING 상장 예정 심볼 감지 및 분류
 
-Binance exchangeInfo에서 PENDING_TRADING 상태 심볼을 감지하고
-markPrice API로 예정 가격을 조회하여 PendingEntry 목록을 반환한다.
+MiddleDataManager.fetch_pending_listings()가 조회한 PENDING_TRADING 심볼·markPrice 원본을
+PendingEntry 목록으로 변환하고, 유형 배지·남은 시간 표시값을 만든다.
 
 컬럼 레이아웃: # | 심볼 [유형배지] | 상장예정일시 | 남은시간 | markPrice
 """
@@ -26,35 +26,23 @@ class PendingEntry:
 
 
 class PendingListingDetector:
-    """Binance exchangeInfo 기반 PENDING_TRADING 심볼 감지."""
+    """PENDING_TRADING 상장 예정 심볼 변환·표시값."""
 
-    @classmethod
-    def detect(cls, client: object) -> list[PendingEntry]:
-        """PENDING_TRADING 심볼 감지 + markPrice 조회.
+    @staticmethod
+    def parse(raw: list[tuple[dict, dict | None]]) -> list[PendingEntry]:
+        """PENDING_TRADING 원본 → PendingEntry 목록 (입력 순서 = onboardDate 오름차순 유지).
 
         Args:
-            client: MiddleBinanceClient 인스턴스
+            raw: [(exchangeInfo 심볼 dict, premiumIndex 응답 또는 None), ...]
         Returns:
-            PendingEntry 목록 (onboardDate 오름차순 정렬)
+            PendingEntry 목록 — markPrice 조회 실패 심볼은 0.0
         """
         result: list[PendingEntry] = []
         try:
-            info = client.fetch_exchange_info()
-            if not info:
-                return result
-            all_syms = info.get("symbols", [])
-            pending = [
-                s for s in all_syms
-                if s.get("symbol", "").endswith("USDT")
-                and s.get("status") == "PENDING_TRADING"
-            ]
-            pending.sort(key=lambda s: s.get("onboardDate", 0))
-            for s in pending:
-                sym  = s["symbol"]
-                mark = client.fetch_mark_price(sym)
-                mp   = float(mark.get("markPrice", 0)) if mark else 0.0
+            for s, mark in raw:
+                mp = float(mark.get("markPrice", 0)) if mark else 0.0
                 result.append(PendingEntry(
-                    symbol=sym,
+                    symbol=s["symbol"],
                     base_asset=s.get("baseAsset", ""),
                     onboard_date=s.get("onboardDate", 0),
                     underlying_type=s.get("underlyingType", "COIN"),
@@ -62,7 +50,7 @@ class PendingListingDetector:
                     mark_price=mp,
                 ))
         except Exception as e:
-            logging.warning("PendingListingDetector.detect: %s", e)
+            logging.warning("PendingListingDetector.parse: %s", e)
         return result
 
     @staticmethod

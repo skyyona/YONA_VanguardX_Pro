@@ -13,7 +13,7 @@ _ws_stub.WebSocketApp = object
 sys.modules.setdefault("websocket", _ws_stub)
 
 from middle.col2_chart_indicators.mtf_stochrsi import StochRSI
-from middle.col3_analysis_panels.technical_analysis.atr_percent import AtrPercent
+from middle.analysis.atr_percent import AtrPercent
 from middle.col3_analysis_panels.technical_analysis.vwap import VWAP
 from middle.data import data_manager as dm_mod
 from middle.data.data_manager import MiddleDataManager

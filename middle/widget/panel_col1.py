@@ -1,6 +1,6 @@
 """
 middle/widget/panel_col1.py
-1열 Real-Time Ranking + Blacklist 믹스인
+1열 Real-Time Ranking 믹스인 (Blacklist 탭은 panel_col1_blacklist.py)
 """
 from __future__ import annotations
 import tkinter as tk
@@ -22,65 +22,20 @@ from middle.col1_ranking_blacklist.ranking.fourtf_scorer import FourTFScorer
 from middle.col1_ranking_blacklist.ranking.newlisted_scorer import NewlistedScorer
 from middle.col1_ranking_blacklist.ranking.gold_ranking import GoldRanking
 from middle.col1_ranking_blacklist.ranking.player_ranking import PlayerRanking
-from middle.col3_analysis_panels.technical_analysis.atr_percent import AtrPercent
+from middle.analysis.atr_percent import AtrPercent
+from middle.analysis.newlisted_lifecycle import lifecycle_summary
 
-# Blacklist/Settling/Pending 관련 (middle_panel.py 와 동일한 선택적 import)
-try:
-    from middle.col1_ranking_blacklist.blacklist.settling import SettlingDetector as _SettlingDetector
-    from middle.col1_ranking_blacklist.ranking.pending_listing import (
-        PendingEntry as _PendingEntry,
-        PendingListingDetector as _PendingListingDetector,
-    )
-    _HAS_BLACKLIST = True
-except ImportError:
-    _HAS_BLACKLIST = False
+from middle.col1_ranking_blacklist.ranking.pending_listing import (
+    PendingEntry as _PendingEntry,
+    PendingListingDetector as _PendingListingDetector,
+)
 
 
 class _Col1Mixin:
-    """1열 Real-Time Ranking + Blacklist 믹스인."""
+    """1열 Real-Time Ranking 믹스인."""
 
     # _COLS: constants.py에서 import된 값을 클래스 속성으로 참조 (중복 정의 없음)
     _COLS = _COLS  # noqa
-
-    # ── 스타일 ─────────────────────────────────────────────────
-    def _setup_style(self) -> None:
-        s = ttk.Style()
-        s.theme_use("clam")
-
-        # ── Scrollbar ────────────────────────────────────────────
-        s.configure("Vertical.TScrollbar", background=DARK_PANEL,
-                    troughcolor=DARK_BG, borderwidth=0, arrowcolor=DIM_TEXT)
-
-
-
-        # ── Treeview 다크 테마 ─────────────────────────────────
-        s.configure("Dark.Treeview",
-                    background=DARK_ROW_ODD,
-                    fieldbackground=DARK_BG,
-                    foreground=DARK_TEXT,
-                    rowheight=30,
-                    borderwidth=0,
-                    relief="flat",
-                    font=("Segoe UI", 9))
-        # Treeview 외각 테두리 레이아웃 제거
-        s.layout("Dark.Treeview", [
-            ("Treeview.treearea", {"sticky": "nswe"})
-        ])
-        s.configure("Dark.Treeview.Heading",
-                    background=DARK_HEADER,
-                    foreground=ACCENT_BLUE,
-                    relief="flat",
-                    borderwidth=0,
-                    padding=[4, 6],
-                    font=("Segoe UI", 8, "bold"))
-        s.map("Dark.Treeview",
-              background=[("selected", DARK_SEL)],
-              foreground=[("selected", POSITIVE)])
-        s.map("Dark.Treeview.Heading",
-              background=[("active",  DARK_HEADER),
-                          ("pressed", DARK_HEADER)],
-              relief=[("active",  "flat"),
-                      ("pressed", "flat")])
 
     # ══════════════════════════════════════════════════════════
     # 1열 — 커스텀 탭 (ttk.Notebook 미사용 → 테두리 없음)
@@ -331,18 +286,8 @@ class _Col1Mixin:
         if mode == "Pending Listing":
             self.after(0, self._load_pending_then_rebuild)
 
-        # Sort by 모드와 가장 관련 높은 Coin Chart/MTF Stoch RSI/Macro & 4TF Entry
-        # 탭을 기본으로 먼저 보여줌 (탭 콘텐츠 자체는 변경 없음)
-        if mode == "4TF Optimization":
-            self._switch_chart_tab("macro")
-        elif mode in ("Sharp rise", "Sharp decline"):
-            self._switch_chart_tab("mtf")
-        else:
-            self._switch_chart_tab("chart")
-        # 종합 분석 패널 제목을 현재 Sort by 모드에 맞게 갱신
-        if self._verdict_title_lbl is not None:
-            self._verdict_title_lbl.configure(text=f"📋 {mode} 분석 및 권장 레버리지")
-        self._refresh_verdict()
+        # 2열 탭·3열 종합분석 연동 — MiddlePanel._on_sort_mode_changed
+        self._on_sort_mode_changed(mode)
         self._rebuild_ranking_rows()
 
     # ─── Sort by 점수 계산 — ranking/ 폴더 각 Scorer 클래스로 위임 ──
@@ -547,7 +492,7 @@ class _Col1Mixin:
             if self._time_fixed and self._time_fix_prices:
                 fix_price = self._time_fix_prices.get(symbol, 0.0)
                 if fix_price > 0 and _ctx._data_mgr is not None:
-                    tkr = _ctx._data_mgr._tkr_map.get(symbol)
+                    tkr = _ctx._data_mgr.get_ticker(symbol)
                     if tkr and tkr.last_price > 0:
                         _pct = (tkr.last_price - fix_price) / fix_price * 100.0
                         cum_text_now = f"{_pct:+.2f}%"
@@ -622,7 +567,7 @@ class _Col1Mixin:
                 if not _res_nl["qualified"]:
                     _opp_txt, _opp_col = "⚠ 자격 미달 (VSS/OI 부족)", DIM_TEXT
                 else:
-                    _lc_result = self._nl_lifecycle(symbol, days)
+                    _lc_result = lifecycle_summary(days, get_ind(symbol))
                     if _lc_result:
                         _, _opp_txt, _opp_col, _ = _lc_result
                     else:
@@ -751,7 +696,7 @@ class _Col1Mixin:
             self._time_fix_prices.clear()
             if _ctx._data_mgr is not None:
                 for _, sym in self._row_frames:
-                    tkr = _ctx._data_mgr._tkr_map.get(sym)
+                    tkr = _ctx._data_mgr.get_ticker(sym)
                     if tkr and tkr.last_price > 0:
                         self._time_fix_prices[sym] = tkr.last_price  # Fix 시점 가격 스냅샷
             # 타이머 시작
@@ -805,14 +750,8 @@ class _Col1Mixin:
             if self._elapsed_sec % 30 == 0 and not self._time_fixed:
                 self._rebuild_ranking_rows()
 
-            # 30초마다 선택 심볼 패널 갱신 — ANALYSIS 상태에서만 실행
-            # (콜백 기반 갱신으로 전환되었으므로 ANALYSIS 중에도 보조 갱신 역할)
-            if self._elapsed_sec % 30 == 0:
-                if getattr(self, '_app_state', 'IDLE') == "ANALYSIS":
-                    if _ctx._data_mgr is not None:
-                        sym = self._sel_var.get()
-                        if sym:
-                            _ctx._data_mgr.request_selected(sym)
+            # 3열 선택 심볼 보조 갱신 — MiddlePanel._on_time_fix_tick
+            self._on_time_fix_tick()
         except Exception:
             pass   # 내부 예외는 무시, 타이머는 반드시 계속됨
         # ── 항상 다음 틱 예약 (try 블록 바깥) ──────────────────────
@@ -832,7 +771,7 @@ class _Col1Mixin:
                 if self._time_fixed and self._time_fix_prices:
                     fix_price = self._time_fix_prices.get(sym, 0.0)
                     if fix_price > 0 and _ctx._data_mgr is not None:
-                        tkr = _ctx._data_mgr._tkr_map.get(sym)
+                        tkr = _ctx._data_mgr.get_ticker(sym)
                         if tkr and tkr.last_price > 0:
                             pct = (tkr.last_price - fix_price) / fix_price * 100.0
                             txt = f"{pct:+.2f}%"
@@ -847,399 +786,11 @@ class _Col1Mixin:
             except Exception:
                 pass
 
-    # ─── Assign 버튼 처리 ─────────────────────────────────────
-    def _on_assign(self, symbol: str) -> None:
-        if self._assigned_sym == symbol:
-            self._assigned_sym = None
-            if self._shared_sym is not None:
-                self._shared_sym.set("")        # 배치 해제
-        else:
-            if _ctx._bl_mgr is not None and _ctx._bl_mgr.is_blacklisted(symbol):
-                self._set_header_message(
-                    f"⛔ {symbol} — 블랙리스트 등록 심볼이므로 배정할 수 없습니다")
-                return
-            _wide = _ctx.get_wide_spread(symbol)
-            if _wide is not None:
-                self._set_header_message(
-                    f"⛔ {symbol} — 호가 스프레드 {_wide:.3f}% (최근 10분 이내 표본 중앙값)가 "
-                    f"기준 {_ctx.MAX_SPREAD_PCT}%를 초과해 배정할 수 없습니다")
-                return
-            self._assigned_sym = symbol
-            if self._shared_sym is not None:
-                self._shared_sym.set(symbol)    # bottom module 에 즉시 전달
-        self._refresh_header()
-
-    def _on_shared_sym_changed(self, *_) -> None:
-        """bottom [Clear] 등 외부에서 shared_sym 변경 시 Assign 버튼 동기화"""
-        if self._shared_sym is None:
-            return
-        new_val = self._shared_sym.get()
-        if new_val == "":
-            if self._assigned_sym is not None:
-                self._assigned_sym = None
-                self._refresh_header()
-        else:
-            if self._assigned_sym != new_val:
-                self._assigned_sym = new_val
-                self._refresh_header()
-
     # ─── Binance 링크 열기 ───────────────────────────────────
     @staticmethod
     def _open_binance(symbol: str) -> None:
         url = f"https://www.binance.com/en/futures/{symbol}"
         webbrowser.open(url)
-
-    # ══════════════════════════════════════════════════════════
-    # 2탭 — Blacklist
-    # ══════════════════════════════════════════════════════════
-
-    def _build_blacklist_tab(self, parent: tk.Frame) -> None:
-        # ── PanedWindow: 높이 드래그 조절 ─────────────────────────
-        vpane = tk.PanedWindow(parent, orient="vertical",
-                               bg=DARK_BG, sashwidth=4,
-                               sashrelief="flat", sashpad=0,
-                               bd=0, relief="flat")
-        vpane.pack(fill="both", expand=True)
-
-        # ══ 1행: Settling Update ═══════════════════════════════
-        top_f = tk.Frame(vpane, bg=DARK_BG)
-        vpane.add(top_f, minsize=80)
-
-        t_bar = tk.Frame(top_f, bg=DARK_PANEL, pady=8)
-        t_bar.pack(fill="x")
-        tk.Label(t_bar, text="Settling Update",
-                 bg=DARK_PANEL, fg=DARK_TEXT,
-                 font=("Segoe UI", 10, "bold")).pack(side="left", padx=14)
-        tk.Label(t_bar, text="● 자동 감지",
-                 bg=DARK_PANEL, fg=POSITIVE,
-                 font=("Segoe UI", 8)).pack(side="left", padx=(0, 0))
-        add_btn = tk.Button(t_bar, text="+ Add to Blacklist",
-                            bg="#1A1000", fg=ORANGE,
-                            activebackground="#2A2000", activeforeground=ORANGE,
-                            font=("Segoe UI", 8, "bold"), relief="flat",
-                            padx=10, pady=3, cursor="hand2")
-        add_btn.pack(side="right", padx=12)
-
-        t_ctr = tk.Frame(top_f, bg=DARK_BG)
-        t_ctr.pack(fill="both", expand=True)
-
-        t_tree = ttk.Treeview(t_ctr, style="Dark.Treeview",
-                              columns=("rank", "check", "symbol", "change", "status"),
-                              show="headings", selectmode="extended")
-        t_tree.heading("rank",   text="#",           anchor="center")
-        t_tree.heading("check",  text="☐",           anchor="center")
-        t_tree.heading("symbol", text="Coin Symbol", anchor="center")
-        t_tree.heading("change", text="Change%",     anchor="center")
-        t_tree.heading("status", text="Status",      anchor="center")
-        t_tree.column("rank",   width=40,  minwidth=30, stretch=False, anchor="center")
-        t_tree.column("check",  width=44,  minwidth=36, stretch=False, anchor="center")
-        t_tree.column("symbol", width=170, minwidth=80, stretch=True,  anchor="center")
-        t_tree.column("change", width=100, minwidth=70, stretch=False, anchor="center")
-        t_tree.column("status", width=140, minwidth=80, stretch=False, anchor="center")
-
-        t_tree.tag_configure("settling_odd",  background=DARK_ROW_ODD, foreground=ORANGE)
-        t_tree.tag_configure("settling_even", background=DARK_ROW_EVN, foreground=ORANGE)
-        t_tree.tag_configure("halt_odd",      background=DARK_ROW_ODD, foreground=DIM_TEXT)
-        t_tree.tag_configure("halt_even",     background=DARK_ROW_EVN, foreground=DIM_TEXT)
-        t_tree.tag_configure("warn_odd",      background=DARK_ROW_ODD, foreground=NEGATIVE)
-        t_tree.tag_configure("warn_even",     background=DARK_ROW_EVN, foreground=NEGATIVE)
-
-        t_sb = ttk.Scrollbar(t_ctr, orient="vertical", command=t_tree.yview)
-        t_tree.configure(yscrollcommand=t_sb.set)
-        t_sb.pack(side="right", fill="y")
-        t_tree.pack(side="left", fill="both", expand=True)
-
-        # 체크박스 토글 (두 번째 컬럼 #2 클릭 시, sym_col=2)
-        t_tree.bind("<Button-1>",
-                    lambda e: self._toggle_tree_check(e, t_tree, self._checked_settling, 2))
-        t_tree.bind("<Double-1>",
-                    lambda e, t=t_tree: self._open_binance(
-                        t.item(t.focus(), "values")[1] if t.focus() else ""))
-
-        # ══ 2행: Blacklist ══════════════════════════════════════
-        bot_f = tk.Frame(vpane, bg=DARK_BG)
-        vpane.add(bot_f, minsize=80)
-
-        b_bar = tk.Frame(bot_f, bg=DARK_PANEL, pady=8)
-        b_bar.pack(fill="x")
-        self._bl_count_lbl = tk.Label(b_bar, text="Blacklist",
-                 bg=DARK_PANEL, fg=DARK_TEXT,
-                 font=("Segoe UI", 10, "bold"))
-        self._bl_count_lbl.pack(side="left", padx=14)
-        rel_btn = tk.Button(b_bar, text="Release",
-                            bg="#1A1000", fg=ORANGE,
-                            activebackground="#2A2000", activeforeground=ORANGE,
-                            font=("Segoe UI", 8, "bold"), relief="flat",
-                            padx=10, pady=3, cursor="hand2")
-        rel_btn.pack(side="right", padx=12)
-
-        b_ctr = tk.Frame(bot_f, bg=DARK_BG)
-        b_ctr.pack(fill="both", expand=True)
-
-        b_tree = ttk.Treeview(b_ctr, style="Dark.Treeview",
-                              columns=("rank", "check", "symbol", "change", "added", "status"),
-                              show="headings", selectmode="extended")
-        b_tree.heading("rank",   text="#",           anchor="center")
-        b_tree.heading("check",  text="☐",           anchor="center")
-        b_tree.heading("symbol", text="Symbol",      anchor="center")
-        b_tree.heading("change", text="Change%",     anchor="center")
-        b_tree.heading("added",  text="Added (UTC)", anchor="center")
-        b_tree.heading("status", text="Status",      anchor="center")
-        b_tree.column("rank",   width=40,  minwidth=30,  stretch=False, anchor="center")
-        b_tree.column("check",  width=44,  minwidth=36,  stretch=False, anchor="center")
-        b_tree.column("symbol", width=140, minwidth=80,  stretch=False, anchor="center")
-        b_tree.column("change", width=90,  minwidth=70,  stretch=False, anchor="center")
-        b_tree.column("added",  width=170, minwidth=120, stretch=True,  anchor="center")
-        b_tree.column("status", width=100, minwidth=70,  stretch=False, anchor="center")
-
-        b_tree.tag_configure("neg_odd",  background=DARK_ROW_ODD, foreground=NEGATIVE)
-        b_tree.tag_configure("neg_even", background=DARK_ROW_EVN, foreground=NEGATIVE)
-        b_tree.tag_configure("ora_odd",  background=DARK_ROW_ODD, foreground=ORANGE)
-        b_tree.tag_configure("ora_even", background=DARK_ROW_EVN, foreground=ORANGE)
-        b_tree.tag_configure("dim_odd",  background=DARK_ROW_ODD, foreground=DIM_TEXT)
-        b_tree.tag_configure("dim_even", background=DARK_ROW_EVN, foreground=DIM_TEXT)
-
-        # 체크박스 토글 (두 번째 컬럼 #2 클릭 시, sym_col=2)
-        b_tree.bind("<Button-1>",
-                    lambda e: self._toggle_tree_check(e, b_tree, self._checked_blacklist, 2))
-        b_sb = ttk.Scrollbar(b_ctr, orient="vertical", command=b_tree.yview)
-        b_tree.configure(yscrollcommand=b_sb.set)
-        b_sb.pack(side="right", fill="y")
-        b_tree.pack(side="left", fill="both", expand=True)
-
-        # ── 위젯 참조 저장 (버튼 핸들러에서 사용) ────────────────
-        self._t_tree = t_tree
-        self._b_tree = b_tree
-
-        # ── 버튼 command 연결 ─────────────────────────────────
-        add_btn.configure(command=self._add_to_blacklist)
-        rel_btn.configure(command=self._release_from_blacklist)
-
-        # ── 초기 데이터 로드 ─────────────────────────────────
-        self._load_settling_data()
-        self._refresh_blacklist_ui()
-
-        # 초기 sash 위치 (렌더 후 적용)
-        parent.after(50, lambda p=vpane, r=parent: self._init_bl_sash(p, r))
-
-    def _init_bl_sash(self, vpane: tk.PanedWindow, ref: tk.Frame) -> None:
-        h = ref.winfo_height()
-        if h > 40:
-            vpane.sash_place(0, 0, max(100, h // 2))
-
-    # ─── Blacklist 체크박스 토글 ─────────────────────────────
-
-    def _toggle_tree_check(self, event: tk.Event,
-                           tree: "ttk.Treeview",
-                           checked: set, sym_col: int) -> None:
-        """체크박스 컬럼(#2) 클릭 시 ☐↔☑ 토글.
-        컬럼 구조: 1=#(순번) | 2=☐/☑(체크) | 3~5=데이터
-        checked: 현재 ☑ 된 심볼 집합
-        sym_col: values 내 심볼 인덱스 (2 = 세 번째 값)
-        """
-        region = tree.identify_region(event.x, event.y)
-        if region != "cell":
-            return
-        col = tree.identify_column(event.x)
-        if col != "#2":   # 두 번째 컬럼(체크박스)만 토글
-            return
-        row_id = tree.identify_row(event.y)
-        if not row_id:
-            return
-        vals = list(tree.item(row_id, "values"))
-        if len(vals) <= sym_col:
-            return
-        sym = vals[sym_col]
-        if not sym or sym == "데이터 로드 중...":
-            return
-        if sym in checked:
-            checked.discard(sym)
-            vals[1] = "☐"   # 두 번째 값(체크박스)
-        else:
-            checked.add(sym)
-            vals[1] = "☑"   # 두 번째 값(체크박스)
-        tree.item(row_id, values=vals)
-
-    # ─── Blacklist 데이터 로드/갱신 헬퍼 ──────────────────────
-
-    def _load_settling_data(self) -> None:
-        """Settling Update: Binance exchangeInfo 기반 비정상 심볼 표시."""
-        t_tree = getattr(self, "_t_tree", None)
-        if t_tree is None:
-            return
-        for row in t_tree.get_children():
-            t_tree.delete(row)
-
-        settling_entries: list = []
-
-        # 실데이터: Binance exchangeInfo에서 SETTLING/HALT 감지
-        if _ctx._data_mgr is not None and _HAS_BLACKLIST:
-            try:
-                info = _ctx._data_mgr._client.fetch_exchange_info()
-                if info:
-                    settling_entries = _SettlingDetector.detect(info)
-            except Exception:
-                pass
-
-        # 캐시 저장 (Blacklist 추가/해제 시 재조회 없이 즉시 갱신)
-        self._settling_cache = list(settling_entries)
-
-        # Blacklist에 이미 등록된 심볼 제외 후 표시
-        self._render_settling_tree(t_tree)
-
-    def _get_change_str(self, symbol: str) -> tuple:
-        """심볼의 현재 Change% 문자열과 색상 반환.
-        DataManager tkr_map에서 실시간 조회. 없으면 '—' 반환.
-        """
-        if _ctx._data_mgr is not None:
-            tkr = _ctx._data_mgr._tkr_map.get(symbol)
-            if tkr and tkr.price_change_pct != 0.0:
-                pct = tkr.price_change_pct
-                txt = f"{pct:+.2f}%"
-                col = POSITIVE if pct > 0 else (NEGATIVE if pct < 0 else DIM_TEXT)
-                return txt, col
-        return "—", DIM_TEXT
-
-    def _render_settling_tree(self, t_tree: "ttk.Treeview") -> None:
-        """캐시된 Settling 목록에서 Blacklist 심볼을 제외하고 트리에 표시."""
-        for row in t_tree.get_children():
-            t_tree.delete(row)
-        self._checked_settling.clear()
-
-        # Blacklist에 없는 심볼만 표시
-        visible = [
-            e for e in self._settling_cache
-            if _ctx._bl_mgr is None or not _ctx._bl_mgr.is_blacklisted(e.symbol)
-        ]
-
-        if visible:
-            for idx, entry in enumerate(visible):
-                parity = "odd" if idx % 2 == 0 else "even"
-                tag = f"{entry.color_hint}_{parity}"
-                chg_txt, _ = self._get_change_str(entry.symbol)
-                t_tree.insert("", "end",
-                               values=(str(idx + 1), "☐",
-                                       entry.symbol, chg_txt, entry.label),
-                               tags=(tag,))
-        else:
-            t_tree.insert("", "end",
-                          values=("", "", "감지된 심볼 없음", "", ""),
-                          tags=("dim_odd",))
-
-    def _refresh_settling_ui(self) -> None:
-        """캐시 기반으로 Settling 목록 즉시 갱신 (API 재조회 없음).
-        Blacklist 추가/해제 후 호출 — 이미 등록된 심볼 제외 표시.
-        """
-        t_tree = getattr(self, "_t_tree", None)
-        if t_tree is None:
-            return
-        self._render_settling_tree(t_tree)
-
-    def _refresh_blacklist_ui(self) -> None:
-        """Blacklist 하단 목록을 _ctx._bl_mgr 실데이터로 갱신."""
-        b_tree = getattr(self, "_b_tree", None)
-        if b_tree is None:
-            return
-        for row in b_tree.get_children():
-            b_tree.delete(row)
-
-        if _ctx._bl_mgr is None:
-            return
-
-        self._checked_blacklist.clear()   # 갱신 시 체크 초기화
-        entries = _ctx._bl_mgr.get_all()
-        for idx, entry in enumerate(entries):
-            parity = "odd" if idx % 2 == 0 else "even"
-            # settling.py _label() 매핑(SETTLING/HALT/EOD/DELISTING/DELISTED)
-            # + 수동 추가(MANUAL) 전체 상태를 누락 없이 커버
-            if entry.status in ("DELISTED", "DELISTING"):              color = "neg"
-            elif entry.status in ("SETTLING", "HALT", "MANUAL", "EOD"): color = "ora"
-            else:                                                       color = "dim"
-            chg_txt, _ = self._get_change_str(entry.symbol)
-            b_tree.insert("", "end",
-                          values=(str(idx + 1), "☐", entry.symbol,
-                                  chg_txt, entry.added_utc, entry.status),
-                          tags=(f"{color}_{parity}",))
-
-        # 헤더 카운트 업데이트
-        count_lbl = getattr(self, "_bl_count_lbl", None)
-        if count_lbl:
-            n = len(entries)
-            count_lbl.configure(text=f"Blacklist  ({n}개)" if n else "Blacklist")
-
-    def _add_to_blacklist(self) -> None:
-        """Settling Update에서 ☑ 체크된 심볼 일괄 Blacklist 추가.
-        체크 없으면 현재 포커스 행 단일 추가.
-        """
-        t_tree = getattr(self, "_t_tree", None)
-        if t_tree is None or _ctx._bl_mgr is None:
-            return
-
-        # ☑ 체크된 심볼 수집 (없으면 포커스 행 단일 추가)
-        targets: list = []   # [(symbol, status), ...]
-
-        if self._checked_settling:
-            # 트리에서 체크된 심볼의 status 값 조회 (rank|check|symbol|change|status)
-            for row_id in t_tree.get_children():
-                vals = t_tree.item(row_id, "values")
-                if vals and len(vals) >= 3 and vals[2] in self._checked_settling:
-                    sym    = vals[2]
-                    status = vals[4] if len(vals) > 4 else "SETTLING"
-                    targets.append((sym, status))
-        else:
-            sel = t_tree.focus()
-            if not sel:
-                return
-            vals = t_tree.item(sel, "values")
-            if not vals or len(vals) < 3:
-                return
-            sym = vals[2]
-            if not sym or sym == "데이터 로드 중...":
-                return
-            targets.append((sym, vals[4] if len(vals) > 4 else "SETTLING"))
-
-        if not targets:
-            return
-
-        for sym, status in targets:
-            _ctx._bl_mgr.add(sym, status=status, reason="Settling Update 자동 감지")
-
-        self._refresh_settling_ui()    # Settling에서 추가된 심볼 즉시 제거
-        self._refresh_blacklist_ui()   # Blacklist에 추가된 심볼 표시
-        self._rebuild_ranking_rows()   # Ranking에서 즉시 제외
-
-    def _release_from_blacklist(self) -> None:
-        """Blacklist에서 ☑ 체크된 심볼 일괄 제거, Ranking에 복귀.
-        체크 없으면 현재 포커스 행 단일 제거.
-        """
-        b_tree = getattr(self, "_b_tree", None)
-        if b_tree is None or _ctx._bl_mgr is None:
-            return
-
-        targets: list = []   # 제거할 심볼 목록
-
-        if self._checked_blacklist:
-            targets = list(self._checked_blacklist)
-        else:
-            sel = b_tree.focus()
-            if not sel:
-                return
-            vals = b_tree.item(sel, "values")
-            if not vals or len(vals) < 3:
-                return
-            sym = vals[2]   # rank|check|symbol|added|status
-            if sym:
-                targets.append(sym)
-
-        if not targets:
-            return
-
-        for sym in targets:
-            _ctx._bl_mgr.remove(sym)
-
-        self._refresh_settling_ui()    # Settling에 해제된 심볼 복귀 표시
-        self._refresh_blacklist_ui()   # Blacklist에서 제거된 심볼 삭제
-        self._rebuild_ranking_rows()   # Ranking에 즉시 복귀
 
     # ── 부드러운 스크롤 (Ease-Out 애니메이션) ────────────────────
     def _on_wheel_scroll(self, event: tk.Event) -> None:
@@ -1319,9 +870,9 @@ class _Col1Mixin:
         """PENDING_TRADING 심볼 캐시 구성 — PendingListingDetector 위임."""
         self._pending_cache.clear()
         self._pending_loaded = False
-        if _ctx._data_mgr is None or not _HAS_BLACKLIST:
+        if _ctx._data_mgr is None:
             return
-        entries = _PendingListingDetector.detect(_ctx._data_mgr._client)
+        entries = _PendingListingDetector.parse(_ctx._data_mgr.fetch_pending_listings())
         self._pending_cache.extend(entries)
         self._pending_loaded = True
 

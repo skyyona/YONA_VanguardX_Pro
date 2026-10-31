@@ -1,7 +1,7 @@
 ﻿"""
-middle/col3_analysis_panels/comprehensive_analysis/newlisted_lifecycle.py
+middle/analysis/newlisted_lifecycle.py
 Newly Listed 생애주기 분석 — 신규 상장 심볼 전용 블록
-_nl_lifecycle() + verdict 패널의 생애주기 섹션 로직 대응
+1열 Newly Listed 행(Opportunity) · 3열 신규 상장 배너·종합분석 생애주기 블록 공용
 """
 from __future__ import annotations
 
@@ -128,3 +128,20 @@ class NewlistedLifecycle:
             days=days,
         )
 
+
+def lifecycle_summary(days: int, ind: dict) -> tuple | None:
+    """신규 상장 코인 라이프사이클 단계 → (stage, label, color, strategy) 또는 None.
+    days: 상장 경과일 (0 = 미상·24시간 미만 → None) / ind: 해당 심볼 SYMBOL_IND dict
+    """
+    if days == 0:
+        return None
+    res = NewlistedLifecycle.analyze(
+        days             = days,
+        vss              = ind.get("vss",              1.0),
+        oi_change_pct    = ind.get("oi_change",        0.0),
+        price_change_pct = ind.get("price_change_pct", 0.0),
+        high_24h_pct     = ind.get("high_24h_pct",     0.0),
+    )
+    if res is None:
+        return None
+    return (res.stage, res.label, res.color, res.strategy)

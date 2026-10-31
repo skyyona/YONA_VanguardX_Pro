@@ -1,5 +1,5 @@
 ﻿"""
-middle/col3_analysis_panels/player_detection/tag_detector.py
+middle/analysis/tag_detector.py
 Player Detection 태그 감지 — 시장 데이터 기반 세력/고래/FOMO 패턴 추론
 _refresh_energy() 패널 / Sharp rise·decline 스코어러 s_player 항목에 연동
 

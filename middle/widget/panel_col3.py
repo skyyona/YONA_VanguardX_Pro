@@ -9,16 +9,17 @@ from middle.widget.constants import *
 
 # ── shared_context에서 헬퍼 함수 import (단일 정의, 중복 없음) ──
 from middle.widget.shared_context import get_ind, _live_ranking, get_ticker_info
+import middle.widget.shared_context as _ctx
 from middle.col3_analysis_panels.derivative_analysis.open_interest import OpenInterestPanel
 from middle.col3_analysis_panels.derivative_analysis.funding_rate import FundingRatePanel
 from middle.col3_analysis_panels.derivative_analysis.longshort_ratio import LongShortPanel
 from middle.col3_analysis_panels.technical_analysis.rsi import RSI
 from middle.col3_analysis_panels.technical_analysis.bpr import BPR
 from middle.col3_analysis_panels.technical_analysis.vss import VSS
-from middle.col3_analysis_panels.technical_analysis.atr_percent import AtrPercent
+from middle.analysis.atr_percent import AtrPercent
 from middle.col3_analysis_panels.comprehensive_analysis.technical_verdict import TechnicalVerdictPanel
 from middle.col3_analysis_panels.comprehensive_analysis.derivative_verdict import DerivativeVerdictPanel
-from middle.col3_analysis_panels.comprehensive_analysis.newlisted_lifecycle import NewlistedLifecycle
+from middle.analysis.newlisted_lifecycle import lifecycle_summary
 
 
 class _Col3Mixin:
@@ -108,6 +109,42 @@ class _Col3Mixin:
                  bg="#0A1F0A", fg=POSITIVE,
                  font=("Segoe UI", 7, "bold"), padx=3).pack(side="left", padx=(6, 0))
 
+    # ─── Assign 버튼 처리 ─────────────────────────────────────
+    def _on_assign(self, symbol: str) -> None:
+        if self._assigned_sym == symbol:
+            self._assigned_sym = None
+            if self._shared_sym is not None:
+                self._shared_sym.set("")        # 배치 해제
+        else:
+            if _ctx._bl_mgr is not None and _ctx._bl_mgr.is_blacklisted(symbol):
+                self._set_header_message(
+                    f"⛔ {symbol} — 블랙리스트 등록 심볼이므로 배정할 수 없습니다")
+                return
+            _wide = _ctx.get_wide_spread(symbol)
+            if _wide is not None:
+                self._set_header_message(
+                    f"⛔ {symbol} — 호가 스프레드 {_wide:.3f}% (최근 10분 이내 표본 중앙값)가 "
+                    f"기준 {_ctx.MAX_SPREAD_PCT}%를 초과해 배정할 수 없습니다")
+                return
+            self._assigned_sym = symbol
+            if self._shared_sym is not None:
+                self._shared_sym.set(symbol)    # bottom module 에 즉시 전달
+        self._refresh_header()
+
+    def _on_shared_sym_changed(self, *_) -> None:
+        """bottom [Clear] 등 외부에서 shared_sym 변경 시 Assign 버튼 동기화"""
+        if self._shared_sym is None:
+            return
+        new_val = self._shared_sym.get()
+        if new_val == "":
+            if self._assigned_sym is not None:
+                self._assigned_sym = None
+                self._refresh_header()
+        else:
+            if self._assigned_sym != new_val:
+                self._assigned_sym = new_val
+                self._refresh_header()
+
     # ─── 지표 패널 갱신 (좌측 230px 세로 배치) ──────────────────
     def _refresh_indicators(self) -> None:
         for w in self._ind_f.winfo_children():
@@ -154,7 +191,7 @@ class _Col3Mixin:
                      bg=_warn_bg, fg=_warn_col,
                      font=("Segoe UI", 7), anchor="w").pack(fill="x", padx=8)
             # ── 라이프사이클 감지 결과 ──────────────────────────
-            _lc_res = self._nl_lifecycle(sym, days=_days)
+            _lc_res = lifecycle_summary(_days, ind)
             if _lc_res:
                 _, _lc_lbl, _lc_col, _ = _lc_res
                 _pchg = ind.get("price_change_pct", 0.0)
@@ -634,7 +671,7 @@ class _Col3Mixin:
                 tk.Frame(self._verdict_f, bg="#2A2A2A", height=1).pack(
                     fill="x", padx=10, pady=(2, 2))
 
-        # ── Sort by="4TF Optimization" 선정 근거 (9항목 체크리스트 + 전체 순위) ──
+        # ── Sort by="4TF Optimization" 선정 근거 (8항목 체크리스트 + 전체 순위) ──
         elif self._sort_mode == "4TF Optimization":
             res = self._calc_4tf_score(sym)
             _sorted = self._get_sorted_ranking()
@@ -656,12 +693,11 @@ class _Col3Mixin:
             detail_lines = [
                 (f"TF정렬 {sc['align']}/4(+{sc['align']})  "
                  f"1m진입{'✅' if sc['entry'] else '—'}(+{sc['entry']})  "
-                 f"거시지지 {sc['macro']}/3(+{sc['macro']})"),
+                 f"거시지지 {sc['macro']}/2(+{sc['macro']})"),
                 (f"ATR적정{'✅' if sc['atr'] else '—'}(+{sc['atr']})  "
                  f"거래량Top10{'✅' if sc['volume'] else '—'}(+{sc['volume']}, rank {res['vol_rank']})"),
                 (f"FR중립{'✅' if sc['fr'] else '—'}(+{sc['fr']})  "
                  f"OI증가{'✅' if sc['oi'] else '—'}(+{sc['oi']})  "
-                 f"세션일치{'✅' if sc['session'] else '—'}(+{sc['session']})  "
                  f"롱숏균형{'✅' if sc['balance'] else '—'}(+{sc['balance']})"),
             ]
             for dtxt in detail_lines:
@@ -719,7 +755,7 @@ class _Col3Mixin:
         # ── Newly Listed 전용 분석 블록 ───────────────────────────
         _nl_row = next((d for d in _live_ranking() if d[0] == sym), None)
         if _nl_row and _nl_row[1] > 0:
-            _lc_res = self._nl_lifecycle(sym)
+            _lc_res = lifecycle_summary(_nl_row[1], ind)
             if _lc_res:
                 _lc_stage, _lc_lbl, _lc_col, _lc_strat = _lc_res
                 _pchg = ind.get("price_change_pct", 0.0)
@@ -894,29 +930,6 @@ class _Col3Mixin:
             if data[0] == sym:
                 return data[8], data[9]
         return "", DIM_TEXT
-
-    def _nl_lifecycle(self, sym: str, days: int | None = None):
-        """신규 상장 코인 라이프사이클 단계 감지 → (stage, label, color, strategy) 또는 None
-        days: 호출자가 이미 알고 있을 때 전달 → _live_ranking() O(n) 탐색 생략
-        """
-        if days is None:
-            _row = next((d for d in _live_ranking() if d[0] == sym), None)
-            if not _row or _row[1] == 0:
-                return None
-            days = _row[1]
-        elif days == 0:
-            return None
-        ind = get_ind(sym)
-        res = NewlistedLifecycle.analyze(
-            days             = days,
-            vss              = ind.get("vss",              1.0),
-            oi_change_pct    = ind.get("oi_change",        0.0),
-            price_change_pct = ind.get("price_change_pct", 0.0),
-            high_24h_pct     = ind.get("high_24h_pct",     0.0),
-        )
-        if res is None:
-            return None
-        return (res.stage, res.label, res.color, res.strategy)
 
     # ─── Col 4: Player Detection 상세 + 에너지 ────────────────
     def _refresh_energy(self) -> None:

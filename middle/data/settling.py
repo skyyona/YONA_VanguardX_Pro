@@ -1,6 +1,6 @@
 """
-middle/col1_ranking_blacklist/settling.py
-Settling 심볼 감지 — 랭킹 1열 상단 별도 표시용
+middle/data/settling.py
+Settling 심볼 감지 — 1열 Blacklist 탭 Settling Update 목록용
 Binance exchangeInfo status 기반 결제 진행 중 심볼 필터
 """
 from __future__ import annotations

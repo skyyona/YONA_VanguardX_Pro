@@ -65,7 +65,7 @@ from middle.models import OHLCVBar, SymbolTicker
 from middle.col3_analysis_panels.technical_analysis.rsi import RSI
 from middle.col3_analysis_panels.technical_analysis.bpr import BPR
 from middle.col3_analysis_panels.technical_analysis.vss import VSS
-from middle.col3_analysis_panels.technical_analysis.atr_percent import AtrPercent
+from middle.analysis.atr_percent import AtrPercent
 from middle.col3_analysis_panels.technical_analysis.ema_alignment import EMAAlignment
 from middle.col3_analysis_panels.technical_analysis.vwap import VWAP
 from middle.col3_analysis_panels.technical_analysis.candle_pattern import CandlePattern
@@ -73,7 +73,7 @@ from middle.col2_chart_indicators.mtf_stochrsi import StochRSI, StochRSIResult
 from middle.col2_chart_indicators.divergence_detector import DivergenceDetector
 from middle.col3_analysis_panels.derivative_analysis.liquidation_proximity import LiquidationProximityPanel
 from middle.col3_analysis_panels.comprehensive_analysis.recommended_leverage import RecommendedLeverage
-from middle.col3_analysis_panels.player_detection.tag_detector import TagDetector
+from middle.analysis.tag_detector import TagDetector
 from middle.col3_analysis_panels.player_detection.energy_balance import EnergyBalance
 
 # ── 색상 상수 (middle_panel.py 와 동일 팔레트) ─────────────────
@@ -296,6 +296,10 @@ class MiddleDataManager:
         return [{"o": b.open, "h": b.high, "l": b.low,
                  "c": b.close, "v": b.quote_volume} for b in bars[-n:]]
 
+    def get_ticker(self, symbol: str) -> SymbolTicker | None:
+        """심볼 최신 24h ticker (WS·REST 병합본). 없으면 None."""
+        return self._tkr_map.get(symbol)
+
     def get_spread_median(self, symbol: str) -> float | None:
         """최근 표본(최대 _SPREAD_SAMPLES개) 호가 스프레드 중앙값(%). 표본 없으면 None."""
         with self._lock:
@@ -305,6 +309,31 @@ class MiddleDataManager:
     def get_player_tags(self, symbol: str) -> list:
         """(tag_text, tag_color, strength_pct) 목록 반환."""
         return self._ind_cache.get(symbol, {}).get("_player_tags", [])
+
+    def fetch_exchange_info(self) -> dict | None:
+        """exchangeInfo 1회 조회 (동기) — 1열 Blacklist 탭 Settling 감지용."""
+        return self._client.fetch_exchange_info()
+
+    def fetch_pending_listings(self) -> list[tuple[dict, dict | None]]:
+        """PENDING_TRADING 상장 예정 USDT 심볼 원본 조회 (동기) — exchangeInfo 1회 + 심볼당 markPrice 1회.
+        반환: [(exchangeInfo 심볼 dict, premiumIndex 응답 또는 None), ...] onboardDate 오름차순.
+        조회 중 예외 시 그때까지 조회된 심볼만 반환."""
+        result: list[tuple[dict, dict | None]] = []
+        try:
+            info = self._client.fetch_exchange_info()
+            if not info:
+                return result
+            pending = [
+                s for s in info.get("symbols", [])
+                if s.get("symbol", "").endswith("USDT")
+                and s.get("status") == "PENDING_TRADING"
+            ]
+            pending.sort(key=lambda s: s.get("onboardDate", 0))
+            for s in pending:
+                result.append((s, self._client.fetch_mark_price(s["symbol"])))
+        except Exception as e:
+            logging.warning("middle fetch_pending_listings: %s", e)
+        return result
 
     def refresh_tickers_now(self) -> None:
         """즉시 ticker 갱신 (동기, 초기화 시 사용)."""
