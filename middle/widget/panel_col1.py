@@ -10,7 +10,7 @@ from middle.widget.constants import *
 from middle.widget.constants import _COLS, _POS, _NEG, _YEL, _ORA, _DIM, _LGR
 
 # ── shared_context에서 헬퍼 함수 import (단일 정의, 중복 없음) ──
-from middle.widget.shared_context import get_ind, _live_ranking
+from middle.widget.shared_context import get_ind, _live_ranking, get_player_map
 import middle.widget.shared_context as _ctx
 
 # ── Sort by 7개 모드 스코어러 (ranking/ 폴더 — 모드별 단일 파일 분리) ──
@@ -21,7 +21,6 @@ from middle.col1_ranking_blacklist.ranking.volatility_scorer import VolatilitySc
 from middle.col1_ranking_blacklist.ranking.fourtf_scorer import FourTFScorer
 from middle.col1_ranking_blacklist.ranking.newlisted_scorer import NewlistedScorer
 from middle.col1_ranking_blacklist.ranking.gold_ranking import GoldRanking
-from middle.col1_ranking_blacklist.ranking.player_ranking import PlayerRanking
 from middle.analysis.atr_percent import AtrPercent
 from middle.analysis.newlisted_lifecycle import lifecycle_summary
 
@@ -292,11 +291,11 @@ class _Col1Mixin:
 
     # ─── Sort by 점수 계산 — ranking/ 폴더 각 Scorer 클래스로 위임 ──
     # (panel_col3.py 등 기존 호출부 호환을 위해 동일 메서드명 유지)
-    def _calc_rise_score(self, sym: str, tag_map: dict | None = None) -> dict:
-        return SharpRiseScorer.calc_score(sym, tag_map)
+    def _calc_rise_score(self, sym: str, player_map: dict | None = None) -> dict:
+        return SharpRiseScorer.calc_score(sym, player_map)
 
-    def _calc_decline_score(self, sym: str, tag_map: dict | None = None) -> dict:
-        return SharpDeclineScorer.calc_score(sym, tag_map)
+    def _calc_decline_score(self, sym: str, player_map: dict | None = None) -> dict:
+        return SharpDeclineScorer.calc_score(sym, player_map)
 
     def _calc_4tf_score(self, sym: str) -> dict:
         return FourTFScorer.calc_score(sym)
@@ -366,8 +365,9 @@ class _Col1Mixin:
 
         # Gold Ranking — 종합 1위 심볼 갱신 (행 빌드 전 확정)
         self._gold_sym        = GoldRanking.get_top1()
-        # Player Detection — 전 심볼 태그 스캔 (행 빌드 전 확정)
-        self._player_tags_map = PlayerRanking.scan_all()
+        # Player Detection — 랭킹 풀 전 심볼 태그 감지 (행 빌드 전 확정)
+        #   행 배경·Sharp rise/decline Player 가산점이 같은 결과 사용 (data_manager.get_player 단일 정의)
+        self._player_tags_map = get_player_map()
 
         # ④ 동기 빌드 (~104ms) — 청크 없이 한번에, 리스트 안정적 표시
         self._build_ranking_rows()
@@ -407,10 +407,6 @@ class _Col1Mixin:
             self._build_pending_rows()
             return
         data = self._get_sorted_ranking()
-        _squeeze_tag_map = (
-            {d[0]: d[11] for d in _live_ranking()}
-            if self._sort_mode in ("Sharp rise", "Sharp decline") else None
-        )
         for idx, row in enumerate(data):
             (symbol, days,
              tf_text, tf_color,
@@ -519,9 +515,9 @@ class _Col1Mixin:
                 # 정렬 기준(_get_sorted_ranking)과 동일한 16점 만점 점수를 사용
                 # (Player 가산점 포함) — 별점이 정렬 순위·종합분석과 같은 척도를 갖도록 통일
                 if self._sort_mode == "Sharp rise":
-                    _res = self._calc_rise_score(symbol, _squeeze_tag_map)
+                    _res = self._calc_rise_score(symbol, self._player_tags_map)
                 else:
-                    _res = self._calc_decline_score(symbol, _squeeze_tag_map)
+                    _res = self._calc_decline_score(symbol, self._player_tags_map)
 
                 if not _res["qualified"]:
                     # 자격 미달 — 별점 산정 대상이 아님을 명시

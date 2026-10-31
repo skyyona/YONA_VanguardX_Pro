@@ -47,6 +47,20 @@ def get_ind(symbol: str) -> dict:
     return {}
 
 
+def get_player(symbol: str):
+    """Player Detection 결과(TagDetectionResult) — data_manager.get_player 단일 정의. 매니저·지표 없으면 None."""
+    if _data_mgr is not None:
+        return _data_mgr.get_player(symbol)
+    return None
+
+
+def get_player_map() -> dict:
+    """랭킹 풀 Player 감지 맵 {symbol: {tags, direction, has_rise, has_decline}}. 매니저 없으면 빈 dict."""
+    if _data_mgr is not None:
+        return _data_mgr.get_player_map()
+    return {}
+
+
 def request_detail(symbol: str) -> None:
     """선택 심볼 상세 데이터 즉시 갱신 요청 — 하단 엔진 폴링용."""
     if _data_mgr is not None:

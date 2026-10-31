@@ -8,7 +8,7 @@ import tkinter.ttk as ttk
 from middle.widget.constants import *
 
 # ── shared_context에서 헬퍼 함수 import (단일 정의, 중복 없음) ──
-from middle.widget.shared_context import get_ind, _live_ranking, get_ticker_info
+from middle.widget.shared_context import get_ind, _live_ranking, get_ticker_info, get_player
 import middle.widget.shared_context as _ctx
 from middle.col3_analysis_panels.derivative_analysis.open_interest import OpenInterestPanel
 from middle.col3_analysis_panels.derivative_analysis.funding_rate import FundingRatePanel
@@ -20,6 +20,7 @@ from middle.analysis.atr_percent import AtrPercent
 from middle.col3_analysis_panels.comprehensive_analysis.technical_verdict import TechnicalVerdictPanel
 from middle.col3_analysis_panels.comprehensive_analysis.derivative_verdict import DerivativeVerdictPanel
 from middle.analysis.newlisted_lifecycle import lifecycle_summary
+from middle.analysis.tag_detector import TagDetector
 
 
 class _Col3Mixin:
@@ -942,16 +943,16 @@ class _Col3Mixin:
         long_p = int(long_r * 100)
         short_p = 100 - long_p
 
-        player_tags = ind.get("_player_tags", [])
+        # Player Detection — 1열 행 배경·Sharp 점수와 같은 결과 (data_manager.get_player 단일 정의)
+        _det  = get_player(sym)
+        _tags = list(_det.tags) if _det else []
 
-        # ── Sort by="Sharp rise"/"Sharp decline" 모드: Player 가산점(rise_kw/decline_kw 매칭, +2점) 요약 + 태그 우선 배치 ──
-        _rise_kw    = ("고래 매수", "세력 매집", "기관 유입", "FR-")
-        _decline_kw = ("FR+", "FOMO", "롱 스퀴즈", "청산 헌터", "헌터", "세력 분산")
+        # ── Sort by="Sharp rise"/"Sharp decline" 모드: Player 가산점(+2점, 절단 전 전체 태그 기준) 요약 + 태그 우선 배치 ──
         _is_rise_mode    = self._sort_mode == "Sharp rise"
         _is_decline_mode = self._sort_mode == "Sharp decline"
-        _squeeze_kw = _rise_kw if _is_rise_mode else _decline_kw
+        _bonus_keys = TagDetector.RISE_KEYS if _is_rise_mode else TagDetector.DECLINE_KEYS
         if _is_rise_mode or _is_decline_mode:
-            _has_bonus_tag = any(any(kw in t[0] for kw in _squeeze_kw) for t in player_tags)
+            _has_bonus_tag = bool(_det and (_det.has_rise_tag if _is_rise_mode else _det.has_decline_tag))
             _bonus_col = POSITIVE if _has_bonus_tag else DIM_TEXT
             _bonus_txt = "✅ +2/2점" if _has_bonus_tag else "— 0/2점"
             sum_f = tk.Frame(self._energy_f, bg=DARK_PANEL)
@@ -961,10 +962,9 @@ class _Col3Mixin:
             tk.Label(sum_f, text=f"  {_bonus_txt}", bg=DARK_PANEL, fg=_bonus_col,
                      font=("Consolas", 8, "bold"), anchor="w").pack(side="left")
             tk.Frame(self._energy_f, bg="#2A2A2A", height=1).pack(fill="x", padx=8, pady=(2, 2))
-            if player_tags:
-                player_tags = sorted(
-                    player_tags,
-                    key=lambda t: 0 if any(kw in t[0] for kw in _squeeze_kw) else 1)
+            _tags.sort(key=lambda t: 0 if t.tag_key in _bonus_keys else 1)
+        player_tags = [(t.tag_text, t.tag_color, t.strength_pct) for t in _tags]
+        _bonus_texts = {t.tag_text for t in _tags if t.tag_key in _bonus_keys}   # 가산 대상 태그 (🎯 가산 표시)
 
         # ── Player Detection 상세 ─────────────────────────────
         if not player_tags:
@@ -1015,7 +1015,7 @@ class _Col3Mixin:
                          font=("Segoe UI", 9, "bold"), anchor="w").pack(side="left")
                 tk.Label(hdr_f, text=f"  {dir_txt}", bg="#1A1A1A", fg=dir_col,
                          font=("Segoe UI", 8, "bold")).pack(side="left")
-                if (_is_rise_mode or _is_decline_mode) and any(kw in tag_text for kw in _squeeze_kw):
+                if (_is_rise_mode or _is_decline_mode) and tag_text in _bonus_texts:
                     tk.Label(hdr_f, text="  🎯 가산", bg="#1A1A1A", fg=ACCENT_BLUE,
                              font=("Segoe UI", 7, "bold")).pack(side="left")
                 ratio = strength_pct / 100.0

@@ -6,27 +6,24 @@ Sharp decline Sort by — 급락 직전 롱 쏠림 심볼 스코어링
 """
 from __future__ import annotations
 
-from middle.widget.shared_context import get_ind, _live_ranking
-
-# [W-B] tag_detector.DECLINE_KEYS 와 일치시킴 — "고래 매도" 누락 복구
-_DECLINE_KEYWORDS = ("FR+", "FOMO", "롱 스퀴즈", "청산 헌터", "헌터",
-                     "세력 분산", "고래 매도")
+from middle.widget.shared_context import get_ind, get_player, get_player_map
 
 
 class SharpDeclineScorer:
     """Sharp decline 모드: 롱 쏠림 기반 급락 후보 스코어링."""
 
     @staticmethod
-    def _get_player_tags(sym: str, tag_map: dict | None = None) -> list:
-        if tag_map is not None:
-            return tag_map.get(sym, [])
-        for data in _live_ranking():
-            if data[0] == sym:
-                return data[11]
-        return []
+    def _has_decline_tag(sym: str, player_map: dict | None = None) -> bool:
+        """Player 하락 태그(FR+ 과열·FOMO 극단·롱 스퀴즈·청산 헌터·세력 분산·고래 매도) 여부 — 절단 전 전체 태그 기준.
+        player_map: 1열 재구성 시 계산한 get_player_map() 결과 (없으면 심볼 단독 감지)"""
+        if player_map is not None:
+            entry = player_map.get(sym)
+            return bool(entry and entry["has_decline"])
+        det = get_player(sym)
+        return bool(det and det.has_decline_tag)
 
     @classmethod
-    def calc_score(cls, sym: str, tag_map: dict | None = None) -> dict:
+    def calc_score(cls, sym: str, player_map: dict | None = None) -> dict:
         ind   = get_ind(sym)
         lr    = ind.get("long_ratio", 50.0)
         fr    = ind.get("funding_rate", 0.0)
@@ -39,8 +36,7 @@ class SharpDeclineScorer:
         s_liq = 3 if liq_l < 1.0 else 2 if liq_l < 2.0 else 1 if liq_l < 3.0 else 0  # 롱 청산 임계: 1.0% (Sharp rise 1.5%보다 엄격 — 롱 청산이 하락 가속도 크므로 의도적 비대칭)
         s_oi  = 2 if oi > 15 else 1 if oi > 5 else 0
 
-        tags = cls._get_player_tags(sym, tag_map)
-        has_decline_tag = any(any(kw in t[0] for kw in _DECLINE_KEYWORDS) for t in tags)
+        has_decline_tag = cls._has_decline_tag(sym, player_map)
         s_player = 2 if has_decline_tag else 0
 
         s_vss = 2 if vss > 1.5 else 1 if vss > 1.2 else 0
@@ -58,8 +54,8 @@ class SharpDeclineScorer:
     @classmethod
     def get_sorted(cls, data: list, limit: int = 30) -> list:
         """롱쏠림≥50% 자격 + 점수≥4 필터 → 상위 N개."""
-        tag_map = {d[0]: d[11] for d in _live_ranking()}
-        scored = [(r, cls.calc_score(r[0], tag_map)) for r in data]
+        player_map = get_player_map()
+        scored = [(r, cls.calc_score(r[0], player_map)) for r in data]
         scored.sort(key=lambda x: (999, -x[1]["vss"]) if not x[1]["qualified"]
                     else (-x[1]["total"], -x[1]["vss"]))
         result = [r for r, res in scored if res["qualified"] and res["total"] >= 4]

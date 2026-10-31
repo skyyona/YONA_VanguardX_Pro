@@ -73,7 +73,7 @@ from middle.col2_chart_indicators.mtf_stochrsi import StochRSI, StochRSIResult
 from middle.col2_chart_indicators.divergence_detector import DivergenceDetector
 from middle.col3_analysis_panels.derivative_analysis.liquidation_proximity import LiquidationProximityPanel
 from middle.col3_analysis_panels.comprehensive_analysis.recommended_leverage import RecommendedLeverage
-from middle.analysis.tag_detector import TagDetector
+from middle.analysis.tag_detector import TagDetector, TagDetectionResult
 from middle.col3_analysis_panels.player_detection.energy_balance import EnergyBalance
 
 # ── 색상 상수 (middle_panel.py 와 동일 팔레트) ─────────────────
@@ -305,6 +305,45 @@ class MiddleDataManager:
         with self._lock:
             hist = self._spread_hist.get(symbol)
             return statistics.median(hist) if hist else None
+
+    def get_player(self, symbol: str) -> TagDetectionResult | None:
+        """Player Detection 단일 정의 — 캐시 지표(STAGE2·STAGE3·상세 갱신) 7개 입력.
+        has_rise_tag·has_decline_tag는 절단 전 전체 태그 기준, tags는 강도순 상위 4개(표시용).
+        1열 행 배경·Sharp rise/decline Player 가산점·Gold·3열 Player 가산점이 함께 사용. 지표 없음 → None.
+        (엔진 금지 조건용 ind["_player_tags"]와는 별개 — 상세 갱신 시점 값)"""
+        ind = self.get_ind(symbol)
+        if not ind:
+            return None
+        return TagDetector.detect(
+            long_pct      = ind.get("long_ratio",       50.0),
+            fr_pct        = ind.get("funding_rate",      0.0),
+            oi_change_pct = ind.get("oi_change",         0.0),
+            vss           = ind.get("vss",               1.0),
+            bpr           = ind.get("bpr",               0.5),
+            atr_pct       = ind.get("atr",               2.0),
+            price_chg_pct = ind.get("price_change_pct",  0.0),
+        )
+
+    def get_player_map(self) -> dict[str, dict]:
+        """랭킹 풀(거래량 상위 200) 전 심볼 Player 감지 — 태그가 감지된 심볼만.
+        {symbol: {"tags": [(tag_text, tag_color, strength_pct), ...] 강도순 상위 4,
+                  "direction": "long" | "short" | "mixed",   # 상승 태그만 / 하락 태그만 / 둘 다
+                  "has_rise": bool, "has_decline": bool}}"""
+        result: dict[str, dict] = {}
+        for row in self.get_ranking_rows():
+            sym = row[0]
+            try:
+                det = self.get_player(sym)
+            except Exception:
+                continue
+            if det is None or not det.tags:
+                continue
+            has_rise, has_decline = det.has_rise_tag, det.has_decline_tag
+            direction = "mixed" if has_rise and has_decline else ("long" if has_rise else "short")
+            result[sym] = {"tags": [(t.tag_text, t.tag_color, t.strength_pct) for t in det.tags],
+                           "direction": direction,
+                           "has_rise": has_rise, "has_decline": has_decline}
+        return result
 
     def get_player_tags(self, symbol: str) -> list:
         """(tag_text, tag_color, strength_pct) 목록 반환."""
