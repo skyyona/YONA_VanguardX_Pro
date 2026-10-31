@@ -9,6 +9,7 @@ import pytest
 
 import middle.widget.shared_context as _ctx
 from middle.col1_ranking_blacklist.ranking.newlisted_scorer import NewlistedScorer
+from middle.data.data_manager import MiddleDataManager
 from middle.widget.middle_panel import MiddlePanel
 
 
@@ -40,6 +41,8 @@ class _DM:
 
     def get_ind(self, sym):
         return _IND.get(sym, {})
+
+    get_player = MiddleDataManager.get_player   # Player 판정 단일 정의 (get_ind 기반)
 
     def get_listing_days(self, sym):
         return {r[0]: r[1] for r in _NL_ROWS}.get(sym, 0)

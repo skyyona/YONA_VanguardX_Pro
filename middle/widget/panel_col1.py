@@ -364,11 +364,11 @@ class _Col1Mixin:
             except Exception:
                 pass
 
-        # Gold Ranking — 종합 1위 심볼 갱신 (행 빌드 전 확정)
-        self._gold_sym        = GoldRanking.get_top1()
         # Player Detection — 랭킹 풀 전 심볼 태그 감지 (행 빌드 전 확정)
-        #   행 배경·Sharp rise/decline Player 가산점이 같은 결과 사용 (data_manager.get_player 단일 정의)
+        #   행 배경·Sharp rise/decline Player 가산점·Gold가 같은 결과 사용 (data_manager.get_player 단일 정의)
         self._player_tags_map = get_player_map()
+        # Gold Ranking — 종합 1위 심볼 갱신 (행 빌드 전 확정, 위 Player 맵 재사용)
+        self._gold_sym        = GoldRanking.get_top1(self._player_tags_map)
 
         # ④ 동기 빌드 (~104ms) — 청크 없이 한번에, 리스트 안정적 표시
         self._build_ranking_rows()
@@ -416,13 +416,7 @@ class _Col1Mixin:
              phase, phase_color, phase_priority,
              player_tags) = row
 
-            _p_entry = self._player_tags_map.get(symbol)
-            row_bg = (GOLD_ROW_BG        if symbol == self._gold_sym                              else
-                      PLAYER_SHORT_ROW_BG if _p_entry and _p_entry.get("direction") == "short"   else
-                      PLAYER_MIX_ROW_BG   if _p_entry and _p_entry.get("direction") == "mixed"   else
-                      PLAYER_ROW_BG       if _p_entry                                             else
-                      DARK_ROW_ODD        if idx % 2 == 0                                         else
-                      DARK_ROW_EVN)
+            row_bg = self._row_bg(symbol, idx)
             rank   = idx + 1
 
             _row_data = row   # tk.Frame 덮어쓰기 전 원본 tuple 보존
@@ -997,6 +991,17 @@ class _Col1Mixin:
                      lambda e, s=sym, i=idx: self._on_select(s, i))
             self._bind_row_children(row, sym, idx, skip={sym_lbl, badge_lbl})
 
+    def _row_bg(self, symbol: str, idx: int) -> str:
+        """랭킹 행 배경색 단일 정의 — Gold 1위 > Player 숏·혼합·롱 > 홀짝 줄무늬.
+        행 생성·선택 해제 복원(_restore_row_highlight·_on_select)이 함께 사용."""
+        p_entry = self._player_tags_map.get(symbol)
+        return (GOLD_ROW_BG         if symbol == self._gold_sym                          else
+                PLAYER_SHORT_ROW_BG if p_entry and p_entry.get("direction") == "short"   else
+                PLAYER_MIX_ROW_BG   if p_entry and p_entry.get("direction") == "mixed"   else
+                PLAYER_ROW_BG       if p_entry                                           else
+                DARK_ROW_ODD        if idx % 2 == 0                                      else
+                DARK_ROW_EVN)
+
     def _restore_row_highlight(self, sel_idx: int) -> None:
         """rebuild 완료 후 선택 행 하이라이트만 복원.
 
@@ -1015,13 +1020,7 @@ class _Col1Mixin:
                 except Exception:
                     pass
             else:
-                _p_entry = self._player_tags_map.get(_sym)
-                row_bg = (GOLD_ROW_BG        if _sym == self._gold_sym                              else
-                          PLAYER_SHORT_ROW_BG if _p_entry and _p_entry.get("direction") == "short"  else
-                          PLAYER_MIX_ROW_BG   if _p_entry and _p_entry.get("direction") == "mixed"  else
-                          PLAYER_ROW_BG       if _p_entry                                            else
-                          DARK_ROW_ODD        if update_idx % 2 == 0                                 else
-                          DARK_ROW_EVN)
+                row_bg = self._row_bg(_sym, update_idx)
                 try:
                     frame.configure(bg=row_bg, highlightthickness=0)
                     self._recolor(frame, row_bg,

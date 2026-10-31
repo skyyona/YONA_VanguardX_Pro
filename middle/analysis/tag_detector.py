@@ -17,7 +17,7 @@ from middle.widget.constants import (
 )
 _LIGHT_GREEN = _LGR
 
-# ── 태그별 UI 정보 (action 설명·색상) — _PLAYER_INFO 대응 ──────
+# ── 태그별 UI 정보 (action 설명·색상) — 3열 에너지 패널 문구 단일 정의 ──────
 _TAG_META: dict[str, tuple[str, str]] = {
     "세력 매집":   ("가격 횡보 속 대규모 포지션 지속 누적 중",        _POSITIVE),
     "세력 분산":   ("상승 구간 내 보유 물량 단계적 분산 진행",         _NEGATIVE),
@@ -91,7 +91,7 @@ class TagDetector:
       - FR+ 과열:   FR > 0.10%  (롱 과밀 실질 기준)
     """
 
-    # Sharp Rise 스코어러 판정 키워드 (= _PLAYER_INFO의 rise_kw)
+    # Sharp Rise 스코어러 판정 키워드 (3열 방향 표시·복수 플레이어 메시지도 사용)
     RISE_KEYS    = {"고래 매수", "세력 매집", "기관 유입", "FR-"}
     # Sharp Decline 스코어러 판정 키워드
     DECLINE_KEYS = {"FR+ 과열", "FOMO 극단", "롱 스퀴즈", "청산 헌터", "세력 분산", "고래 매도"}

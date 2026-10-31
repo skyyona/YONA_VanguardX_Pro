@@ -10,6 +10,7 @@ import tkinter as tk
 import pytest
 
 import middle.widget.shared_context as _ctx
+from middle.data.data_manager import MiddleDataManager
 from middle.widget.middle_panel import MiddlePanel
 
 _MODES = ["24h Ticker", "Sharp rise", "Sharp decline", "Volatility",
@@ -66,6 +67,8 @@ class _DM:
 
     def get_spread_median(self, sym):
         return None
+
+    get_player = MiddleDataManager.get_player   # Player 판정 단일 정의 (get_ind 기반)
 
     def get_listing_days(self, sym):
         return 0

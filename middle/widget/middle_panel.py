@@ -51,8 +51,8 @@ except ImportError:
 
 # ── 레이아웃(비율/창 크기) 설정 저장 — sash 드래그/창 크기 조정이 재실행 후에도 유지되도록 영속화
 from middle.widget.constants import (
-    DARK_BG, DARK_PANEL, DARK_HEADER, DARK_ROW_ODD, DARK_ROW_EVN,
-    DARK_SEL, GOLD_ROW_BG, PLAYER_ROW_BG, PLAYER_SHORT_ROW_BG, PLAYER_MIX_ROW_BG,
+    DARK_BG, DARK_PANEL, DARK_HEADER,
+    DARK_SEL,
     SEL_BORDER, DARK_TEXT, DIM_TEXT, ACCENT_BLUE,
     POSITIVE, NEGATIVE, YELLOW, ORANGE, NEW_BG, NEW_FG,
     DIR_BG, _POS, _NEG, _YEL, _ORA, _DIM, _LGR,
@@ -543,13 +543,7 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
                                 highlightbackground=SEL_BORDER)
                 self._recolor(frame, DARK_SEL, self._special.get(update_idx, set()))
             else:
-                _p_e   = self._player_tags_map.get(_sym)
-                row_bg = (GOLD_ROW_BG        if _sym == self._gold_sym                           else
-                          PLAYER_SHORT_ROW_BG if _p_e and _p_e.get("direction") == "short"       else
-                          PLAYER_MIX_ROW_BG   if _p_e and _p_e.get("direction") == "mixed"       else
-                          PLAYER_ROW_BG       if _p_e                                             else
-                          DARK_ROW_ODD        if update_idx % 2 == 0                              else
-                          DARK_ROW_EVN)
+                row_bg = self._row_bg(_sym, update_idx)
                 frame.configure(bg=row_bg, highlightthickness=0)
                 self._recolor(frame, row_bg, self._special.get(update_idx, set()))
 

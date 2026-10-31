@@ -552,7 +552,9 @@ class _Col3Mixin:
         )
         lines.append((tv.prefix, tv.summary, tv.suffix, tv.color))
         # 파생 요약/주의/위험 — DerivativeVerdictPanel 위임
-        player_tags = ind.get("_player_tags", [])
+        # Player 태그 — 에너지 패널·1열과 같은 결과 (data_manager.get_player 단일 정의, 표시용 상위 4개)
+        _det = get_player(sym)
+        player_tags = [(t.tag_text, t.tag_color, t.strength_pct) for t in _det.tags] if _det else []
         dvr = DerivativeVerdictPanel.analyze(
             oi_change_pct = oi,
             player_tags   = player_tags,
@@ -968,11 +970,10 @@ class _Col3Mixin:
                      font=("Consolas", 8, "bold"), anchor="w").pack(side="left")
             tk.Frame(self._energy_f, bg="#2A2A2A", height=1).pack(fill="x", padx=8, pady=(2, 2))
             _tags.sort(key=lambda t: 0 if t.tag_key in _bonus_keys else 1)
-        player_tags = [(t.tag_text, t.tag_color, t.strength_pct) for t in _tags]
         _bonus_texts = {t.tag_text for t in _tags if t.tag_key in _bonus_keys}   # 가산 대상 태그 (🎯 가산 표시)
 
         # ── Player Detection 상세 ─────────────────────────────
-        if not player_tags:
+        if not _tags:
             no_f = tk.Frame(self._energy_f, bg=DARK_PANEL, pady=8)
             no_f.pack(fill="x", padx=8)
             tk.Label(no_f, text="─  감지된 주요 플레이어 없음",
@@ -986,8 +987,8 @@ class _Col3Mixin:
                      font=("Segoe UI", 8, "bold"), anchor="w").pack(
                          fill="x", padx=4, pady=(1, 4))
         else:
-            for i, tag in enumerate(player_tags):
-                tag_text, tag_color, strength_pct = tag[0], tag[1], tag[2] if len(tag) > 2 else 60
+            for i, tag in enumerate(_tags):
+                tag_text, tag_color, strength_pct = tag.tag_text, tag.tag_color, tag.strength_pct
                 if i > 0:
                     tk.Frame(self._energy_f, bg="#2A2A2A", height=1).pack(
                         fill="x", padx=12, pady=(2, 2))
@@ -995,17 +996,7 @@ class _Col3Mixin:
                 item_f.pack(fill="x", padx=8, pady=(4 if i == 0 else 0, 0))
 
                 # 플레이어명 + 방향 + mini Canvas 강도 바 + %
-                action, _, rec_col = self._lookup_player_info(tag_text)
-
-                # 방향 텍스트 (rec_col 기반)
-                if rec_col in (POSITIVE, "#8ad7b5"):
-                    dir_txt, dir_col = "롱 우세", rec_col
-                elif rec_col == NEGATIVE:
-                    dir_txt, dir_col = "숏 우세", NEGATIVE
-                elif rec_col == ORANGE:
-                    dir_txt, dir_col = "주의",    ORANGE
-                else:
-                    dir_txt, dir_col = "중립",    DIM_TEXT
+                dir_txt, dir_col = self._player_direction(tag)
 
                 hdr_f = tk.Frame(item_f, bg="#1A1A1A")
                 hdr_f.pack(fill="x", padx=6, pady=(0, 2))
@@ -1036,13 +1027,13 @@ class _Col3Mixin:
                 bar_cv.after(15, _bar_draw)
 
                 # 시장 구조 메시지 (활동 유형·강도·지속성)
-                tk.Label(item_f, text=action, bg="#1A1A1A", fg=DIM_TEXT,
+                tk.Label(item_f, text=tag.action, bg="#1A1A1A", fg=DIM_TEXT,
                          font=("Segoe UI", 8), anchor="w",
                          wraplength=240).pack(fill="x", padx=6, pady=(0, 4))
 
             # 복수 플레이어 통합 메시지
-            if len(player_tags) >= 2:
-                cmb_msg, cmb_col = self._player_combined_msg(player_tags)
+            if len(_tags) >= 2:
+                cmb_msg, cmb_col = self._player_combined_msg(_tags)
                 if cmb_msg:
                     tk.Frame(self._energy_f, bg="#333333", height=1).pack(
                         fill="x", padx=8, pady=(6, 2))
@@ -1095,33 +1086,23 @@ class _Col3Mixin:
         eb_cv.bind("<Configure>", _draw_split)
         eb_cv.after(15, _draw_split)
 
-    # ─── Player Detection 해석 사전 ──────────────────────────
-    # key: tag_text 안에 포함된 키워드 (긴 것 우선 매칭)
-    # value: (행동 설명, 해석+추천, 추천 색상)
-    _PLAYER_INFO: dict = {
-        "세력 매집":   ("가격 횡보 속 대규모 포지션 지속 누적 중",       "", POSITIVE),
-        "세력 분산":   ("상승 구간 내 보유 물량 단계적 분산 진행",        "", NEGATIVE),
-        "고래 매수":   ("대형 단일 체결 — 즉각적 매수 압력 발생",         "", POSITIVE),
-        "고래 매도":   ("대형 단일 체결 — 즉각적 매도 압력 발생",         "", NEGATIVE),
-        "기관 유입":   ("기관급 롱 비율 급증 — 중기 자금 유입 진행 중",   "", POSITIVE),
-        "롱 스퀴즈":   ("롱 포지션 극단 과밀 — 강제 청산 연쇄 위험 누적", "", NEGATIVE),
-        "청산 헌터":   ("롱 청산 구간 세력 집중 활동 포착 중",            "", NEGATIVE),
-        "FOMO 극단":   ("개인 롱 극단 쏠림 — 90%+ 과밀 누적 상태",       "", ORANGE),
-        "FR+ 과열":    ("롱 과밀 — 펀딩비 과열로 비용 압박 강함",         "", ORANGE),
-        "FR-":         ("숏 과밀 — 음수 펀딩비로 상방 압박 형성 중",      "", "#8ad7b5"),
-    }
-
-    def _lookup_player_info(self, tag_text: str) -> tuple:
-        for key in sorted(self._PLAYER_INFO.keys(), key=len, reverse=True):
-            if key in tag_text:
-                return self._PLAYER_INFO[key]
-        return ("활동 감지", "추세 방향 확인 후 대응 권장", DIM_TEXT)
+    # ─── Player Detection 방향 표시 ──────────────────────────
+    @staticmethod
+    def _player_direction(tag) -> tuple:
+        """태그 방향 표시 (텍스트, 색) — TagDetector 상승 키=롱 우세, 하락 키 중 주의색(FOMO 극단·FR+ 과열)=주의,
+        나머지 하락 키=숏 우세. 롱 우세 색은 FR-만 라이트 그린, 나머지(기관 유입 포함) 초록."""
+        if tag.tag_key in TagDetector.RISE_KEYS:
+            return "롱 우세", (LIGHT_GREEN if tag.tag_color == LIGHT_GREEN else POSITIVE)
+        if tag.tag_key in TagDetector.DECLINE_KEYS:
+            return ("주의", ORANGE) if tag.tag_color == ORANGE else ("숏 우세", NEGATIVE)
+        return "중립", DIM_TEXT
 
     @staticmethod
-    def _player_combined_msg(player_tags: list) -> tuple:
-        if len(player_tags) < 2:
+    def _player_combined_msg(tags: list) -> tuple:
+        """복수 플레이어 통합 메시지 — tags: PlayerTag 목록(에너지 패널 표시분)."""
+        if len(tags) < 2:
             return None, None
-        texts = " ".join(t[0] for t in player_tags if t)
+        texts = " ".join(t.tag_text for t in tags)
         if "세력 매집" in texts and ("고래" in texts or "기관" in texts):
             return "세력 + 대형 자금 동시 매집\n→ 가장 강력한 상승 신호 — 롱 엔진 즉시 진입 강력 권장", POSITIVE
         if "세력 분산" in texts and ("청산 헌터" in texts or "헌터" in texts):
@@ -1132,8 +1113,8 @@ class _Col3Mixin:
             return "펀딩비 반전 + 세력 매집 이중 상승 신호\n→ 롱 엔진 강력 추천", POSITIVE
         if "롱 스퀴즈" in texts and ("청산 헌터" in texts or "헌터" in texts):
             return "롱 스퀴즈 + 청산 헌터 이중 하락 신호\n→ 숏 엔진 즉시 진입 최적 타이밍", NEGATIVE
-        up = sum(1 for k in ["매집", "매수", "유입", "FR-"] if k in texts)
-        dn = sum(1 for k in ["분산", "청산", "스퀴즈", "FOMO", "FR+"] if k in texts)
+        up = sum(1 for t in tags if t.tag_key in TagDetector.RISE_KEYS)
+        dn = sum(1 for t in tags if t.tag_key in TagDetector.DECLINE_KEYS)
         if up >= 2:
             return "복수 상승 플레이어 동시 활동\n→ 롱 에너지 복합 확인 — 롱 엔진 진입 권장", POSITIVE
         if dn >= 2:

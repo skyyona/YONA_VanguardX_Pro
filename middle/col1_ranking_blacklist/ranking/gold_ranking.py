@@ -8,10 +8,11 @@ middle/col1_ranking_blacklist/ranking/gold_ranking.py
   4TF ▼  →  숏 기회 = tf × 0.40 + SharpDecline(qualified) × 0.35 + ATR × 0.25
   4TF 중립 →  중립  = max(Rise, Decline)(qualified) × 0.35 + ATR × 0.25
   최종 = max(롱 기회, 숏 기회, 중립)   (0.0 ~ 1.0)
+후보 = 랭킹 풀(거래량 상위 200) 중 블랙리스트 제외 (1열 목록과 같은 제외 기준)
 """
 from __future__ import annotations
 
-from middle.widget.shared_context import get_ind, _live_ranking
+from middle.widget.shared_context import get_ind, _live_ranking, is_blacklisted
 from middle.col1_ranking_blacklist.ranking.fourtf_scorer import FourTFScorer
 from middle.col1_ranking_blacklist.ranking.sharp_rise_scorer import SharpRiseScorer
 from middle.col1_ranking_blacklist.ranking.sharp_decline_scorer import SharpDeclineScorer
@@ -21,11 +22,12 @@ class GoldRanking:
     """종합 수익 가능성 1위 코인 심볼 선별기 (롱·숏 방향 중립)."""
 
     @staticmethod
-    def calc(sym: str) -> float:
+    def calc(sym: str, player_map: dict | None = None) -> float:
         """단일 심볼의 종합 점수 계산 (0.0 ~ 1.0).
 
         4TF 방향(▲/▼/중립)에 따라 롱·숏 평가 경로를 분리하여
         방향 충돌(4TF ▲ + SharpDecline 합산)을 원천 차단.
+        player_map: 1열 재구성 시 계산한 get_player_map() 결과 (없으면 심볼 단독 감지)
         """
         ind = get_ind(sym)
         if not ind:
@@ -37,8 +39,8 @@ class GoldRanking:
         tf_score = tf_res["total"] / tf_res["max"]
         base_dir = tf_res.get("base_dir")   # "▲" / "▼" / None
 
-        rise_res = SharpRiseScorer.calc_score(sym)
-        decl_res = SharpDeclineScorer.calc_score(sym)
+        rise_res = SharpRiseScorer.calc_score(sym, player_map)
+        decl_res = SharpDeclineScorer.calc_score(sym, player_map)
 
         # ── 롱 기회: 4TF ▲ 정렬 + 숏스퀴즈 가능성 ─────────────
         if base_dir == "▲":
@@ -60,14 +62,16 @@ class GoldRanking:
         return sq * 0.35 + atr_score * 0.25
 
     @staticmethod
-    def get_top1() -> str:
-        """현재 랭킹 목록에서 종합 점수 1위 심볼 반환. 없으면 빈 문자열."""
+    def get_top1(player_map: dict | None = None) -> str:
+        """현재 랭킹 목록(블랙리스트 제외)에서 종합 점수 1위 심볼 반환. 없으면 빈 문자열."""
         best_sym, best_score = "", -1.0
         try:
             for row in _live_ranking():
                 sym = row[0]
+                if is_blacklisted(sym):
+                    continue
                 try:
-                    s = GoldRanking.calc(sym)
+                    s = GoldRanking.calc(sym, player_map)
                     if s > best_score:
                         best_score, best_sym = s, sym
                 except Exception:
