@@ -35,7 +35,7 @@ ind_data 표준 키:
   "funding_rate": float                     FR% (common_fr 판정, 없으면 0.0)
   "liq_long_pct": float                     롱 청산 거리% 음수 (없으면 -99.0)
   "liq_short_pct": float                    숏 청산 거리% 양수 (없으면 +99.0)
-  "_player_tags": list                      Player Detection 태그 (없으면 [])
+  "_player_keys": list                      Player Detection 절단 전 전체 태그 키 (없으면 금지 항목 판정 보류)
   "_days_listed": int                       상장일수 (days_listed 인자 대체 가능)
 
 실거래: trading_engine.py가 data_manager의 tf5.div 값을 직접 주입

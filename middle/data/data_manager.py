@@ -315,7 +315,7 @@ class MiddleDataManager:
         """Player Detection 단일 정의 — 캐시 지표(STAGE2·STAGE3·상세 갱신) 7개 입력.
         has_rise_tag·has_decline_tag는 절단 전 전체 태그 기준, tags는 강도순 상위 4개(표시용).
         1열 행 배경·Sharp rise/decline Player 가산점·Gold·3열 Player 가산점이 함께 사용. 지표 없음 → None.
-        (엔진 금지 조건용 ind["_player_tags"]와는 별개 — 상세 갱신 시점 값)"""
+        (엔진 금지 조건용 ind["_player_keys"]와는 별개 — 상세 갱신 시점 값)"""
         ind = self.get_ind(symbol)
         if not ind:
             return None
@@ -885,7 +885,7 @@ class MiddleDataManager:
                 rsi=rsi, bpr=bpr, vss=vss, atr=atr, atr_5m=atr_5m, ema=ema,
                 vwap_r=vwap_r, pat=pat, fr_pct=fr_pct, oi_chg=oi_chg,
                 long_pct=long_pct, liq=liq, lev=lev.leverage,
-                player_tags=player_tags, eb=eb,
+                player_tags=player_tags, player_keys=list(det.keys), eb=eb,
             )
 
             # volume_ratio — 1m 최근 봉 / 20봉 평균
@@ -936,7 +936,7 @@ class MiddleDataManager:
         stoch_series,
         rsi, bpr, vss, atr, atr_5m, ema, vwap_r, pat,
         fr_pct, oi_chg, long_pct, liq, lev,
-        player_tags, eb,
+        player_tags, player_keys, eb,
     ) -> dict:
         price = tkr.last_price if tkr else 1.0
         chg   = tkr.price_change_pct if tkr else 0.0
@@ -990,8 +990,10 @@ class MiddleDataManager:
             },
             # 에너지
             "_energy_long_ratio": round(eb.long_ratio, 4),
-            # Player 태그 (내부용)
+            # Player 태그 (내부용) — _player_tags: 표시용 상위 4개 / _player_keys: 절단 전 전체 키 (엔진 금지 조건)
+            #   _player_keys는 상세 갱신에서만 생성 — 없으면 엔진은 Player 판정 데이터 미준비로 진입 보류
             "_player_tags": player_tags,
+            "_player_keys": player_keys,
             "_data_ready":  True,
         }
 

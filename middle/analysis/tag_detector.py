@@ -60,6 +60,7 @@ class TagDetectionResult:
     tags:           list[PlayerTag] = field(default_factory=list)
     has_rise_tag:   bool = False    # Sharp Rise 스코어러 s_player 판정용
     has_decline_tag: bool = False   # Sharp Decline 스코어러 s_player 판정용
+    keys:           list[str] = field(default_factory=list)   # 절단 전 전체 태그 키 (강도순) — 엔진 금지 조건 판정용
 
 
 def _make_tag(key: str, strength: int) -> PlayerTag:
@@ -169,12 +170,12 @@ class TagDetector:
         has_rise    = bool(detected_keys & cls.RISE_KEYS)
         has_decline = bool(detected_keys & cls.DECLINE_KEYS)
 
-        # 표시용 상위 4개 절단 — 판정 이후에 수행
-        tags = tags[:4]
+        # 표시용 상위 4개 절단 — 판정 이후에 수행 (keys는 절단 전 전체)
 
         return TagDetectionResult(
-            tags=tags,
+            tags=tags[:4],
             has_rise_tag=has_rise,
             has_decline_tag=has_decline,
+            keys=[t.tag_key for t in tags],
         )
 

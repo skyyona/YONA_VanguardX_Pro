@@ -953,6 +953,7 @@ class StrategyPopupMixin:
                 res["sl_used"]    = _sl_used    # [C-2] 실제 적용 SL 표시용
                 res["trail_used"] = _trail_used # [C-2] 실제 적용 Trail 표시용
                 res["mmr_used"]   = params.mmr  # [C-2] 실제 적용 MMR 표시용
+                res["accum_unjudged"] = params.prohibition.short_accum  # OI 이력 없음 → 백테스트 세력 매집 미판정
                 win.after(0, lambda r=res: _backtest_done(r))
 
             _threading.Thread(target=_run, daemon=True).start()
@@ -967,6 +968,8 @@ class StrategyPopupMixin:
             _sm  = res.get("sort_mode",  "—")
             _cov = res.get("long_ratio_coverage", 0.0)
             _cov_str = f"  L/S {_cov:.0f}%" if _cov > 0 else ""
+            if res.get("accum_unjudged"):
+                _cov_str += "  세력 매집 미판정(OI 이력 없음)"
             status_lbl.configure(
                 text=f"  [{_sm}] 백테스팅 완료  ✓   적중도 {win_str}  |  SL {_sl}% / Trail {_tr}% / MMR {_mmr:.4f}{_cov_str}  ",
                 fg=POSITIVE)

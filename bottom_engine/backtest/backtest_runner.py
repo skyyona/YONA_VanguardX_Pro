@@ -25,6 +25,7 @@ import dataclasses
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
 from bottom_engine.engine_core.quality_grader import QualityGrader
 from middle.col2_chart_indicators.divergence_detector import DivergenceDetector
+from middle.analysis.tag_detector import TagDetector
 from bottom_engine.strategy.rsi_divergence import calc_rsi_series, _check_volume
 from bottom_engine.engine_core.risk_manager import RiskManager as _RM
 from bottom_engine.engine_core.sl_calculator import SLCalculator
@@ -224,10 +225,13 @@ class BacktestRunner:
             return cls._funding_cost(_leff, side_, entry_time + 59_999, exit_ms, entry_price,
                                      _fr_times, _fr_pct_list, _open_1m, bars_1m)
 
-        # ── common_liq L/S ratio 이력 로드 ──────────────────────────
+        # ── L/S ratio 이력 로드 — common_liq + Player 금지 항목(청산 헌터·FOMO 극단) ─────────
+        #   바이낸스 제공 한도 최근 30일 — 이력 없는 구간은 롱 50% 중립(차단 판정 불가)
         _lr_times:    list[int]   = []
         _lr_long_pct: list[float] = []
-        if params.prohibition.common_liq:
+        _pl_flags = params.prohibition
+        _uses_player_bt = _pl_flags.common_hunter or _pl_flags.long_fomo or _pl_flags.short_accum
+        if _pl_flags.common_liq or _pl_flags.common_hunter or _pl_flags.long_fomo:
             if preloaded is not None and "liq" in preloaded:
                 _lr_times, _lr_long_pct = preloaded["liq"]
             else:
@@ -742,6 +746,22 @@ class BacktestRunner:
                         _bt_fr = -1.0   # < -_FR_THRESHOLD → 숏 차단
                     _bt_liq_l = -99.0 if liq_ok_long  else -0.1
                     _bt_liq_s =  99.0 if liq_ok_short else  0.1
+                    # [G8 Player] 청산 헌터·FOMO 극단·세력 매집 — 실거래와 같은 TagDetector 절단 전 전체 키
+                    #   입력: 롱숏 비율·펀딩비(시각 t) + 1h ATR%. 롱숏 이력 없는 구간 = 50% 중립 → 헌터·FOMO 판정 불가
+                    #   OI 이력 없음 → OI 변화 0 → 세력 매집 판정 불가. vss·bpr·24h 변동은 세 항목과 무관 → 기본값
+                    _bt_player_keys: list[str] = []
+                    if _uses_player_bt:
+                        _pl_long = 50.0
+                        if _lr_times:
+                            _pl_lr_pos = bisect.bisect_right(_lr_times, t) - 1
+                            if _pl_lr_pos >= 0:
+                                _pl_long = _lr_long_pct[_pl_lr_pos]
+                        _pl_fr = 0.0
+                        if _fr_times:
+                            _pl_fr_pos = bisect.bisect_right(_fr_times, t) - 1
+                            _pl_fr = _fr_pct_list[_pl_fr_pos] if _pl_fr_pos >= 0 else 0.0
+                        _bt_player_keys = TagDetector.detect(
+                            long_pct=_pl_long, fr_pct=_pl_fr, atr_pct=atr_pct).keys
 
                     # G1 Stoch RSI 다이버전스 — 이미 계산된 _tf_div["5m"] 활용
                     _rsi_div_bull = (_tf_div.get("5m") == "bull")
@@ -788,7 +808,7 @@ class BacktestRunner:
                         "volume_ratio":   _vr_bt,
                         "swing_bull":     _sw_long,
                         "swing_bear":     _sw_short,
-                        "_player_tags":   [],
+                        "_player_keys":   _bt_player_keys,
                         **_mac_ind,
                     }
                     _ok_l, _ = M4Entry.evaluate(
@@ -840,7 +860,7 @@ class BacktestRunner:
         result = ResultSummary.build(symbol, params.sort_mode, period_days, trades)
         result.l_eff     = _leff
         result.one_r_pct = sl_used * _leff
-        if params.prohibition.common_liq and _lr_times:
+        if (params.prohibition.common_liq or _uses_player_bt) and _lr_times:
             _bt_start    = bars_1m[_WARMUP_1M].open_time
             _bt_end      = bars_1m[-1].open_time
             _lr_in_range = (bisect.bisect_right(_lr_times, _bt_end)
