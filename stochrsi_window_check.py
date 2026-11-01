@@ -1,8 +1,8 @@
 """
 stochrsi_window_check.py — [② 항목 4] 실거래 StochRSI 계산 봉 수 측정 (측정 전용)
 
-실거래: middle/data/data_manager.py:375  limit = 80(1m·3m) / 60(그 외) → 미완성 봉 제외 79/59봉
-        _refresh_detail(:611-612)은 1m·3m·5m·15m 모두 80 → 79봉
+실거래: middle/data/data_manager.py _KLINES_LIMITS — STAGE3·_refresh_detail·get_ohlcv 공통
+        1m·3m·5m·15m 200 / 1h·4h·1d 80 → 미완성 봉 제외 199/79봉
         StochRSI.calculate_with_series (Wilder RSI14 → Stoch14 → SMA3 K → SMA3 D, K·D 소수 2자리)
 백테스트: BacktestRunner._calc_kd — 같은 알고리즘, 캐시 전체 기록(180일)으로 계산
 
@@ -136,7 +136,7 @@ def main() -> None:
                   f"{_f('gk_long_block')} {_f('gk_short_block')} {_f('zone')} "
                   f"{_f('kd_exit_long')} {_f('kd_exit_short')}")
     print("-" * 96)
-    print("실거래 현재: 1m·3m=79봉, 5m·15m=59봉(상위 갱신) / 79봉(상세 갱신)")
+    print("실거래 현재: 1m·3m·5m·15m=199봉 (상위 갱신·상세 갱신 동일)")
     print(f"총 소요 {time.time() - t0:.0f}s")
 
 

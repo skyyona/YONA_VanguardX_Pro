@@ -31,16 +31,23 @@ _LOOP_BASE       = 5     # 루프 기본 단위 (초) — TICKER_INTERVAL과 동
 _SPREAD_INTERVAL = 60    # 호가 스프레드 표본 주기 (초) — bookTicker 전체 1회 가중치 5
 _SPREAD_SAMPLES  = 10    # 심볼별 보관 표본 수 → 최근 10분 중앙값 (배정 단계 스프레드 필터)
 _STAGE2_WORKERS  = 5     # 경량 갱신 병렬 스레드 수 (3→5: 15초 주기 여유 확보)
-_STAGE3_WORKERS  = 7     # klines 갱신 병렬 스레드 수 (3→7: 34초→15초, Rate 36% 유지)
+_STAGE3_WORKERS  = 7     # klines 갱신 병렬 스레드 수 (3→7: 34초→15초)
 # STAGE3에서 갱신할 TF (1m·3m·5m·15m·1h·4h·1d — 4TF거시지지 s_macro 정확도 확보)
 _KLINES_TFS      = ("1m", "3m", "5m", "15m", "1h", "4h", "1d")
-# 5m klines 봉 수 — STAGE3·_refresh_detail 두 경로 동일(미완성 봉 제외 199봉).
-# 5m StochRSI(G_K·KD 익절·Zone·다이버전스)를 백테스트(전체 기록)와 일치시킴 — stochrsi_window_check.py:
-# 59봉 Zone 7.11%·G_K 1.2%·KD 0.6% 불일치 → 199봉 ≈0. 두 경로가 60·80으로 달라 같은 tf5를 번갈아 덮어쓰던 경합도 제거.
-_KLINES_5M_LIMIT = 200
-# VWAP·5m ATR%는 5m 봉 전체를 쓰므로 기존 창 유지 (기존 limit − 미완성 봉 1개)
-_VWAP_ATR5M_BARS_TOPN   = 59   # STAGE3 기존 5m limit 60
-_VWAP_ATR5M_BARS_DETAIL = 79   # _refresh_detail 기존 5m limit 80
+# klines 요청 봉 수 — STAGE3·_refresh_detail·get_ohlcv 세 경로 공통 (미완성 봉 제외 → 마감 봉 = 요청 − 1).
+# 경로마다 다르면 같은 TF 캐시를 번갈아 덮어써 지표가 갱신마다 달라진다 (기존 15m 59/79봉).
+# 단기 1m·3m·5m·15m 200 → 199봉: StochRSI(G1·G_K·KD 익절·G6)가 백테스트(전체 기록)와 일치 —
+#   stochrsi_window_check.py: 15m 59봉 교차 0.73%·79봉 0.15% → 199봉 0.02% 불일치 (5m 59봉 Zone 7.11% → ≈0).
+# 일일 1h·4h·1d 80 → 79봉: 1h EMA50 G_ema 불일치 5.30% → 2.43%, ATR% 최대 7.21% → 0.93%,
+#   G7.5 기여 1.1~1.8% → 0.1~0.3% (2026-11-01 실측, 59봉 대비).
+# 요청 가중치 limit<100 = 1, 100~499 = 2 → 종목당 11 (상위 100 STAGE3 1회 1,100).
+_KLINES_LIMITS: dict[str, int] = {
+    "1m": 200, "3m": 200, "5m": 200, "15m": 200,
+    "1h": 80,  "4h": 80,  "1d": 80,
+}
+# VWAP·5m ATR%는 5m 봉 전체를 쓰므로 5m 199봉 확대 전 창 유지 (VWAP 표시·5m ATR% 손절 제안 값 불변)
+_VWAP_ATR5M_BARS_TOPN   = 59   # STAGE3
+_VWAP_ATR5M_BARS_DETAIL = 79   # _refresh_detail
 # ── 단계별 필드 소유권 ────────────────────────────────────────
 # 각 갱신 단계는 자기가 담당하는 필드만 캐시에 병합한다.
 # 통째 교체 방식은 네트워크 대기 중 다른 단계가 쓴 결과를 되돌린다.
@@ -284,11 +291,12 @@ class MiddleDataManager:
         return [self._make_row(t) for t in self._tickers[:200]]
 
     def get_ohlcv(self, symbol: str, interval: str = "5m", n: int = 60) -> list[dict]:
-        """generate_ohlcv() 호환 dict 리스트 반환."""
+        """generate_ohlcv() 호환 dict 리스트 반환.
+        캐시 없으면 갱신 경로와 같은 봉 수(_KLINES_LIMITS)로 받아 캐시 — 짧은 목록이 캐시에 남지 않게 함."""
         bars = self._ohlcv_cache.get(symbol, {}).get(interval, [])
         if not bars:
             try:
-                bars = self._ohlcv_svc.fetch(symbol, interval, max(n, 60))
+                bars = self._ohlcv_svc.fetch(symbol, interval, _KLINES_LIMITS[interval])
                 sym_cache = self._ohlcv_cache.setdefault(symbol, {})
                 sym_cache[interval] = bars
             except Exception:
@@ -522,7 +530,7 @@ class MiddleDataManager:
             pool.map(_one, tickers)
 
     def _refresh_topn_klines(self, n: int = 100) -> None:
-        """STAGE3: 상위 N개 심볼 TF klines 병렬 갱신 (7스레드, ~21초).
+        """STAGE3: 상위 N개 심볼 TF klines 병렬 갱신 (7스레드).
         TF정렬·ATR%·EMA·StochRSI·4TF별점·장 단계 실데이터화.
         갱신 TF: 1m·3m·5m·15m·1h·4h·1d (4TF거시지지 s_macro 3점 만점 정확 반영)
         """
@@ -531,14 +539,13 @@ class MiddleDataManager:
         def _one(ticker: "SymbolTicker") -> None:
             sym      = ticker.symbol
             if sym == self._engine_sym:
-                return   # 엔진 종목은 상세 갱신·WS 봉 마감 경로만 사용 (STAGE3 limit 차이·시점 경합 차단)
+                return   # 엔진 종목은 상세 갱신·WS 봉 마감 경로만 사용 (STAGE3 갱신 시점 경합 차단)
             existing = self._ind_cache.get(sym, {})
             try:
                 # ── klines 수집 ──────────────────────────────
                 bars: dict = {}
                 for tf in _KLINES_TFS:
-                    limit = _KLINES_5M_LIMIT if tf == "5m" else (80 if tf in ("1m", "3m") else 60)
-                    b = self._ohlcv_svc.fetch(sym, tf, limit)
+                    b = self._ohlcv_svc.fetch(sym, tf, _KLINES_LIMITS[tf])
                     if b:
                         bars[tf] = b
                 if not bars:
@@ -799,9 +806,7 @@ class MiddleDataManager:
         try:
             # OHLCV 7 TF 병렬 수집
             with ThreadPoolExecutor(max_workers=len(_DETAIL_TFS)) as ex:
-                futs = {tf: ex.submit(self._ohlcv_svc.fetch, symbol, tf,
-                                      _KLINES_5M_LIMIT if tf == "5m"
-                                      else (80 if tf in ("1m", "3m", "15m") else 60))
+                futs = {tf: ex.submit(self._ohlcv_svc.fetch, symbol, tf, _KLINES_LIMITS[tf])
                         for tf in _DETAIL_TFS}
                 bars: dict[str, list[OHLCVBar]] = {tf: fut.result() for tf, fut in futs.items()}
 

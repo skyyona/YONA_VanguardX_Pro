@@ -1,6 +1,6 @@
 ﻿"""
 middle/data/ohlcv_data.py
-4TF(1m·5m·1h·4h) OHLCV 캔들 수집
+7TF(1m·3m·5m·15m·1h·4h·1d) OHLCV 캔들 수집 — 요청 봉 수는 data_manager._KLINES_LIMITS
 RSI·ATR·EMA·VWAP·StochRSI·캔들 패턴 계산의 원천 데이터
 """
 from __future__ import annotations

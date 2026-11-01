@@ -28,7 +28,7 @@ class EMAAlignment:
 
         backtest_runner._calc_ema_series 와 동일 정의.
         첫 가격을 시드로 쓰면 표본이 부족할 때 시드 편향이 수렴하지 않는다
-        (1h 59봉에서 EMA50 의 시드 잔존 가중치 9.82%).
+        (1h 79봉에서 EMA50 의 첫 가격 시드 잔존 가중치 4.41%).
         """
         if not prices:
             return 0.0

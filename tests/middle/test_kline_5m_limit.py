@@ -1,6 +1,7 @@
 """
 tests/middle/test_kline_5m_limit.py
-5m klines 봉 수(_KLINES_5M_LIMIT=200) — STAGE3·_refresh_detail 두 경로 동일 + VWAP·5m ATR% 기존 창 유지 4건.
+klines 요청 봉 수(_KLINES_LIMITS: 1m·3m·5m·15m 200 / 1h·4h·1d 80) — STAGE3·_refresh_detail·get_ohlcv 세 경로 동일,
+지표가 전체 봉(199·79)으로 계산되는지, 두 경로 캐시 봉 수가 같은지 + VWAP·5m ATR% 기존 창 유지.
 네트워크 무의존: 시세·파생 서비스만 대역으로 교체하고 실제 갱신 함수를 실행.
 klines 대역은 요청 limit에서 미완성 봉 1개를 뺀 수만큼 마감 봉을 돌려준다(ohlcv_data._parse_klines 동작).
 """
@@ -15,6 +16,7 @@ sys.modules.setdefault("websocket", _ws_stub)
 from middle.col2_chart_indicators.mtf_stochrsi import StochRSI
 from middle.analysis.atr_percent import AtrPercent
 from middle.col3_analysis_panels.technical_analysis.vwap import VWAP
+from middle.col3_analysis_panels.technical_analysis.ema_alignment import EMAAlignment
 from middle.data import data_manager as dm_mod
 from middle.data.data_manager import MiddleDataManager
 from middle.models import OHLCVBar, SymbolTicker
@@ -60,11 +62,15 @@ def _make_dm() -> tuple[MiddleDataManager, _Klines]:
     return dm, kl
 
 
-def test_detail_requests_200_5m_bars_others_unchanged():
-    """_refresh_detail: 5m만 200, 1m·3m·15m 80, 1h·4h·1d 60 (기존과 동일)."""
+_LIMITS = {"1m": 200, "3m": 200, "5m": 200, "15m": 200, "1h": 80, "4h": 80, "1d": 80}
+
+
+def test_detail_requests_limit_table():
+    """_refresh_detail: 단기 1m·3m·5m·15m 200, 일일 1h·4h·1d 80."""
     dm, kl = _make_dm()
     dm._refresh_detail("BTCUSDT")
-    assert kl.limits == {"1m": 80, "3m": 80, "5m": 200, "15m": 80, "1h": 60, "4h": 60, "1d": 60}
+    assert dm_mod._KLINES_LIMITS == _LIMITS
+    assert kl.limits == _LIMITS
 
 
 def test_detail_vwap_atr5m_keep_previous_79_bar_window_and_tf5_uses_all():
@@ -81,12 +87,41 @@ def test_detail_vwap_atr5m_keep_previous_79_bar_window_and_tf5_uses_all():
     assert ind["tf5"]["k"] != StochRSI.calculate_with_series(win)[0].k   # 기존 79봉이었다면 달라짐
 
 
-def test_stage3_requests_same_5m_limit_as_detail():
-    """STAGE3: 5m 200(detail과 동일 — tf5 경합 제거), 1m·3m 80, 15m·1h·4h·1d 60 (기존과 동일)."""
+def test_stage3_requests_same_limits_as_detail():
+    """STAGE3: _refresh_detail과 같은 봉 수 (기존 15m 60 vs 80 경합 제거)."""
     dm, kl = _make_dm()
     dm._sorted_tickers = [SymbolTicker("BTCUSDT", 130.0, 1.0, 1.0, 1e9, 131.0, 99.0)]
     dm._refresh_topn_klines(1)
-    assert kl.limits == {"1m": 80, "3m": 80, "5m": 200, "15m": 60, "1h": 60, "4h": 60, "1d": 60}
+    assert kl.limits == _LIMITS
+
+
+def test_both_paths_cache_same_bar_counts_and_indicators_use_all_bars():
+    """두 경로가 같은 TF 캐시를 같은 봉 수(199·79)로 덮어씀 — 15m·1h 지표가 경로와 무관하게 같은 값."""
+    dm, _ = _make_dm()
+    dm._sorted_tickers = [SymbolTicker("ETHUSDT", 130.0, 1.0, 1.0, 1e9, 131.0, 99.0)]
+    dm._refresh_topn_klines(1)
+    stage3_lens = {tf: len(b) for tf, b in dm._ohlcv_cache["ETHUSDT"].items()}
+    stage3_tf15, stage3_tf1h = dm._ind_cache["ETHUSDT"]["tf15"]["k"], dm._ind_cache["ETHUSDT"]["tf1h"]["k"]
+    dm._refresh_detail("ETHUSDT")
+    detail_lens = {tf: len(b) for tf, b in dm._ohlcv_cache["ETHUSDT"].items()}
+    assert stage3_lens == detail_lens == {tf: n - 1 for tf, n in _LIMITS.items()}
+    ind = dm._ind_cache["ETHUSDT"]
+    assert ind["tf15"]["k"] == stage3_tf15 == StochRSI.calculate_with_series(_bars("15m", 199))[0].k
+    assert ind["tf15"]["k"] != StochRSI.calculate_with_series(_bars("15m", 199)[-59:])[0].k   # 기존 STAGE3 59봉이었다면 달라짐
+    assert ind["tf1h"]["k"] == stage3_tf1h == StochRSI.calculate_with_series(_bars("1h", 79))[0].k
+    b1h = _bars("1h", 79)                                     # 1h EMA50(G_ema) — 79봉 전체로 계산
+    assert ind["e50"] == round(EMAAlignment.calculate(b1h).ema50, 6)
+    assert ind["e50"] != round(EMAAlignment.calculate(b1h[-59:]).ema50, 6)                  # 기존 59봉이었다면 달라짐
+
+
+def test_get_ohlcv_fallback_uses_limit_table_no_short_cache():
+    """get_ohlcv: 캐시 없을 때 같은 봉 수로 받아 캐시 — 차트(n=60)·엔진 15m(n=19) 호출이 짧은 목록을 남기지 않음."""
+    for tf, n in (("1h", 60), ("15m", 19), ("1d", 60), ("1m", 60)):
+        dm, kl = _make_dm()
+        out = dm.get_ohlcv("SOLUSDT", tf, n)
+        assert kl.limits == {tf: _LIMITS[tf]}
+        assert len(dm._ohlcv_cache["SOLUSDT"][tf]) == _LIMITS[tf] - 1
+        assert len(out) == n
 
 
 def test_stage3_vwap_atr5m_keep_previous_59_bar_window_and_tf5_uses_all():
