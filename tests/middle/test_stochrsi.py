@@ -49,17 +49,10 @@ class TestStochRSICalculateOutput:
         assert result.direction in ("▲", "▼", "↔")
 
     def test_direction_consistent_with_kd(self):
-        """direction 값이 _classify 로직과 일치한다 (K>D → ▲ 포함)."""
+        """direction = _classify(K, D) — K·D 차이 2 미만이면 ↔."""
         closes = [float(i) for i in range(1, _MIN + 20)]
         result = StochRSI.calculate(_bars(closes))
-        if result.k == result.d:
-            # K==D → "↔" 또는 과매수·과매도 여부에 따라 다름
-            assert result.direction in ("▲", "▼", "↔")
-        # K>D이면 "↔"가 아닐 수 있지만 "▼"는 아님
-        if result.k > result.d:
-            assert result.direction != "▼"
-        if result.k < result.d:
-            assert result.direction != "▲"
+        assert result.direction == StochRSI._classify(result.k, result.d)
 
     def test_returns_stochrsi_result_type(self):
         closes = [float(i) for i in range(1, _MIN + 5)]
@@ -71,31 +64,34 @@ class TestStochRSICalculateOutput:
 
 
 class TestStochRSIClassify:
-    """_classify 내부 로직 직접 검증."""
+    """_classify — K−D ≥ 2 ▲ / D−K ≥ 2 ▼ / 그 외 ↔ (엔진 G7.5·백테스트 G6 교차 추적과 같은 정의)."""
 
-    def test_golden_cross_returns_up(self):
-        """prev_k ≤ prev_d 이고 k > d → 골든크로스 → '▲'."""
-        assert StochRSI._classify(k=51.0, d=49.0, prev_k=48.0, prev_d=50.0) == "▲"
+    def test_spread_at_least_2_up(self):
+        assert StochRSI._classify(k=52.0, d=50.0) == "▲"
 
-    def test_dead_cross_returns_down(self):
-        """prev_k ≥ prev_d 이고 k < d → 데드크로스 → '▼'."""
-        assert StochRSI._classify(k=49.0, d=51.0, prev_k=52.0, prev_d=50.0) == "▼"
+    def test_spread_at_least_2_down(self):
+        assert StochRSI._classify(k=50.0, d=52.0) == "▼"
 
-    def test_overbought_without_cross_returns_up(self):
-        """크로스 없고 K ≥ 80(과매수) → '▲'."""
-        assert StochRSI._classify(k=85.0, d=82.0, prev_k=84.0, prev_d=81.0) == "▲"
+    def test_spread_below_2_neutral(self):
+        assert StochRSI._classify(k=51.9, d=50.0) == "↔"
+        assert StochRSI._classify(k=50.0, d=51.9) == "↔"
+        assert StochRSI._classify(k=50.0, d=50.0) == "↔"
 
-    def test_oversold_without_cross_returns_down(self):
-        """크로스 없고 K ≤ 20(과매도) → '▼'."""
-        assert StochRSI._classify(k=15.0, d=18.0, prev_k=16.0, prev_d=17.0) == "▼"
+    def test_overbought_oversold_do_not_override(self):
+        """과매수에서 K < D(하락 중) → ▼, 과매도에서 K > D(상승 중) → ▲ (기존: 과매수 ▲·과매도 ▼ 우선)."""
+        assert StochRSI._classify(k=85.0, d=90.0) == "▼"
+        assert StochRSI._classify(k=15.0, d=10.0) == "▲"
+        assert StochRSI._classify(k=99.0, d=98.5) == "↔"
 
-    def test_kd_equal_returns_neutral(self):
-        """K == D, 크로스 없음, 과매수·과매도 아님 → '↔'."""
-        assert StochRSI._classify(k=50.0, d=50.0, prev_k=50.0, prev_d=50.0) == "↔"
-
-    def test_k_above_d_mid_range_returns_up(self):
-        """크로스 아님, 50 < K > D, 과매수 아님 → '▲'."""
-        assert StochRSI._classify(k=60.0, d=55.0, prev_k=61.0, prev_d=54.0) == "▲"
+    def test_same_threshold_as_backtest(self):
+        """MIN_SPREAD = 백테스트 _MIN_SPREAD, 판정이 백테스트 교차 정의(_lo5·_so5)와 일치."""
+        from bottom_engine.constants import _MIN_SPREAD
+        assert StochRSI.MIN_SPREAD == _MIN_SPREAD
+        for k in (0.0, 10.0, 19.9, 20.0, 50.0, 51.99, 52.0, 80.0, 100.0):
+            for d in (0.0, 10.0, 18.0, 20.0, 48.0, 50.0, 52.01, 80.0, 100.0):
+                lo = k > d and abs(k - d) >= _MIN_SPREAD
+                so = k < d and abs(k - d) >= _MIN_SPREAD
+                assert StochRSI._classify(k, d) == ("▲" if lo else "▼" if so else "↔"), (k, d)
 
 
 class TestStochRSICalculateWithSeries:

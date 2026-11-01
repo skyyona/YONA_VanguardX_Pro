@@ -134,9 +134,10 @@ class MacroFourTFEntry:
         dn      = sum(1 for d in dirs.values() if d == "▼")
         avg_sp  = sum(spreads) / len(spreads) if spreads else 0.0
 
-        dom     = up if up >= dn else dn
+        dom     = max(up, dn)
         str_raw = min(1.0, (dom / 3.0) * (1.0 + avg_sp / 20.0))
-        score   = str_raw if up >= dn else -str_raw
+        # ▲·▼ 개수가 같으면(예: ▲·▼·↔) 중립 — 방향 ↔(K−D 2 미만) 도입으로 3TF 동률이 생김
+        score   = str_raw if up > dn else (-str_raw if dn > up else 0.0)
 
         if   score >  0.8: signal, color = "STRONG BULLISH",  _POSITIVE
         elif score >  0.5: signal, color = "BULLISH",          _POSITIVE

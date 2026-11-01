@@ -33,8 +33,8 @@ class StochRSI:
     SMOOTH_K      = 3    # K 스무딩
     SMOOTH_D      = 3    # D 스무딩
 
-    OVERBOUGHT = 80.0
-    OVERSOLD   = 20.0
+    # 방향 판정 최소 K−D 차이 — 백테스트 tf5 교차 추적·G7.5와 같은 기준(bottom_engine.constants._MIN_SPREAD)
+    MIN_SPREAD = 2.0
 
     @classmethod
     def calculate(
@@ -82,9 +82,7 @@ class StochRSI:
         k = k_series[-1]
         d = d_series[-1]
 
-        direction = cls._classify(k, d,
-                                  k_series[-2] if len(k_series) >= 2 else k,
-                                  d_series[-2] if len(d_series) >= 2 else d)
+        direction = cls._classify(k, d)
         return StochRSIResult(k=k, d=d, direction=direction)
 
     @classmethod
@@ -128,9 +126,7 @@ class StochRSI:
 
         k = k_series[-1]
         d = d_series[-1]
-        direction = cls._classify(k, d,
-                                  k_series[-2] if len(k_series) >= 2 else k,
-                                  d_series[-2] if len(d_series) >= 2 else d)
+        direction = cls._classify(k, d)
         return StochRSIResult(k=k, d=d, direction=direction), k_series
 
     @staticmethod
@@ -158,20 +154,12 @@ class StochRSI:
         ]
 
     @classmethod
-    def _classify(cls, k: float, d: float,
-                  prev_k: float, prev_d: float) -> str:
-        # 골든크로스: K가 D를 하향에서 상향 돌파
-        if prev_k <= prev_d and k > d:
+    def _classify(cls, k: float, d: float) -> str:
+        """방향 — K가 D보다 MIN_SPREAD 이상 위 ▲ / 아래 ▼ / 그 외 ↔(중립).
+        엔진 G7.5·백테스트 G6 지속성(교차 시점)과 같은 정의 → 방향이 바뀐 시점부터의 경과(elapsed)가 백테스트와 일치.
+        과매수·과매도(K 80·20)는 방향을 덮어쓰지 않는다 (K값 표시로 확인)."""
+        if k - d >= cls.MIN_SPREAD:
             return "▲"
-        # 데드크로스: K가 D를 상향에서 하향 돌파
-        if prev_k >= prev_d and k < d:
-            return "▼"
-        if k >= cls.OVERBOUGHT:
-            return "▲"
-        if k <= cls.OVERSOLD:
-            return "▼"
-        if k > d:
-            return "▲"
-        if k < d:
+        if d - k >= cls.MIN_SPREAD:
             return "▼"
         return "↔"
