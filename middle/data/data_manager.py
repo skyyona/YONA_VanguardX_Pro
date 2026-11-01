@@ -571,9 +571,9 @@ class MiddleDataManager:
                 # ── ind 업데이트 (기존 캐시 기반) ────────────
                 ind = dict(existing) if existing else self._simple_ind(ticker)
 
-                ind["atr"]        = round(atr, 4)
-                ind["atr_pct"]    = round(atr, 4)
-                ind["atr_pct_5m"] = round(atr_5m, 4)
+                ind["atr"]        = atr
+                ind["atr_pct"]    = atr
+                ind["atr_pct_5m"] = atr_5m
                 vss = VSS.calculate(b5m or b1h) if (b5m or b1h) else 1.0
                 bpr = BPR.from_candles(b1h)     if b1h           else 0.5
                 ind["vss"]              = round(vss, 4)
@@ -583,17 +583,17 @@ class MiddleDataManager:
 
                 if ema:
                     ind["align"] = ema.align
-                    ind["e5"]    = round(ema.ema5, 6)
-                    ind["e10"]   = round(ema.ema10, 6)
-                    ind["e20"]   = round(ema.ema20, 6)
-                    ind["e50"]   = round(ema.ema50, 6)
+                    ind["e5"]    = ema.ema5
+                    ind["e10"]   = ema.ema10
+                    ind["e20"]   = ema.ema20
+                    ind["e50"]   = ema.ema50
 
                 # volume_ratio — 1m 최근 봉 / 20봉 평균
                 b1m_kr = bars.get("1m", [])
                 if len(b1m_kr) >= 21:
                     # 현재봉 제외 — backtest_runner._calc_vol_ratio_series 와 동일 정의
                     avg_vol = sum(b.volume for b in b1m_kr[-21:-1]) / 20.0
-                    ind["volume_ratio"] = round(b1m_kr[-1].volume / avg_vol, 3) if avg_vol > 0 else 1.0
+                    ind["volume_ratio"] = b1m_kr[-1].volume / avg_vol if avg_vol > 0 else 1.0
                 else:
                     ind["volume_ratio"] = 1.0
 
@@ -899,7 +899,7 @@ class MiddleDataManager:
             if len(b1m_d) >= 21:
                 # 현재봉 제외 — backtest_runner._calc_vol_ratio_series 와 동일 정의
                 avg_v = sum(b.volume for b in b1m_d[-21:-1]) / 20.0
-                ind["volume_ratio"] = round(b1m_d[-1].volume / avg_v, 3) if avg_v > 0 else 1.0
+                ind["volume_ratio"] = b1m_d[-1].volume / avg_v if avg_v > 0 else 1.0
             else:
                 ind["volume_ratio"] = 1.0
 
@@ -958,28 +958,28 @@ class MiddleDataManager:
             "rsi":     round(rsi, 2),
             "bpr":     round(bpr, 4),
             "vss":     round(vss, 4),
-            "atr":        round(atr, 4),      # SYMBOL_IND에서 "atr" 키 사용
-            "atr_pct":    round(atr, 4),      # 두 이름 모두 지원
-            "atr_pct_5m": round(atr_5m, 4),   # 5m ATR% — SL 자동 계산용
+            "atr":        atr,      # SYMBOL_IND에서 "atr" 키 사용
+            "atr_pct":    atr,      # 두 이름 모두 지원
+            "atr_pct_5m": atr_5m,   # 5m ATR% — SL 자동 계산용
             # EMA
-            "e5":    round(ema.ema5, 6),
-            "e10":   round(ema.ema10, 6),
-            "e20":   round(ema.ema20, 6),
-            "e50":   round(ema.ema50, 6),
+            "e5":    ema.ema5,
+            "e10":   ema.ema10,
+            "e20":   ema.ema20,
+            "e50":   ema.ema50,
             "align": ema.align,
             # VWAP
             "vwap":   vwap_r.label,
             # 캔들 패턴
             "pattern": pat,
             # 펀딩비 (% 단위, SYMBOL_IND 포맷 호환)
-            "funding_rate": round(fr_pct, 4),
+            "funding_rate": fr_pct,
             # OI 변화 %
             "oi_change": round(oi_chg, 2),
             # 롱숏 비율
             "long_ratio": round(long_pct, 2),
             # 청산 근접도 (추정)
-            "liq_long_pct":  round(liq.liq_long_pct, 2),
-            "liq_short_pct": round(liq.liq_short_pct, 2),
+            "liq_long_pct":  liq.liq_long_pct,
+            "liq_short_pct": liq.liq_short_pct,
             # 권장 레버리지
             "rec_leverage": lev,
             # 차트용

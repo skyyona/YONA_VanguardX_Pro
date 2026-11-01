@@ -73,7 +73,7 @@ class LiquidationProximityPanel:
         liq_short_dist = max(0.5, min(cls.GAUGE_MAX_PCT, liq_short_dist))
 
         return LiquidationProximity(
-            liq_long_pct  = round(-liq_long_dist, 2),   # 음수
-            liq_short_pct = round(+liq_short_dist, 2),  # 양수
+            liq_long_pct  = -liq_long_dist,   # 음수 — 반올림 없음: G8 common_liq 판정이 백테스트와 같은 값
+            liq_short_pct = +liq_short_dist,  # 양수
         )
 

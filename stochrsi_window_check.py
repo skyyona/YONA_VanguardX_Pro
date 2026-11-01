@@ -3,7 +3,7 @@ stochrsi_window_check.py — [② 항목 4] 실거래 StochRSI 계산 봉 수 �
 
 실거래: middle/data/data_manager.py _KLINES_LIMITS — STAGE3·_refresh_detail·get_ohlcv 공통
         1m·3m·5m·15m·1h 200 / 4h·1d 80 → 미완성 봉 제외 199/79봉
-        StochRSI.calculate_with_series (Wilder RSI14 → Stoch14 → SMA3 K → SMA3 D, K·D 소수 2자리)
+        StochRSI.calculate_with_series (Wilder RSI14 → Stoch14 → SMA3 K → SMA3 D, 반올림 없음)
 백테스트: BacktestRunner._calc_kd — 같은 알고리즘, 캐시 전체 기록(180일)으로 계산
 
 같은 마감 봉 시점에서 N봉(59·79·199·499) 실거래식 K·D와 전체 기록 K·D를 비교해 판정 불일치율 출력.

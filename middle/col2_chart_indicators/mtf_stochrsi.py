@@ -24,6 +24,8 @@ class StochRSI:
     2. 스토캐스틱: (RSI - min_RSI) / (max_RSI - min_RSI) × 100
     3. K = stoch의 smooth_k봉 SMA
     4. D = K의 smooth_d봉 SMA
+    계산 값은 반올림하지 않는다 — 백테스트(_calc_kd)와 같은 값으로 엔진 판정(G_K·KD 익절·G6·G7.5) 일치,
+    자릿수는 화면 표시에서만 정한다.
     """
 
     RSI_PERIOD    = 14
@@ -77,8 +79,8 @@ class StochRSI:
         # ── 4. D = K 의 SMA(smooth_d) ────────────────
         d_series = cls._sma(k_series, smooth_d)
 
-        k = round(k_series[-1], 2)
-        d = round(d_series[-1], 2)
+        k = k_series[-1]
+        d = d_series[-1]
 
         direction = cls._classify(k, d,
                                   k_series[-2] if len(k_series) >= 2 else k,
@@ -124,8 +126,8 @@ class StochRSI:
 
         d_series = cls._sma(k_series, smooth_d)
 
-        k = round(k_series[-1], 2)
-        d = round(d_series[-1], 2)
+        k = k_series[-1]
+        d = d_series[-1]
         direction = cls._classify(k, d,
                                   k_series[-2] if len(k_series) >= 2 else k,
                                   d_series[-2] if len(d_series) >= 2 else d)
@@ -145,7 +147,7 @@ class StochRSI:
             avg_g = (avg_g * (period - 1) + gains[i])  / period
             avg_l = (avg_l * (period - 1) + losses[i]) / period
             rs = avg_g / avg_l if avg_l > 0 else 100.0
-            series.append(round(100.0 - 100.0 / (1.0 + rs), 4))
+            series.append(100.0 - 100.0 / (1.0 + rs))
         return series
 
     @staticmethod

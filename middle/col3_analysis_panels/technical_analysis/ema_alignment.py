@@ -29,16 +29,17 @@ class EMAAlignment:
         backtest_runner._calc_ema_series 와 동일 정의.
         첫 가격을 시드로 쓰면 표본이 부족할 때 시드 편향이 수렴하지 않는다
         (1h 79봉에서 EMA50 의 첫 가격 시드 잔존 가중치 4.41%).
+        반올림하지 않는다 — 저가 종목에서 EMA5·EMA50이 같은 값으로 뭉개져 G_ema가 롱·숏 모두 차단되던 문제 방지.
         """
         if not prices:
             return 0.0
         if len(prices) < period:
-            return round(prices[-1], 8)
+            return prices[-1]
         k   = 2.0 / (period + 1)
         val = sum(prices[:period]) / period      # SMA 시드
         for p in prices[period:]:
             val = p * k + val * (1 - k)
-        return round(val, 8)
+        return val
 
     @classmethod
     def calculate(cls, bars: list[OHLCVBar]) -> EMAResult:
@@ -66,8 +67,7 @@ class EMAAlignment:
             align = "혼조"
             label = "혼조 🟡  (추세 전환 구간)"
 
-        return EMAResult(ema5=round(e5, 6), ema10=round(e10, 6),
-                         ema20=round(e20, 6), ema50=round(e50, 6),
+        return EMAResult(ema5=e5, ema10=e10, ema20=e20, ema50=e50,
                          align=align, label=label)
 
 

@@ -79,7 +79,7 @@ def test_detail_vwap_atr5m_keep_previous_79_bar_window_and_tf5_uses_all():
     dm._refresh_detail("BTCUSDT")
     ind, b5m = dm._ind_cache["BTCUSDT"], _bars("5m", 199)
     win = b5m[-dm_mod._VWAP_ATR5M_BARS_DETAIL:]
-    assert ind["atr_pct_5m"] == round(AtrPercent.calculate(win), 4)
+    assert ind["atr_pct_5m"] == AtrPercent.calculate(win)
     assert ind["vwap"] == VWAP.calculate(win).label
     # VWAP는 창 전체 합산 → 199봉 전체였다면 달라짐 (ATR%는 Wilder 수렴으로 창 길이에 둔감해 판별용 부적합)
     assert ind["vwap"] != VWAP.calculate(b5m).label
@@ -110,8 +110,8 @@ def test_both_paths_cache_same_bar_counts_and_indicators_use_all_bars():
     assert ind["tf15"]["k"] != StochRSI.calculate_with_series(_bars("15m", 199)[-59:])[0].k   # 기존 STAGE3 59봉이었다면 달라짐
     assert ind["tf1h"]["k"] == stage3_tf1h == StochRSI.calculate_with_series(_bars("1h", 199))[0].k
     b1h = _bars("1h", 199)                                    # 1h EMA50(G_ema) — 199봉 전체로 계산
-    assert ind["e50"] == round(EMAAlignment.calculate(b1h).ema50, 6)
-    assert ind["e50"] != round(EMAAlignment.calculate(b1h[-79:]).ema50, 6)                  # 79봉이었다면 달라짐
+    assert ind["e50"] == EMAAlignment.calculate(b1h).ema50
+    assert ind["e50"] != EMAAlignment.calculate(b1h[-79:]).ema50                  # 79봉이었다면 달라짐
 
 
 def test_get_ohlcv_fallback_uses_limit_table_no_short_cache():
@@ -131,7 +131,7 @@ def test_stage3_vwap_atr5m_keep_previous_59_bar_window_and_tf5_uses_all():
     dm._refresh_topn_klines(1)
     ind, b5m = dm._ind_cache["BTCUSDT"], _bars("5m", 199)
     win = b5m[-dm_mod._VWAP_ATR5M_BARS_TOPN:]
-    assert ind["atr_pct_5m"] == round(AtrPercent.calculate(win), 4)
+    assert ind["atr_pct_5m"] == AtrPercent.calculate(win)
     assert ind["vwap"] == VWAP.calculate(win).label
     assert ind["vwap"] != VWAP.calculate(b5m).label
     assert ind["tf5"]["k"] == StochRSI.calculate_with_series(b5m)[0].k

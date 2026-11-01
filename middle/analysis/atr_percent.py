@@ -45,7 +45,7 @@ class AtrPercent:
         current_price = bars[-1].close
         if current_price <= 0:
             return 0.0
-        return round(atr / current_price * 100.0, 4)
+        return atr / current_price * 100.0   # 반올림 없음 — 백테스트 _calc_atr_series와 같은 값 (G4·청산 근접)
 
     @staticmethod
     def label(v: float) -> str:
