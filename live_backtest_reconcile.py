@@ -16,7 +16,7 @@ BacktestRunner(entry_variant="M4", exit_variant="CURRENT" — 실거래 동일 �
   - KD 익절: 실거래는 봉 마감 후 최대 약 60초 뒤(지표 캐시 STAGE3 주기) 마크가 청산, 백테스트는 봉 종가
   - docs/exit_parity.md ⑦ trail_ref(마크가 vs 종가) ⑧ profit_trigger ⑨ TRAIL 체결 방식 ⑩ -16% 백스탑
     ⑰ 백테스트는 포지션 점유 무시(심볼별 독립 실행) → 거래 수 과대
-  - 실거래 StochRSI는 1m·3m·5m·15m 199봉 / 1h·4h·1d 79봉 Wilder 시드(stochrsi_window_check.py 측정), 백테스트는 로드 구간 전체 시드
+  - 실거래 StochRSI는 1m·3m·5m·15m·1h 199봉 / 4h·1d 79봉 Wilder 시드(stochrsi_window_check.py 측정), 백테스트는 로드 구간 전체 시드
   - 실거래 KD 익절 k_prev는 직전 SL 루프 틱(1초), 백테스트는 직전 1m 봉
 
 실행 (프로젝트 루트에서):

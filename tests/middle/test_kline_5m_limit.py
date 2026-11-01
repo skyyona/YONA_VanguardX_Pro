@@ -1,6 +1,6 @@
 """
 tests/middle/test_kline_5m_limit.py
-klines 요청 봉 수(_KLINES_LIMITS: 1m·3m·5m·15m 200 / 1h·4h·1d 80) — STAGE3·_refresh_detail·get_ohlcv 세 경로 동일,
+klines 요청 봉 수(_KLINES_LIMITS: 1m·3m·5m·15m·1h 200 / 4h·1d 80) — STAGE3·_refresh_detail·get_ohlcv 세 경로 동일,
 지표가 전체 봉(199·79)으로 계산되는지, 두 경로 캐시 봉 수가 같은지 + VWAP·5m ATR% 기존 창 유지.
 네트워크 무의존: 시세·파생 서비스만 대역으로 교체하고 실제 갱신 함수를 실행.
 klines 대역은 요청 limit에서 미완성 봉 1개를 뺀 수만큼 마감 봉을 돌려준다(ohlcv_data._parse_klines 동작).
@@ -62,11 +62,11 @@ def _make_dm() -> tuple[MiddleDataManager, _Klines]:
     return dm, kl
 
 
-_LIMITS = {"1m": 200, "3m": 200, "5m": 200, "15m": 200, "1h": 80, "4h": 80, "1d": 80}
+_LIMITS = {"1m": 200, "3m": 200, "5m": 200, "15m": 200, "1h": 200, "4h": 80, "1d": 80}
 
 
 def test_detail_requests_limit_table():
-    """_refresh_detail: 단기 1m·3m·5m·15m 200, 일일 1h·4h·1d 80."""
+    """_refresh_detail: 1m·3m·5m·15m·1h 200, 4h·1d 80."""
     dm, kl = _make_dm()
     dm._refresh_detail("BTCUSDT")
     assert dm_mod._KLINES_LIMITS == _LIMITS
@@ -96,7 +96,7 @@ def test_stage3_requests_same_limits_as_detail():
 
 
 def test_both_paths_cache_same_bar_counts_and_indicators_use_all_bars():
-    """두 경로가 같은 TF 캐시를 같은 봉 수(199·79)로 덮어씀 — 15m·1h 지표가 경로와 무관하게 같은 값."""
+    """두 경로가 같은 TF 캐시를 같은 봉 수(199·4h·1d 79)로 덮어씀 — 15m·1h 지표가 경로와 무관하게 같은 값."""
     dm, _ = _make_dm()
     dm._sorted_tickers = [SymbolTicker("ETHUSDT", 130.0, 1.0, 1.0, 1e9, 131.0, 99.0)]
     dm._refresh_topn_klines(1)
@@ -108,10 +108,10 @@ def test_both_paths_cache_same_bar_counts_and_indicators_use_all_bars():
     ind = dm._ind_cache["ETHUSDT"]
     assert ind["tf15"]["k"] == stage3_tf15 == StochRSI.calculate_with_series(_bars("15m", 199))[0].k
     assert ind["tf15"]["k"] != StochRSI.calculate_with_series(_bars("15m", 199)[-59:])[0].k   # 기존 STAGE3 59봉이었다면 달라짐
-    assert ind["tf1h"]["k"] == stage3_tf1h == StochRSI.calculate_with_series(_bars("1h", 79))[0].k
-    b1h = _bars("1h", 79)                                     # 1h EMA50(G_ema) — 79봉 전체로 계산
+    assert ind["tf1h"]["k"] == stage3_tf1h == StochRSI.calculate_with_series(_bars("1h", 199))[0].k
+    b1h = _bars("1h", 199)                                    # 1h EMA50(G_ema) — 199봉 전체로 계산
     assert ind["e50"] == round(EMAAlignment.calculate(b1h).ema50, 6)
-    assert ind["e50"] != round(EMAAlignment.calculate(b1h[-59:]).ema50, 6)                  # 기존 59봉이었다면 달라짐
+    assert ind["e50"] != round(EMAAlignment.calculate(b1h[-79:]).ema50, 6)                  # 79봉이었다면 달라짐
 
 
 def test_get_ohlcv_fallback_uses_limit_table_no_short_cache():
