@@ -117,6 +117,7 @@ PART 2 (방안 A) 구현으로 BT·LIVE 공통 청산 판정을 `M4Exit.evaluate
 | — | LIVE 5m StochRSI 계산 봉 수가 BT와 다름 + 중단 갱신 경로 간 경합 | 중단 5m klines 199봉으로 통일, 경합 제거 | `6edb677` |
 | — | LIVE 1m·3m·15m·1h·4h·1d 계산 봉 수가 BT와 다름(G6·G7.5·G_ema·G4 입력) + 15m 경로 간 경합(59/79봉) + `get_ohlcv` 60봉 캐시 잔존 | `_KLINES_LIMITS` 단일 표 — 1m·3m·5m·15m 199봉 / 1h·4h·1d 79봉, STAGE3·상세·`get_ohlcv` 동일 (1h G_ema 불일치 2.43% 잔존) | `ce31216` |
 | — | LIVE 1h EMA50(G_ema) 79봉 SMA 시드 잔존 → BT와 판정 2.43% 불일치 | 1h klines 199봉 (4h·1d 79봉 유지) — G_ema 0.00%, ATR% 최대 0.06%, 실시세 60/60 일치 | `255753e` |
+| — | LIVE 지표 계산 반올림(StochRSI RSI 4·K·D 2자리, EMA 6·8자리, 청산 근접 2, 거래량 비율 3, ATR%·펀딩비 4자리) — BT는 반올림 없음 | 계산 반올림 제거, 자릿수는 표시에서만 — StochRSI K·D·ATR% 차이 0, 저가 종목 EMA 동일값 0건 (199봉 창 영향 G_ema 0.02% 잔존) | `a666894` |
 | — | BT 펀딩 기록이 단일 요청(limit=360, 약 120일)이라 180일 앞 구간 펀딩 0 | 펀딩 기록 페이지 수집(전 구간) + 비용에 실제 펀딩비 반영 | `0cd12ce` |
 | — | LIVE 거래소 측 청산(Algo SL·Trailing 발동)이 무조건 `LIQD`·`mark` 또는 `SL`·`mark`로 기록 | Algo 주문 조회로 `SL`·`actualPrice` / `LIQD`·`mark` 판정 + 실측 슬리피지 기록 | `c83a335` |
 | — | 일일·포트폴리오 손실 한도 −30% 동작 | BT·LIVE 모두 경고만 (자동 정지·진입 차단 없음) | `25a8e08` |
