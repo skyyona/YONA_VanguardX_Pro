@@ -7,7 +7,7 @@ import pytest
 
 import middle.widget.shared_context as _ctx
 from middle.analysis.trend import Trend, daily_trend, short_trend, trend_text
-from middle.col1_ranking_blacklist.ranking.fourtf_scorer import FourTFScorer
+from middle.col1_ranking.ranking.fourtf_scorer import FourTFScorer
 from middle.col2_chart_indicators.macro_4tf_entry import MacroFourTFEntry
 
 _DAILY = ("tf1h", "tf4h", "tf1d")

@@ -1,5 +1,5 @@
 """
-middle/col1_ranking_blacklist/ranking/sharp_decline_scorer.py
+middle/col1_ranking/ranking/sharp_decline_scorer.py
 Sharp decline Sort by — 급락 직전 롱 쏠림 심볼 스코어링
 자격 조건: 롱쏠림(lr) ≥ 50%
 6개 항목: 롱쏠림(0~4) + FR(0~3) + 롱청산근접(0~3) + OI(0~2) + Player태그(0~2) + VSS(0~2)

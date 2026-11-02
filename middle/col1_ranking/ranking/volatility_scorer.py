@@ -1,5 +1,5 @@
 """
-middle/col1_ranking_blacklist/ranking/volatility_scorer.py
+middle/col1_ranking/ranking/volatility_scorer.py
 Volatility Sort by — ATR% 변동성 내림차순 정렬
 """
 from __future__ import annotations

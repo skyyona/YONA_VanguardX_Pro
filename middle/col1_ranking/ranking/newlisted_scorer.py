@@ -1,5 +1,5 @@
 """
-middle/col1_ranking_blacklist/ranking/newlisted_scorer.py
+middle/col1_ranking/ranking/newlisted_scorer.py
 Newly Listed Sort by — 신규 상장 심볼 활동성 선정
 자격 조건: 최소 VSS≥1.2 또는 OI변화≥3% (활동성 있는 신규 상장만)
 4개 항목 + 연령 가중치:

@@ -9,7 +9,7 @@ import pytest
 
 import middle.widget.shared_context as _ctx
 from middle.analysis.tag_detector import TagDetector, _TAG_META, _make_tag
-from middle.col1_ranking_blacklist.ranking.gold_ranking import GoldRanking
+from middle.col1_ranking.ranking.gold_ranking import GoldRanking
 from middle.data.data_manager import MiddleDataManager
 from middle.widget.constants import (
     DARK_ROW_EVN, DARK_ROW_ODD, GOLD_ROW_BG, LIGHT_GREEN, NEGATIVE, ORANGE, PLAYER_MIX_ROW_BG,

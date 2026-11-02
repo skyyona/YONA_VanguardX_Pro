@@ -4,7 +4,7 @@ tests/middle/test_pending_settling.py
 조회(MiddleDataManager.fetch_pending_listings·fetch_exchange_info) → 변환(PendingListingDetector.parse·SettlingDetector.detect).
 exchangeInfo·premiumIndex 응답은 대역 클라이언트로 공급 — 네트워크 없음.
 """
-from middle.col1_ranking_blacklist.ranking.pending_listing import PendingEntry, PendingListingDetector
+from middle.col1_ranking.ranking.pending_listing import PendingEntry, PendingListingDetector
 from middle.data.data_manager import MiddleDataManager
 from middle.data.settling import SettlingDetector, SettlingEntry
 

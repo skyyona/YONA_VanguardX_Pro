@@ -1,5 +1,5 @@
 """
-middle/col1_ranking_blacklist/ranking/pending_listing.py
+middle/col1_ranking/ranking/pending_listing.py
 Sort by: Pending Listing — PENDING_TRADING 상장 예정 심볼 감지 및 분류
 
 MiddleDataManager.fetch_pending_listings()가 조회한 PENDING_TRADING 심볼·markPrice 원본을

@@ -8,7 +8,7 @@ import tkinter as tk
 import pytest
 
 import middle.widget.shared_context as _ctx
-from middle.col1_ranking_blacklist.ranking.newlisted_scorer import NewlistedScorer
+from middle.col1_ranking.ranking.newlisted_scorer import NewlistedScorer
 from middle.data.data_manager import MiddleDataManager
 from middle.widget.middle_panel import MiddlePanel
 

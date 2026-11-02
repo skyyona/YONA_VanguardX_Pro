@@ -1,5 +1,5 @@
 """
-middle/col1_ranking_blacklist/ranking/fourtf_scorer.py
+middle/col1_ranking/ranking/fourtf_scorer.py
 4TF Optimization Sort by — 일일 추세 방향 기준 단기 4TF 합의 진입 최적화 스코어링
 기준 방향 = 일일 추세(1h·4h·1d 중 같은 방향 2개 이상, middle.analysis.trend 단일 정의) — 중립이면 방향 항목 0점
 8개 항목: 단기일치(0~4) + 1m진입근접(0~1) + 일일강도(0~2) + ATR적정(0~1)

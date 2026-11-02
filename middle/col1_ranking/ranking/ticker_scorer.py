@@ -1,5 +1,5 @@
 """
-middle/col1_ranking_blacklist/ranking/ticker_scorer.py
+middle/col1_ranking/ranking/ticker_scorer.py
 24h Ticker Sort by — 전체 심볼 24h 변동률 내림차순 정렬
 """
 from __future__ import annotations

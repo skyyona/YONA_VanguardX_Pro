@@ -10,8 +10,8 @@ import tkinter as tk
 import pytest
 
 import middle.widget.shared_context as _ctx
-from middle.col1_ranking_blacklist.ranking.sharp_decline_scorer import SharpDeclineScorer
-from middle.col1_ranking_blacklist.ranking.sharp_rise_scorer import SharpRiseScorer
+from middle.col1_ranking.ranking.sharp_decline_scorer import SharpDeclineScorer
+from middle.col1_ranking.ranking.sharp_rise_scorer import SharpRiseScorer
 from middle.data.data_manager import MiddleDataManager
 from middle.widget.middle_panel import MiddlePanel
 

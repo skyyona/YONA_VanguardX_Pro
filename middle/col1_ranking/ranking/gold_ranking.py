@@ -1,5 +1,5 @@
 """
-middle/col1_ranking_blacklist/ranking/gold_ranking.py
+middle/col1_ranking/ranking/gold_ranking.py
 종합 1위 (Gold Ranking) — 모든 Sort by 모드와 무관하게
 수익 가능성이 가장 높은 코인 심볼 1개를 자동 선별.
 
@@ -13,9 +13,9 @@ middle/col1_ranking_blacklist/ranking/gold_ranking.py
 from __future__ import annotations
 
 from middle.widget.shared_context import get_ind, _live_ranking, is_blacklisted
-from middle.col1_ranking_blacklist.ranking.fourtf_scorer import FourTFScorer
-from middle.col1_ranking_blacklist.ranking.sharp_rise_scorer import SharpRiseScorer
-from middle.col1_ranking_blacklist.ranking.sharp_decline_scorer import SharpDeclineScorer
+from middle.col1_ranking.ranking.fourtf_scorer import FourTFScorer
+from middle.col1_ranking.ranking.sharp_rise_scorer import SharpRiseScorer
+from middle.col1_ranking.ranking.sharp_decline_scorer import SharpDeclineScorer
 
 
 class GoldRanking:

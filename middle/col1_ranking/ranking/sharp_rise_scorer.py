@@ -1,5 +1,5 @@
 """
-middle/col1_ranking_blacklist/ranking/sharp_rise_scorer.py
+middle/col1_ranking/ranking/sharp_rise_scorer.py
 Sharp rise Sort by — 급등 직전 숏 쏠림 심볼 스코어링
 자격 조건: FR<-0.01% OR 숏쏠림(sr) ≥ 40%
 6개 항목: 숏쏠림(0~4) + FR(0~3) + 숏청산근접(0~3) + OI(0~2) + Player태그(0~2) + VSS(0~2)
