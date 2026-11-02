@@ -16,6 +16,7 @@ import json
 import logging
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -62,7 +63,9 @@ class MiddleBinanceClient:
         return bool(self._api_key)
 
     def _get(self, url: str, timeout: int = 8) -> dict | list | None:
-        """API 키 있으면 X-MBX-APIKEY 헤더 포함 GET 요청."""
+        """API 키 있으면 X-MBX-APIKEY 헤더 포함 GET 요청.
+        URL의 비ASCII 문자(한자 이름 심볼 예: 牛来USDT)는 UTF-8 퍼센트 인코딩 — 미인코딩 시 요청 자체가 실패."""
+        url = urllib.parse.quote(url, safe=":/?&=%")
         try:
             headers = {}
             if self._api_key:
