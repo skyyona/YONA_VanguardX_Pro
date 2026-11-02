@@ -78,9 +78,7 @@ class _Col1BlacklistMixin:
         # 체크박스 토글 (두 번째 컬럼 #2 클릭 시, sym_col=2)
         t_tree.bind("<Button-1>",
                     lambda e: self._toggle_tree_check(e, t_tree, self._checked_settling, 2))
-        t_tree.bind("<Double-1>",
-                    lambda e, t=t_tree: self._open_binance(
-                        t.item(t.focus(), "values")[1] if t.focus() else ""))
+        t_tree.bind("<Double-1>", lambda e, t=t_tree: self._open_settling_symbol(t))
 
         # ══ 2행: Blacklist ══════════════════════════════════════
         bot_f = tk.Frame(vpane, bg=DARK_BG)
@@ -212,6 +210,16 @@ class _Col1BlacklistMixin:
 
         # Blacklist에 이미 등록된 심볼 제외 후 표시
         self._render_settling_tree(t_tree)
+
+    def _open_settling_symbol(self, t_tree: "ttk.Treeview") -> None:
+        """Settling 행 더블클릭 → 바이낸스 선물 페이지. 값 (번호, 체크, 심볼, 등락, 상태) 중 심볼 칸,
+        목록 심볼일 때만 (안내 행 "감지된 심볼 없음" 제외)."""
+        focus = t_tree.focus()
+        if not focus:
+            return
+        sym = t_tree.item(focus, "values")[2]
+        if any(e.symbol == sym for e in self._settling_cache):
+            self._open_binance(sym)
 
     def _get_change_str(self, symbol: str) -> tuple:
         """심볼의 현재 Change% 문자열과 색상 반환.

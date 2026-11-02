@@ -257,6 +257,11 @@ class _Col1Mixin:
             self._sort_btn.configure(text=f"  {mode}  ▼")
         # 컬럼 헤더 동적 교체 (col4, col5)
         if hasattr(self, "_hdr_labels") and len(self._hdr_labels) >= 6:
+            # col1~3: Pending Listing 전용 헤더에서 다른 모드로 돌아올 때 기본값 복원
+            if mode != "Pending Listing":
+                self._hdr_labels[1].configure(text="Coin Symbol")
+                self._hdr_labels[2].configure(text="Change%",   anchor="e")
+                self._hdr_labels[3].configure(text="Cumulative",anchor="e")
             if mode in ("Sharp rise", "Sharp decline"):
                 self._hdr_labels[4].configure(text="Squeeze Str")
                 self._hdr_labels[5].configure(text="Precise Check", anchor="center")
@@ -276,9 +281,6 @@ class _Col1Mixin:
                 self._hdr_labels[4].configure(text="markPrice",   anchor="center")
                 self._hdr_labels[5].configure(text="",             anchor="center")
             else:
-                self._hdr_labels[1].configure(text="Coin Symbol")
-                self._hdr_labels[2].configure(text="Change%",   anchor="e")
-                self._hdr_labels[3].configure(text="Cumulative",anchor="e")
                 self._hdr_labels[4].configure(text="M4 준비")
                 self._hdr_labels[5].configure(text="추세 단계", anchor="center")
         # Pending Listing: 데이터 로드 후 재빌드

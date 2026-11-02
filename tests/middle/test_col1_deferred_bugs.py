@@ -54,3 +54,58 @@ def test_time_fix_quick_retoggle_keeps_single_timer(root, monkeypatch):
     p._toggle_time_fix()
     _pump(root, 1.2)
     assert p._elapsed_sec == 0 and p._tick_after_id is None
+
+
+class _Lbl:
+    def __init__(self, text=""):
+        self.cfg = {"text": text, "anchor": "w"}
+
+    def configure(self, **kw):
+        self.cfg.update(kw)
+
+
+class _Popup:
+    def destroy(self):
+        pass
+
+
+@pytest.mark.parametrize("mode,col4", [("Sharp rise", "Squeeze Str"), ("Volatility", "ATR%"),
+                                       ("4TF Optimization", "4TF Score"), ("Newly Listed", "Listing Age"),
+                                       ("24h Ticker", "M4 준비")])
+def test_header_restored_after_pending(mode, col4):
+    """Pending Listing → 다른 모드: col1~3 헤더 기본값 복원 (기존: 24h Ticker로 갈 때만 복원)."""
+    p = MiddlePanel.__new__(MiddlePanel)
+    p._sort_mode, p._sort_btn = "24h Ticker", None
+    p._hdr_labels = [_Lbl() for _ in range(6)]
+    p.after = lambda ms, fn=None, *a: None
+    p._on_sort_mode_changed = lambda m: None
+    p._rebuild_ranking_rows = lambda: None
+    p._select_sort("Pending Listing", _Popup())
+    assert p._hdr_labels[1].cfg["text"] == "심볼  [유형]"
+    p._select_sort(mode, _Popup())
+    assert [(l.cfg["text"], l.cfg["anchor"]) for l in p._hdr_labels[1:4]] == [
+        ("Coin Symbol", "w"), ("Change%", "e"), ("Cumulative", "e")]
+    assert p._hdr_labels[4].cfg["text"] == col4
+
+
+def test_settling_double_click_opens_symbol(root, monkeypatch):
+    """Settling 더블클릭 → 심볼 칸 값으로 바이낸스 열기 (기존: 체크 칸 "☐"), 안내 행은 무시."""
+    from tkinter import ttk
+    from middle.data.settling import SettlingEntry
+    opened = []
+    monkeypatch.setattr(_ctx, "_bl_mgr", None)
+    monkeypatch.setattr(_ctx, "_data_mgr", None)
+    monkeypatch.setattr(MiddlePanel, "_open_binance", staticmethod(lambda s: opened.append(s)))
+    p = MiddlePanel.__new__(MiddlePanel)
+    p._checked_settling = set()
+    tree = ttk.Treeview(root, columns=("n", "chk", "sym", "chg", "st"), show="headings")
+    p._settling_cache = [SettlingEntry("XUSDT", "SETTLING", "Settling", "ora")]
+    p._render_settling_tree(tree)
+    tree.focus(tree.get_children()[0])
+    p._open_settling_symbol(tree)
+    assert opened == ["XUSDT"]
+    p._settling_cache = []
+    p._render_settling_tree(tree)                       # "감지된 심볼 없음" 안내 행
+    tree.focus(tree.get_children()[0])
+    p._open_settling_symbol(tree)
+    assert opened == ["XUSDT"]
