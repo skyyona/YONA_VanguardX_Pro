@@ -405,11 +405,11 @@ class _Col2Mixin:
             if ap4_lbl:
                 tk.Label(sum4_f, text=f"  ⏳ {ap4_lbl} 교차 대기", bg=DARK_BG, fg=YELLOW,
                          font=("Segoe UI", 8)).pack(side="left")
-        elif cnt4 == 2:
-            tk.Label(sum4_f, text=f"{dir_sym} 2/4   합의 형성 중", bg=DARK_BG, fg=YELLOW,
-                     font=("Segoe UI", 10, "bold")).pack(side="left")
         else:
-            tk.Label(sum4_f, text=f"─ {cnt4}/4   미합의", bg=DARK_BG, fg=DIM_TEXT,
+            # 단기 추세 중립 (같은 방향 3개 미만) — 방향별 TF 수 표시
+            _u4 = sum(1 for v in fa.directions.values() if v == "▲")
+            _d4 = sum(1 for v in fa.directions.values() if v == "▼")
+            tk.Label(sum4_f, text=f"↔ 단기 중립   ▲{_u4} · ▼{_d4}", bg=DARK_BG, fg=DIM_TEXT,
                      font=("Segoe UI", 10, "bold")).pack(side="left")
 
         # 4TF 개별 에너지 바 (1M / 3M / 5M / 15M) — grid 균등 4분할

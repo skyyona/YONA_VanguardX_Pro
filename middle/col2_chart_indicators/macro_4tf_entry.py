@@ -4,13 +4,14 @@ Macro & 4TF Entry 분석 전담 — Col2 Macro & 4TF Entry 탭 계산
 panel_col2._build_macro_panel() 에서 호출.
 
 섹션:
-  Section 1 — MACRO TREND      (1H·4H·1D StochRSI 방향 기반)
-  Section 2 — 4TF ALIGNMENT    (1M·3M·5M·15M 합의 기반)
+  Section 1 — MACRO TREND      (일일 추세: 1H·4H·1D 중 같은 방향 2개 이상 — middle.analysis.trend)
+  Section 2 — 4TF ALIGNMENT    (단기 추세: 1M·3M·5M·15M 중 같은 방향 3개 이상 — middle.analysis.trend)
   Section 3 — SIGNAL QUALITY   (전 7TF 가중치 합산 신뢰도)
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from middle.analysis.trend import daily_trend, short_trend
 from middle.col2_chart_indicators.mtf_stochrsi import StochRSIResult
 
 # 거시 TF (MACRO TREND 섹션)
@@ -104,7 +105,7 @@ class MacroFourTFEntry:
         """
         stoch_map = cls._ind_to_stoch_map(ind)
         return MacroAnalysisResult(
-            macro_trend=cls._macro_trend(stoch_map),
+            macro_trend=cls._macro_trend(stoch_map, ind),
             fourtf_align=cls._fourtf_alignment(stoch_map, ind),
             signal_quality=cls._signal_quality(stoch_map, ind, bpr, vss),
         )
@@ -127,17 +128,16 @@ class MacroFourTFEntry:
     # ── Section 1: MACRO TREND ────────────────────────────────────
 
     @classmethod
-    def _macro_trend(cls, stoch_map: dict[str, StochRSIResult]) -> MacroTrendResult:
+    def _macro_trend(cls, stoch_map: dict[str, StochRSIResult], ind: dict) -> MacroTrendResult:
         dirs    = {tf: stoch_map[tf].direction for tf in _MACRO_TFS if tf in stoch_map}
         spreads = [abs(stoch_map[tf].k - stoch_map[tf].d) for tf in _MACRO_TFS if tf in stoch_map]
-        up      = sum(1 for d in dirs.values() if d == "▲")
-        dn      = sum(1 for d in dirs.values() if d == "▼")
         avg_sp  = sum(spreads) / len(spreads) if spreads else 0.0
 
-        dom     = max(up, dn)
-        str_raw = min(1.0, (dom / 3.0) * (1.0 + avg_sp / 20.0))
-        # ▲·▼ 개수가 같으면(예: ▲·▼·↔) 중립 — 방향 ↔(K−D 2 미만) 도입으로 3TF 동률이 생김
-        score   = str_raw if up > dn else (-str_raw if dn > up else 0.0)
+        # 방향 = 일일 추세(같은 방향 2개 이상) — 미달(예: ▲·▼·↔, ▲·↔·↔)이면 중립
+        daily   = daily_trend(ind)
+        up, dn  = daily.up, daily.down
+        str_raw = min(1.0, (daily.count / 3.0) * (1.0 + avg_sp / 20.0))
+        score   = str_raw if daily.direction == "▲" else (-str_raw if daily.direction == "▼" else 0.0)
 
         if   score >  0.8: signal, color = "STRONG BULLISH",  _POSITIVE
         elif score >  0.5: signal, color = "BULLISH",          _POSITIVE
@@ -163,10 +163,8 @@ class MacroFourTFEntry:
         dirs    = [stoch_map[tf].direction for tf in _LOCAL_TFS if tf in stoch_map]
         dir_map = {tf: stoch_map[tf].direction for tf in _LOCAL_TFS if tf in stoch_map}
 
-        upper_dirs = [dir_map.get(tf, "↔") for tf in ("3m", "5m", "15m")]
-        trend_up   = sum(1 for d in upper_dirs if d == "▲")
-        trend_dn   = sum(1 for d in upper_dirs if d == "▼")
-        base       = "▲" if trend_up > trend_dn else ("▼" if trend_dn > trend_up else None)
+        # 기준 방향 = 단기 추세(4TF 중 같은 방향 3개 이상) — 미달이면 중립(일치 0)
+        base       = short_trend(ind).direction
         count      = sum(1 for d in dirs if d == base) if base else 0
 
         # 정렬된 TF의 K-D 평균 스프레드
@@ -183,7 +181,6 @@ class MacroFourTFEntry:
         if count == 4 and base == "▲":   color = _POSITIVE
         elif count == 4 and base == "▼": color = _NEGATIVE
         elif count == 3:                  color = _LIGHT_GREEN
-        elif count == 2:                  color = _YELLOW
         else:                             color = _DIM
 
         return FourTFAlignmentResult(

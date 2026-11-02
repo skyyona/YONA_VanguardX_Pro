@@ -1,6 +1,6 @@
 """
 tests/middle/test_macro_trend_tie.py
-2열 MACRO TREND — 1h·4h·1d 방향 ▲·▼ 개수가 같으면(↔ 포함 동률) 중립, 많은 쪽으로만 상승·하락 판정.
+2열 MACRO TREND — 방향 = 일일 추세(1h·4h·1d 중 같은 방향 2개 이상). ▲·▼ 동률·1개뿐이면 중립.
 """
 from middle.col2_chart_indicators.macro_4tf_entry import MacroFourTFEntry
 
@@ -22,4 +22,5 @@ def test_all_neutral_is_neutral():
 
 def test_majority_sets_direction():
     assert _trend([("▲", 70.0, 50.0), ("▲", 60.0, 50.0), ("↔", 50.0, 49.0)]).score > 0
-    assert _trend([("▼", 30.0, 50.0), ("↔", 50.0, 49.0), ("↔", 50.0, 49.5)]).score < 0
+    assert _trend([("▼", 30.0, 50.0), ("▼", 40.0, 50.0), ("↔", 50.0, 49.5)]).score < 0
+    assert _trend([("▼", 30.0, 50.0), ("↔", 50.0, 49.0), ("↔", 50.0, 49.5)]).signal == "NEUTRAL"   # 1개뿐

@@ -21,6 +21,7 @@ from middle.col3_analysis_panels.comprehensive_analysis.technical_verdict import
 from middle.col3_analysis_panels.comprehensive_analysis.derivative_verdict import DerivativeVerdictPanel
 from middle.analysis.newlisted_lifecycle import lifecycle_summary
 from middle.analysis.tag_detector import TagDetector
+from middle.analysis.trend import trend_text
 
 
 class _Col3Mixin:
@@ -687,15 +688,21 @@ class _Col3Mixin:
                      bg=DARK_PANEL, fg=DARK_TEXT,
                      font=("Consolas", 8, "bold"), anchor="w").pack(side="left")
 
+            # 일일 추세(1h·4h·1d 같은 방향 2개 이상) = 기준 방향, 단기 추세(1m~15m 3개 이상) 참고
+            tk.Label(self._verdict_f,
+                     text=f"일일 추세 {trend_text(res['daily'])}  ·  단기 추세 {trend_text(res['short'])}",
+                     bg=DARK_PANEL, fg=DARK_TEXT,
+                     font=("Consolas", 8, "bold"), anchor="w").pack(fill="x", padx=10, pady=(0, 1))
             if res["base_dir"] is None:
-                tk.Label(self._verdict_f, text="⚠ 방향성 불분명 (tf1 ↔) — TF정렬·거시지지 0점 처리",
+                tk.Label(self._verdict_f,
+                         text="⚠ 일일 추세 중립 (1h·4h·1d 같은 방향 2개 미만) — 단기일치·1m진입·일일강도·롱숏균형 0점",
                          bg=DARK_PANEL, fg=ORANGE,
                          font=("Segoe UI", 8), anchor="w").pack(fill="x", padx=10, pady=(0, 1))
 
             detail_lines = [
-                (f"TF정렬 {sc['align']}/4(+{sc['align']})  "
+                (f"단기일치 {sc['align']}/4(+{sc['align']})  "
                  f"1m진입{'✅' if sc['entry'] else '—'}(+{sc['entry']})  "
-                 f"거시지지 {sc['macro']}/2(+{sc['macro']})"),
+                 f"일일강도 {sc['macro']}/2(+{sc['macro']})"),
                 (f"ATR적정{'✅' if sc['atr'] else '—'}(+{sc['atr']})  "
                  f"거래량Top10{'✅' if sc['volume'] else '—'}(+{sc['volume']}, rank {res['vol_rank']})"),
                 (f"FR중립{'✅' if sc['fr'] else '—'}(+{sc['fr']})  "

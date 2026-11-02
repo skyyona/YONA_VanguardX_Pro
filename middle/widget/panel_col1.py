@@ -592,16 +592,18 @@ class _Col1Mixin:
 
                 _sc4  = _res4["scores"]
                 _hit4 = sum(1 for v in _sc4.values() if v > 0)
-                _NAMES4 = {"align": "TF정렬", "entry": "1m진입", "macro": "거시지지",
+                _NAMES4 = {"align": "단기일치", "entry": "1m진입", "macro": "일일강도",
                            "atr": "ATR적정", "volume": "거래량Top10", "fr": "FR중립",
                            "oi": "OI증가", "balance": "롱숏균형"}
                 _missing4 = [_NAMES4[k] for k, v in _sc4.items() if v == 0]
+                # 일일(1h·4h·1d)·단기(1m~15m) 추세 방향 — middle.analysis.trend 단일 정의
+                _trend4 = f"일{_res4['daily'].direction or '↔'} 단{_res4['short'].direction or '↔'} · "
                 if _missing4:
                     _more = "…" if len(_missing4) > 2 else ""
-                    _4tf_txt = f"✅ {_hit4}/8 충족 · 부족: {', '.join(_missing4[:2])}{_more}"
+                    _4tf_txt = f"{_trend4}✅ {_hit4}/8 충족 · 부족: {', '.join(_missing4[:2])}{_more}"
                     _4tf_col = YELLOW if _hit4 >= 6 else ORANGE
                 else:
-                    _4tf_txt = f"✅ {_hit4}/8 전부 충족!  (총 {_total4}/12점)"
+                    _4tf_txt = f"{_trend4}✅ {_hit4}/8 전부 충족!  (총 {_total4}/12점)"
                     _4tf_col = POSITIVE
 
             # ── Col 4 : Squeeze Str or 잠재력 크기 ────────────

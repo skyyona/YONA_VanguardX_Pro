@@ -32,7 +32,7 @@ _SPREAD_INTERVAL = 60    # 호가 스프레드 표본 주기 (초) — bookTicke
 _SPREAD_SAMPLES  = 10    # 심볼별 보관 표본 수 → 최근 10분 중앙값 (배정 단계 스프레드 필터)
 _STAGE2_WORKERS  = 5     # 경량 갱신 병렬 스레드 수 (3→5: 15초 주기 여유 확보)
 _STAGE3_WORKERS  = 7     # klines 갱신 병렬 스레드 수 (3→7: 34초→15초)
-# STAGE3에서 갱신할 TF (1m·3m·5m·15m·1h·4h·1d — 4TF거시지지 s_macro 정확도 확보)
+# STAGE3에서 갱신할 TF (단기 1m·3m·5m·15m + 일일 1h·4h·1d — middle.analysis.trend 추세 판정)
 _KLINES_TFS      = ("1m", "3m", "5m", "15m", "1h", "4h", "1d")
 # klines 요청 봉 수 — STAGE3·_refresh_detail·get_ohlcv 세 경로 공통 (미완성 봉 제외 → 마감 봉 = 요청 − 1).
 # 경로마다 다르면 같은 TF 캐시를 번갈아 덮어써 지표가 갱신마다 달라진다 (기존 15m 59/79봉).
@@ -533,7 +533,7 @@ class MiddleDataManager:
     def _refresh_topn_klines(self, n: int = 100) -> None:
         """STAGE3: 상위 N개 심볼 TF klines 병렬 갱신 (7스레드).
         TF정렬·ATR%·EMA·StochRSI·4TF별점·장 단계 실데이터화.
-        갱신 TF: 1m·3m·5m·15m·1h·4h·1d (4TF거시지지 s_macro 3점 만점 정확 반영)
+        갱신 TF: 1m·3m·5m·15m·1h·4h·1d (단기·일일 추세 — middle.analysis.trend)
         """
         tickers = list(self._sorted_tickers[:n])
 

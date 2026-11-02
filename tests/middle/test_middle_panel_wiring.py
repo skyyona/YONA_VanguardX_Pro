@@ -247,7 +247,11 @@ def test_refresh_verdict_4tf_renders(monkeypatch):
         texts = [w.cget("text") for f in p._verdict_f.winfo_children()
                  for w in f.winfo_children() if isinstance(w, tk.Label)]
         assert "전체 1위 · 총 10/12점" in texts
-        assert any("거시지지 1/2(+1)" in t for t in texts)
+        # 일일 추세 1h▲·4h▲·1d▼ → ▲ 2/3 (일일강도 1), 단기 1m▲·3m▲·5m▲·15m▼ → ▲ 3/4 (단기일치 3)
+        assert any("단기일치 3/4(+3)" in t and "일일강도 1/2(+1)" in t for t in texts)
+        direct = [w.cget("text") for w in p._verdict_f.winfo_children() if isinstance(w, tk.Label)]
+        assert "일일 추세 ▲ 2/3  ·  단기 추세 ▲ 3/4" in direct
+        assert not any("일일 추세 중립" in t for t in direct)
         assert not any("세션일치" in t for t in texts)
     finally:
         root.destroy()
