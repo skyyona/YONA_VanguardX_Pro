@@ -857,23 +857,24 @@ class _Col1Mixin:
     # ── PENDING_TRADING 전용 메서드 ──────────────────────────────
 
     def _load_pending_then_rebuild(self) -> None:
-        """Pending Listing 모드 진입 시: 데이터 로드 → 재빌드 → 1분 타이머."""
+        """Pending Listing 모드 진입 시: 백그라운드 조회 → 메인 스레드에서 캐시 교체·재빌드 → 1분 타이머.
+        조회 스레드는 캐시를 직접 건드리지 않는다 (행 빌드 중 목록 변경 경합 방지)."""
         import threading
+        self._pending_cache  = []
+        self._pending_status = "loading"
         def _load():
-            self._load_pending_data()
-            self.after(0, self._rebuild_ranking_rows)
+            raw = _ctx._data_mgr.fetch_pending_listings() if _ctx._data_mgr is not None else None
+            entries = _PendingListingDetector.parse(raw) if raw is not None else None
+            self.after(0, lambda: self._apply_pending_data(entries))
         threading.Thread(target=_load, daemon=True).start()
         self._schedule_pending_refresh()
 
-    def _load_pending_data(self) -> None:
-        """PENDING_TRADING 심볼 캐시 구성 — PendingListingDetector 위임."""
-        self._pending_cache.clear()
-        self._pending_loaded = False
-        if _ctx._data_mgr is None:
-            return
-        entries = _PendingListingDetector.parse(_ctx._data_mgr.fetch_pending_listings())
-        self._pending_cache.extend(entries)
-        self._pending_loaded = True
+    def _apply_pending_data(self, entries: "list | None") -> None:
+        """메인 스레드: 조회 결과로 캐시 교체 (None = 조회 실패) 후 Pending 모드면 재빌드."""
+        self._pending_cache  = entries or []
+        self._pending_status = "failed" if entries is None else "ok"
+        if self._sort_mode == "Pending Listing":
+            self._rebuild_ranking_rows()
 
     def _get_type_badge(self, entry: "_PendingEntry") -> tuple:
         """유형 배지 텍스트·색상 — PendingListingDetector 위임."""
@@ -884,15 +885,19 @@ class _Col1Mixin:
         return _PendingListingDetector.format_remaining(onboard_ms)
 
     def _schedule_pending_refresh(self) -> None:
-        """Pending 모드 진입 시 60초 타이머 예약 (즉시 rebuild 없음)."""
-        self.after(60_000, self._do_pending_time_refresh)
+        """Pending 모드 진입 시 60초 타이머 예약 (즉시 rebuild 없음) — 이전 예약 취소로 재진입 시 누적 방지."""
+        after_id = getattr(self, "_pending_after_id", None)
+        if after_id is not None:
+            self.after_cancel(after_id)
+        self._pending_after_id = self.after(60_000, self._do_pending_time_refresh)
 
     def _do_pending_time_refresh(self) -> None:
         """60초마다 남은시간 갱신 — Pending 모드일 때만 실행."""
+        self._pending_after_id = None
         if self._sort_mode != "Pending Listing":
             return
         self._rebuild_ranking_rows()
-        self.after(60_000, self._do_pending_time_refresh)
+        self._pending_after_id = self.after(60_000, self._do_pending_time_refresh)
 
     def _build_pending_rows(self) -> None:
         """PENDING_TRADING 전용 행 생성 — 방안 C 레이아웃."""
@@ -900,9 +905,10 @@ class _Col1Mixin:
         if not self._pending_cache:
             row = tk.Frame(self._inner, bg=DARK_ROW_ODD, pady=9)
             row.pack(fill="x")
-            _loaded = getattr(self, "_pending_loaded", False)
-            _msg = ("  현재 상장 예정 심볼(PENDING_TRADING)이 없습니다."
-                    if _loaded else "  PENDING 데이터 로드 중...")
+            _status = getattr(self, "_pending_status", "loading")
+            _msg = {"ok":     "  현재 상장 예정 심볼(PENDING_TRADING)이 없습니다.",
+                    "failed": "  PENDING 조회 실패 — Sort by에서 Pending Listing을 다시 선택하면 재조회합니다.",
+                    }.get(_status, "  PENDING 데이터 로드 중...")
             tk.Label(row, text=_msg,
                      bg=DARK_ROW_ODD, fg=DIM_TEXT,
                      font=("Segoe UI", 9)).pack(side="left", padx=14)

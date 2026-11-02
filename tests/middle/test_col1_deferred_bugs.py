@@ -109,3 +109,113 @@ def test_settling_double_click_opens_symbol(root, monkeypatch):
     tree.focus(tree.get_children()[0])
     p._open_settling_symbol(tree)
     assert opened == ["XUSDT"]
+
+
+_PENDING_RAW = [({"symbol": "AAAUSDT", "baseAsset": "AAA", "onboardDate": 300,
+                  "underlyingType": "COIN", "underlyingSubType": ["DeFi"]}, {"markPrice": "1.5"})]
+
+
+class _SlowDM:
+    """조회 1회 0.4초 — 화면 스레드에서 호출되면 그만큼 멈춤. result=None이면 조회 실패."""
+
+    def __init__(self, pending=None, info=None):
+        self.pending, self.info, self.threads = pending, info, []
+
+    def fetch_pending_listings(self):
+        import threading
+        self.threads.append(threading.current_thread() is threading.main_thread())
+        time.sleep(0.4)
+        return self.pending
+
+    def fetch_exchange_info(self):
+        import threading
+        self.threads.append(threading.current_thread() is threading.main_thread())
+        time.sleep(0.4)
+        return self.info
+
+    def get_ticker(self, sym):
+        return None
+
+
+def _pending_panel(root, monkeypatch, dm):
+    monkeypatch.setattr(_ctx, "_data_mgr", dm)
+    p = MiddlePanel.__new__(MiddlePanel)
+    tk.Frame.__init__(p, root)
+    p._sort_mode = "Pending Listing"
+    p._pending_cache, p._pending_status, p._pending_after_id = [], "loading", None
+    p._inner = tk.Frame(root)
+    p._row_frames, p._special = [], {}
+    p.rebuilds = 0
+    def _rebuild():
+        p.rebuilds += 1
+    p._rebuild_ranking_rows = _rebuild
+    return p
+
+
+def _wait(root, cond, limit=3.0):
+    """실제 mainloop 실행 — 작업 스레드의 after(0, ...) 전달은 메인 스레드가 mainloop 중일 때만 동작(실제 앱과 동일)."""
+    end = time.time() + limit
+    def _check():
+        if cond() or time.time() > end:
+            root.quit()
+        else:
+            root.after(20, _check)
+    root.after(20, _check)
+    root.mainloop()
+
+
+def test_pending_load_in_worker_then_main_thread_apply(root, monkeypatch):
+    dm = _SlowDM(pending=_PENDING_RAW)
+    p = _pending_panel(root, monkeypatch, dm)
+    t0 = time.time()
+    p._load_pending_then_rebuild()
+    assert time.time() - t0 < 0.2                  # 화면 스레드 대기 없음
+    assert p._pending_status == "loading"
+    _wait(root, lambda: p._pending_status != "loading")
+    assert dm.threads == [False]                   # 조회는 작업 스레드
+    assert p._pending_status == "ok" and [e.symbol for e in p._pending_cache] == ["AAAUSDT"]
+    assert p.rebuilds == 1
+
+
+def test_pending_failure_shows_failed_not_empty(root, monkeypatch):
+    p = _pending_panel(root, monkeypatch, _SlowDM(pending=None))
+    p._load_pending_then_rebuild()
+    _wait(root, lambda: p._pending_status != "loading")
+    assert p._pending_status == "failed"
+    p._build_pending_rows()
+    texts = [w.cget("text") for f in p._inner.winfo_children() for w in f.winfo_children()]
+    assert "  PENDING 조회 실패 — Sort by에서 Pending Listing을 다시 선택하면 재조회합니다." in texts
+
+
+def test_pending_reentry_keeps_single_60s_timer(root, monkeypatch):
+    """Pending 재진입 시 이전 60초 예약 취소 (기존: 재진입마다 갱신 체인 누적)."""
+    p = _pending_panel(root, monkeypatch, _SlowDM(pending=[]))
+    p._schedule_pending_refresh()
+    first = p._pending_after_id
+    p._schedule_pending_refresh()
+    pending_ids = root.tk.splitlist(root.tk.call("after", "info"))
+    assert first not in pending_ids and p._pending_after_id in pending_ids
+
+
+def test_settling_load_in_worker_and_failure_message(root, monkeypatch):
+    from tkinter import ttk
+    from middle.data.settling import SettlingDetector
+    monkeypatch.setattr(_ctx, "_bl_mgr", None)
+    info = {"symbols": [{"symbol": "EEEUSDT", "status": "SETTLING"}]}
+    for dm, status in ((_SlowDM(info=info), "ok"), (_SlowDM(info=None), "failed")):
+        monkeypatch.setattr(_ctx, "_data_mgr", dm)
+        p = MiddlePanel.__new__(MiddlePanel)
+        tk.Frame.__init__(p, root)
+        p._checked_settling, p._settling_cache, p._settling_status = set(), [], "loading"
+        p._t_tree = ttk.Treeview(root, columns=("n", "chk", "sym", "chg", "st"), show="headings")
+        t0 = time.time()
+        p._load_settling_data()
+        assert time.time() - t0 < 0.2                                      # 화면 스레드 대기 없음
+        assert p._t_tree.item(p._t_tree.get_children()[0], "values")[2] == "Settling 조회 중..."
+        _wait(root, lambda: p._settling_status != "loading")
+        assert dm.threads == [False] and p._settling_status == status
+        sym_col = [p._t_tree.item(i, "values")[2] for i in p._t_tree.get_children()]
+        if status == "ok":
+            assert sym_col == [e.symbol for e in SettlingDetector.detect(info)]
+        else:
+            assert sym_col == ["Settling 조회 실패 — 앱 재시작 시 다시 조회"]

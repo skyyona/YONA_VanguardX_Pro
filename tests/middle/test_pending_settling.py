@@ -54,9 +54,10 @@ def test_pending_entries_sorted_with_mark_prices():
     assert client.calls == ["exchangeInfo", "BBBUSDT", "AAAUSDT"]   # 1회 + 심볼당 1회, 상장 시각 순
 
 
-def test_pending_exchange_info_failure_is_empty():
+def test_pending_exchange_info_failure_is_none():
+    """exchangeInfo 실패 → None (상장 예정 없음 []과 구분 — 1열에 '조회 실패' 표시)."""
     client = _Client(None, {})
-    assert PendingListingDetector.parse(_dm(client).fetch_pending_listings()) == []
+    assert _dm(client).fetch_pending_listings() is None
     assert client.calls == ["exchangeInfo"]
 
 

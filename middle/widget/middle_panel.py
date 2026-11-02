@@ -156,9 +156,11 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         self._checked_blacklist : set[str] = set()   # Blacklist에서 ☑ 된 심볼
         # Settling 감지 결과 캐시 (API 재조회 없이 즉시 갱신용)
         self._settling_cache    : list     = []       # SettlingEntry 목록
+        self._settling_status   : str      = "loading"  # "loading" | "ok" | "failed"
         # PENDING_TRADING 캐시 (상장 예정 심볼 + markPrice)
         self._pending_cache     : list     = []       # dict 목록
-        self._pending_loaded    : bool     = False    # 로드 완료 플래그 (로딩 중/결과 없음 구분)
+        self._pending_status    : str      = "loading"  # "loading" | "ok" | "failed" (로딩 중/결과 없음/조회 실패 구분)
+        self._pending_after_id             = None       # 예약된 다음 60초 남은시간 갱신 (after id)
         self._mpl_canvas = None
 
         # Gold Ranking — 종합 1위 심볼 (_rebuild_ranking_rows 갱신)

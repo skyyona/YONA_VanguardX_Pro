@@ -4,6 +4,7 @@ middle/widget/panel_col1_blacklist.py
 블랙리스트 저장소는 middle/data/blacklist.py(_ctx._bl_mgr) — 하단 엔진 신규 진입 차단과 같은 원본.
 """
 from __future__ import annotations
+import threading
 import tkinter as tk
 import tkinter.ttk as ttk
 from middle.widget.constants import *
@@ -187,29 +188,34 @@ class _Col1BlacklistMixin:
     # ─── Blacklist 데이터 로드/갱신 헬퍼 ──────────────────────
 
     def _load_settling_data(self) -> None:
-        """Settling Update: Binance exchangeInfo 기반 비정상 심볼 표시."""
+        """Settling Update: Binance exchangeInfo 기반 비정상 심볼 — 백그라운드 조회, 메인 스레드에서 표시
+        (exchangeInfo 약 1.2MB 동기 조회로 화면이 멈추던 문제 방지)."""
         t_tree = getattr(self, "_t_tree", None)
         if t_tree is None:
             return
-        for row in t_tree.get_children():
-            t_tree.delete(row)
-
-        settling_entries: list = []
-
-        # 실데이터: Binance exchangeInfo에서 SETTLING/HALT 감지
-        if _ctx._data_mgr is not None:
-            try:
-                info = _ctx._data_mgr.fetch_exchange_info()
-                if info:
-                    settling_entries = _SettlingDetector.detect(info)
-            except Exception:
-                pass
-
-        # 캐시 저장 (Blacklist 추가/해제 시 재조회 없이 즉시 갱신)
-        self._settling_cache = list(settling_entries)
-
-        # Blacklist에 이미 등록된 심볼 제외 후 표시
+        self._settling_cache  = []
+        self._settling_status = "loading"
         self._render_settling_tree(t_tree)
+
+        def _load():
+            entries = None   # None = 조회 실패 ('감지된 심볼 없음'과 구분)
+            if _ctx._data_mgr is not None:
+                try:
+                    info = _ctx._data_mgr.fetch_exchange_info()
+                    if info:
+                        entries = _SettlingDetector.detect(info)
+                except Exception:
+                    entries = None
+            self.after(0, lambda: self._apply_settling_data(entries))
+        threading.Thread(target=_load, daemon=True).start()
+
+    def _apply_settling_data(self, entries: "list | None") -> None:
+        """메인 스레드: 조회 결과 캐시 저장(Blacklist 추가/해제 시 재조회 없이 갱신) 후 표시."""
+        self._settling_cache  = entries or []
+        self._settling_status = "failed" if entries is None else "ok"
+        t_tree = getattr(self, "_t_tree", None)
+        if t_tree is not None:
+            self._render_settling_tree(t_tree)
 
     def _open_settling_symbol(self, t_tree: "ttk.Treeview") -> None:
         """Settling 행 더블클릭 → 바이낸스 선물 페이지. 값 (번호, 체크, 심볼, 등락, 상태) 중 심볼 칸,
@@ -256,8 +262,11 @@ class _Col1BlacklistMixin:
                                        entry.symbol, chg_txt, entry.label),
                                tags=(tag,))
         else:
+            _msg = {"loading": "Settling 조회 중...",
+                    "failed":  "Settling 조회 실패 — 앱 재시작 시 다시 조회"}.get(
+                        getattr(self, "_settling_status", "ok"), "감지된 심볼 없음")
             t_tree.insert("", "end",
-                          values=("", "", "감지된 심볼 없음", "", ""),
+                          values=("", "", _msg, "", ""),
                           tags=("dim_odd",))
 
     def _refresh_settling_ui(self) -> None:

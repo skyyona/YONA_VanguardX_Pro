@@ -363,15 +363,15 @@ class MiddleDataManager:
         """exchangeInfo 1회 조회 (동기) — 1열 Blacklist 탭 Settling 감지용."""
         return self._client.fetch_exchange_info()
 
-    def fetch_pending_listings(self) -> list[tuple[dict, dict | None]]:
+    def fetch_pending_listings(self) -> list[tuple[dict, dict | None]] | None:
         """PENDING_TRADING 상장 예정 USDT 심볼 원본 조회 (동기) — exchangeInfo 1회 + 심볼당 markPrice 1회.
         반환: [(exchangeInfo 심볼 dict, premiumIndex 응답 또는 None), ...] onboardDate 오름차순.
-        조회 중 예외 시 그때까지 조회된 심볼만 반환."""
+        exchangeInfo 조회 실패·예외 → None (조회 실패를 '상장 예정 없음'과 구분)."""
         result: list[tuple[dict, dict | None]] = []
         try:
             info = self._client.fetch_exchange_info()
             if not info:
-                return result
+                return None
             pending = [
                 s for s in info.get("symbols", [])
                 if s.get("symbol", "").endswith("USDT")
@@ -382,6 +382,7 @@ class MiddleDataManager:
                 result.append((s, self._client.fetch_mark_price(s["symbol"])))
         except Exception as e:
             logging.warning("middle fetch_pending_listings: %s", e)
+            return None
         return result
 
     def refresh_tickers_now(self) -> None:
