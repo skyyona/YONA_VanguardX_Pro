@@ -15,9 +15,8 @@ _LONG, _SHORT = PositionSide.LONG, PositionSide.SHORT
 
 
 def _ind(det):
-    """실거래 data_manager._build_ind_dict와 같은 형태 — 표시용 상위 4개 + 절단 전 전체 키."""
-    return {"_player_tags": [(t.tag_text, t.tag_color, t.strength_pct) for t in det.tags],
-            "_player_keys": list(det.keys)}
+    """실거래 data_manager._build_ind_dict와 같은 형태 — 절단 전 전체 키."""
+    return {"_player_keys": list(det.keys)}
 
 
 def _check(flags, side, ind):

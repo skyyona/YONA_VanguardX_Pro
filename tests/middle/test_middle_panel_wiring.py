@@ -223,7 +223,7 @@ def test_shared_sym_external_change_syncs_assign():
 # ── 4TF Optimization 종합분석 판정 렌더링 (FourTFScorer 점수 키만 사용) ─────
 def _row(sym):
     return (sym, 100, "─ 로딩중", "#888888", "  +1.00%", "#00ff00", "+1.00%", "#00ff00",
-            "⟳ 전환 대기", "#ffff00", 4, [])
+            "⟳ 전환 대기", "#ffff00", 4)
 
 
 def test_refresh_verdict_4tf_renders(monkeypatch):

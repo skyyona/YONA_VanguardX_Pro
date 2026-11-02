@@ -27,7 +27,7 @@ _HUNTER = dict(_BASE, long_ratio=81.0, atr=3.5)
 
 def _row(sym):
     return (sym, 9999, "─ 로딩중", "#888888", "  +1.00%", "#00ff00", "+1.00%", "#00ff00",
-            "⟳ 전환 대기", "#ffff00", 4, [])
+            "⟳ 전환 대기", "#ffff00", 4)
 
 
 class _BL:

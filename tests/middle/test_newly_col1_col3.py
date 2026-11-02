@@ -15,7 +15,7 @@ from middle.widget.middle_panel import MiddlePanel
 
 def _row(sym, days, chg):
     return (sym, days, "─ 로딩중", "#888888", f"  {chg:+.2f}%", "#00ff00", f"{chg:+.2f}%", "#00ff00",
-            "⟳ 전환 대기", "#ffff00", 4, [])
+            "⟳ 전환 대기", "#ffff00", 4)
 
 
 _NL_ROWS = [

@@ -413,8 +413,7 @@ class _Col1Mixin:
              tf_text, tf_color,
              change, change_color,
              cum_pct, cum_color,
-             phase, phase_color, phase_priority,
-             player_tags) = row
+             phase, phase_color, phase_priority) = row
 
             row_bg = self._row_bg(symbol, idx)
             rank   = idx + 1
@@ -716,8 +715,7 @@ class _Col1Mixin:
                     text="⏱  Time Fix",
                     bg="#1A2A1A", fg=POSITIVE,
                     activebackground="#1A3A1A", activeforeground=POSITIVE)
-            # Time Fix 해제 시 최신 순위로 즉시 재정렬
-            # (Time Fix 중 스킵됐던 30초 재정렬을 즉시 실행)
+            # Time Fix 해제 시 최신 순위로 즉시 재정렬 (Time Fix 중엔 순위 고정)
             self.after(50, self._rebuild_ranking_rows)
         self._update_cum_labels()
 
@@ -739,10 +737,6 @@ class _Col1Mixin:
             # Time Fix 활성: 1초마다 Cumulative 실시간 갱신 (즉각 반응)
             if self._time_fixed:
                 self._update_cum_labels()
-
-            # 30초마다 순위 재정렬 — Time Fix 중 스킵
-            if self._elapsed_sec % 30 == 0 and not self._time_fixed:
-                self._rebuild_ranking_rows()
 
             # 3열 선택 심볼 보조 갱신 — MiddlePanel._on_time_fix_tick
             self._on_time_fix_tick()
@@ -1008,7 +1002,7 @@ class _Col1Mixin:
         """rebuild 완료 후 선택 행 하이라이트만 복원.
 
         _on_select와 달리 _do_refresh_immediate를 호출하지 않아
-        30초마다 자동 rebuild 시 패널이 깜빡이지 않음.
+        STAGE3 완료 자동 rebuild 시 패널이 깜빡이지 않음.
         """
         self._sel_idx = sel_idx
         for update_idx, (frame, _sym) in enumerate(self._row_frames):
@@ -1105,7 +1099,7 @@ class _Col1Mixin:
         Time Fix 활성 중: Change% 고정 유지 (덮어쓰지 않음), 장단계만 갱신
         Time Fix 비활성: Change% + 장단계 모두 갱신
         순위(코인 위치)는 절대 변경하지 않음 → 사용자가 안정적으로 클릭 가능.
-        순위 재정렬은 30초마다 _tick_timer()에서 별도 실행.
+        순위 재정렬은 STAGE3(봉·지표) 갱신 완료 시 _on_klines_ready_col1()에서 별도 실행.
         """
         try:
             new_data = self._get_sorted_ranking()

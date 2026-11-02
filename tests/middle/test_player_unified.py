@@ -3,7 +3,7 @@ tests/middle/test_player_unified.py
 Player Detection 단일 정의(MiddleDataManager.get_player·get_player_map) — 1열 행 배경·Sharp rise/decline
 Player 가산점(+2)·3열 Player 가산점 표시가 같은 결과를 쓰는지 검증.
 - 가산점은 절단 전 전체 태그 기준 (표시용 상위 4개 절단과 무관)
-- 랭킹 풀 전 심볼 대상 (상세 갱신 종목 row[11]과 무관)
+- 랭킹 풀 전 심볼 대상 (상세 갱신 여부와 무관)
 """
 import tkinter as tk
 
@@ -31,9 +31,9 @@ _NONE = {"long_ratio": 50.0, "funding_rate": 0.0, "oi_change": 0.0, "vss": 1.0,
 
 
 def _row(sym):
-    """랭킹 12-tuple — row[11](상세 갱신 태그)은 비움: 상세 갱신 대상이 아닌 일반 종목."""
+    """랭킹 11-tuple — 상세 갱신 대상이 아닌 일반 종목."""
     return (sym, 9999, "─ 로딩중", "#888888", "  +1.00%", "#00ff00", "+1.00%", "#00ff00",
-            "⟳ 전환 대기", "#ffff00", 4, [])
+            "⟳ 전환 대기", "#ffff00", 4)
 
 
 @pytest.fixture()

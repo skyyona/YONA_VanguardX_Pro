@@ -6,7 +6,7 @@ middle/data/data_manager.py
   · 전체 ticker 주기적 갱신 (30초마다, 백그라운드 스레드)
   · 선택된 심볼 상세 데이터 온디맨드 갱신
   · get_ind(symbol) → SYMBOL_IND 포맷 dict  (middle_panel.py 하위 호환)
-  · get_ranking_rows() → 실데이터 랭킹 행 목록 (12-tuple 리스트)
+  · get_ranking_rows() → 실데이터 랭킹 행 목록 (11-tuple 리스트)
   · get_ohlcv(symbol, interval, n) → generate_ohlcv() 호환 dict 리스트
 """
 from __future__ import annotations
@@ -285,7 +285,7 @@ class MiddleDataManager:
         return self._default_ind()
 
     def get_ranking_rows(self) -> list:
-        """실데이터 랭킹 행 목록 반환 (12-tuple 리스트)."""
+        """실데이터 랭킹 행 목록 반환 (11-tuple 리스트)."""
         if self._ranking_rows:
             return self._ranking_rows
         # 캐시 없으면 ticker 기반 즉시 생성
@@ -358,10 +358,6 @@ class MiddleDataManager:
                            "direction": direction,
                            "has_rise": has_rise, "has_decline": has_decline}
         return result
-
-    def get_player_tags(self, symbol: str) -> list:
-        """(tag_text, tag_color, strength_pct) 목록 반환."""
-        return self._ind_cache.get(symbol, {}).get("_player_tags", [])
 
     def fetch_exchange_info(self) -> dict | None:
         """exchangeInfo 1회 조회 (동기) — 1열 Blacklist 탭 Settling 감지용."""
@@ -872,7 +868,6 @@ class MiddleDataManager:
                 oi_change_pct=oi_chg, vss=vss, bpr=bpr, atr_pct=atr,
                 price_chg_pct=price_chg,
             )
-            player_tags = [(t.tag_text, t.tag_color, t.strength_pct) for t in det.tags]
 
             # 에너지 균형
             eb = EnergyBalance.calculate(
@@ -891,7 +886,7 @@ class MiddleDataManager:
                 rsi=rsi, bpr=bpr, vss=vss, atr=atr, atr_5m=atr_5m, ema=ema,
                 vwap_r=vwap_r, pat=pat, fr_pct=fr_pct, oi_chg=oi_chg,
                 long_pct=long_pct, liq=liq, lev=lev.leverage,
-                player_tags=player_tags, player_keys=list(det.keys), eb=eb,
+                player_keys=list(det.keys), eb=eb,
             )
 
             # volume_ratio — 1m 최근 봉 / 20봉 평균
@@ -942,7 +937,7 @@ class MiddleDataManager:
         stoch_series,
         rsi, bpr, vss, atr, atr_5m, ema, vwap_r, pat,
         fr_pct, oi_chg, long_pct, liq, lev,
-        player_tags, player_keys, eb,
+        player_keys, eb,
     ) -> dict:
         price = tkr.last_price if tkr else 1.0
         chg   = tkr.price_change_pct if tkr else 0.0
@@ -996,9 +991,9 @@ class MiddleDataManager:
             },
             # 에너지
             "_energy_long_ratio": round(eb.long_ratio, 4),
-            # Player 태그 (내부용) — _player_tags: 표시용 상위 4개 / _player_keys: 절단 전 전체 키 (엔진 금지 조건)
-            #   _player_keys는 상세 갱신에서만 생성 — 없으면 엔진은 Player 판정 데이터 미준비로 진입 보류
-            "_player_tags": player_tags,
+            # Player 태그 (내부용) — _player_keys: 절단 전 전체 키 (엔진 금지 조건)
+            #   상세 갱신에서만 생성 — 없으면 엔진은 Player 판정 데이터 미준비로 진입 보류
+            #   (화면 표시 태그는 get_player 단일 정의 사용)
             "_player_keys": player_keys,
             "_data_ready":  True,
         }
@@ -1043,7 +1038,6 @@ class MiddleDataManager:
             "volume": {"rank": self._vol_rank.get(tkr.symbol, 999),
                        "usd_b": round(tkr.volume_usdt / 1e9, 3)},
             "_energy_long_ratio": 0.5,
-            "_player_tags": [],
             "_days_listed": 9999,
             "volume_ratio": 1.0,
             "swing_bull": False,
@@ -1066,7 +1060,6 @@ class MiddleDataManager:
             "base": 100.0, "trend": 0.0,
             "volume": {"rank": 999, "usd_b": 0.0},
             "_energy_long_ratio": 0.5,
-            "_player_tags": [],
             "_days_listed": 9999,
             "volume_ratio": 1.0,
             "swing_bull": False,
@@ -1080,7 +1073,7 @@ class MiddleDataManager:
     # ══ 랭킹 행 빌더 ══════════════════════════════════════════════
 
     def _make_row(self, tkr: SymbolTicker) -> tuple:
-        """ticker → 실데이터 12-tuple 랭킹 행 생성."""
+        """ticker → 실데이터 11-tuple 랭킹 행 생성."""
         sym  = tkr.symbol
         chg  = tkr.price_change_pct
 
@@ -1158,13 +1151,10 @@ class MiddleDataManager:
         else:
             phase_txt, phase_col, prio = "⟳ 전환 대기",   _YEL, 4
 
-        # [11] Player 태그
-        player_tags = (ind or {}).get("_player_tags", [])
-
         return (sym, days,
                 align_txt, align_col,
                 chg_txt, chg_col,
                 cum_txt, cum_col,
                 phase_txt, phase_col,
-                prio, player_tags)
+                prio)
 

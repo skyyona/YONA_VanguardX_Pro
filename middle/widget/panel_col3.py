@@ -84,8 +84,7 @@ class _Col3Mixin:
          tf_text, tf_color,
          change, change_color,
          cum_pct, cum_color,
-         phase, phase_color, phase_priority,
-         player_tags) = data
+         phase, phase_color, phase_priority) = data
 
         left = tk.Frame(self._hdr_f, bg=DARK_PANEL)
         left.pack(side="left", padx=16)
@@ -933,12 +932,6 @@ class _Col3Mixin:
                + (0.15 if "위" in vwap else 0.0)
                + (stoch_k / 100.0) * 0.10)
         return max(0.05, min(0.95, raw))
-
-    def _get_player_tags_for_sym(self, sym: str) -> list:
-        for data in _live_ranking():
-            if data[0] == sym:
-                return data[11]
-        return []
 
     def _get_phase_for_sym(self, sym: str) -> tuple:
         for data in _live_ranking():

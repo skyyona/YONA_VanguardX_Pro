@@ -165,7 +165,7 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         self._gold_sym        : str  = ""
         # Player Detection — 태그 감지 심볼 맵 (_rebuild_ranking_rows 갱신)
         self._player_tags_map : dict = {}
-        # Newly Listed — 1열에 표시한 행 {symbol: 12-tuple} (표시 순서, _rebuild_ranking_rows 갱신)
+        # Newly Listed — 1열에 표시한 행 {symbol: 11-tuple} (표시 순서, _rebuild_ranking_rows 갱신)
         #   3열 Newly 점수·순위가 1열과 같은 행(상장일·등락률)으로 계산되도록 공유
         self._nl_rows         : dict = {}
 
