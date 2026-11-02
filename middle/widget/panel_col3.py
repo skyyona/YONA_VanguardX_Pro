@@ -1038,9 +1038,9 @@ class _Col3Mixin:
                          font=("Segoe UI", 8), anchor="w",
                          wraplength=240).pack(fill="x", padx=6, pady=(0, 4))
 
-            # 복수 플레이어 통합 메시지
-            if len(_tags) >= 2:
-                cmb_msg, cmb_col = self._player_combined_msg(_tags)
+            # 복수 플레이어 통합 메시지 — 절단 전 전체 태그 키 기준 (표시는 상위 4개)
+            if len(_det.keys) >= 2:
+                cmb_msg, cmb_col = self._player_combined_msg(_det.keys)
                 if cmb_msg:
                     tk.Frame(self._energy_f, bg="#333333", height=1).pack(
                         fill="x", padx=8, pady=(6, 2))
@@ -1105,23 +1105,26 @@ class _Col3Mixin:
         return "중립", DIM_TEXT
 
     @staticmethod
-    def _player_combined_msg(tags: list) -> tuple:
-        """복수 플레이어 통합 메시지 — tags: PlayerTag 목록(에너지 패널 표시분)."""
-        if len(tags) < 2:
+    def _player_combined_msg(keys: list) -> tuple:
+        """복수 플레이어 통합 메시지 — keys: 절단 전 전체 태그 키(TagDetectionResult.keys).
+        상승·하락 태그가 함께 있으면 혼재 경고, 한쪽만 있을 때만 조합·복수 메시지 (태그 키 정확 일치)."""
+        if len(keys) < 2:
             return None, None
-        texts = " ".join(t.tag_text for t in tags)
-        if "세력 매집" in texts and ("고래" in texts or "기관" in texts):
+        ks = set(keys)
+        up = len(ks & TagDetector.RISE_KEYS)
+        dn = len(ks & TagDetector.DECLINE_KEYS)
+        if up and dn:
+            return "상승·하락 플레이어 혼재\n→ 방향 확인 전 진입 보류 권장", ORANGE
+        if "세력 매집" in ks and ks & {"고래 매수", "기관 유입"}:
             return "세력 + 대형 자금 동시 매집\n→ 가장 강력한 상승 신호 — 롱 엔진 즉시 진입 강력 권장", POSITIVE
-        if "세력 분산" in texts and ("청산 헌터" in texts or "헌터" in texts):
+        if {"세력 분산", "청산 헌터"} <= ks:
             return "세력 이탈 + 청산 헌터 동시 활동\n→ 강한 하락 압력 — 숏 엔진 즉시 진입 강력 권장", NEGATIVE
-        if "FOMO" in texts and "FR+" in texts:
+        if {"FOMO 극단", "FR+ 과열"} <= ks:
             return "개인 FOMO + 펀딩비 과열 이중 경고\n→ 상승 말기 역추세 — 숏 엔진 역발상 검토", ORANGE
-        if "FR-" in texts and "세력 매집" in texts:
+        if {"FR-", "세력 매집"} <= ks:
             return "펀딩비 반전 + 세력 매집 이중 상승 신호\n→ 롱 엔진 강력 추천", POSITIVE
-        if "롱 스퀴즈" in texts and ("청산 헌터" in texts or "헌터" in texts):
+        if {"롱 스퀴즈", "청산 헌터"} <= ks:
             return "롱 스퀴즈 + 청산 헌터 이중 하락 신호\n→ 숏 엔진 즉시 진입 최적 타이밍", NEGATIVE
-        up = sum(1 for t in tags if t.tag_key in TagDetector.RISE_KEYS)
-        dn = sum(1 for t in tags if t.tag_key in TagDetector.DECLINE_KEYS)
         if up >= 2:
             return "복수 상승 플레이어 동시 활동\n→ 롱 에너지 복합 확인 — 롱 엔진 진입 권장", POSITIVE
         if dn >= 2:
