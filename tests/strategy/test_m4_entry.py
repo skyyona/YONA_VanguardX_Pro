@@ -242,3 +242,24 @@ class TestDivergenceDetector:
         k_ser = [50.0]  * 10
         bars = self._bars(lows, highs)
         assert DivergenceDetector.detect(bars, k_ser) is None
+
+
+# ── TestGEmaReason ─────────────────────────────────────────────────────────
+
+class TestGEmaReason:
+    """G_ema 차단 사유 — 저가 종목 EMA도 구분되게 유효숫자 8자리 표시 (기존 소수 4자리: 0.0000)."""
+
+    @staticmethod
+    def _ind(e5: float, e50: float) -> dict:
+        tf = {"k": 10.0, "d": 40.0, "div": "bull"}       # G6 B등급 통과(Cascade·Divergence·Zone), G_K 통과
+        return {"tf1": tf, "tf3": tf, "tf5": tf, "tf15": tf, "e5": e5, "e50": e50}
+
+    def test_low_price_ema_distinguishable(self):
+        ok, reason = M4Entry.evaluate("long", self._ind(0.000123451, 0.000123459), _params("Sharp rise"))
+        assert ok is False
+        assert reason == "G_ema: EMA5(0.000123451) ≤ EMA50(0.000123459) — 상승추세 미확인"
+
+    def test_normal_price_ema(self):
+        ok, reason = M4Entry.evaluate("long", self._ind(65012.12, 65012.34), _params("Sharp rise"))
+        assert ok is False
+        assert reason == "G_ema: EMA5(65012.12) ≤ EMA50(65012.34) — 상승추세 미확인"

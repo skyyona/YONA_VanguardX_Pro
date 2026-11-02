@@ -116,9 +116,9 @@ class M4Entry:
             _e50 = float(ind_data.get("e50", 0.0))
             if _e5 > 0 and _e50 > 0:
                 if is_long and _e5 <= _e50:
-                    return False, f"G_ema: EMA5({_e5:.4f}) ≤ EMA50({_e50:.4f}) — 상승추세 미확인"
+                    return False, f"G_ema: EMA5({_e5:.8g}) ≤ EMA50({_e50:.8g}) — 상승추세 미확인"
                 if not is_long and _e5 >= _e50:
-                    return False, f"G_ema: EMA5({_e5:.4f}) ≥ EMA50({_e50:.4f}) — 하락추세 미확인"
+                    return False, f"G_ema: EMA5({_e5:.8g}) ≥ EMA50({_e50:.8g}) — 하락추세 미확인"
 
         # ── G1: RSI 다이버전스 + 거래량 확인 ──────────────────────
         if is_long:
