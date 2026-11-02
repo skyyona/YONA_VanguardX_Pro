@@ -692,7 +692,8 @@ class _Col1Mixin:
                     tkr = _ctx._data_mgr.get_ticker(sym)
                     if tkr and tkr.last_price > 0:
                         self._time_fix_prices[sym] = tkr.last_price  # Fix 시점 가격 스냅샷
-            # 타이머 시작
+            # 타이머 시작 — 1초 안에 해제→재시작해도 이전 예약 틱을 취소해 타이머 1개만 유지
+            self._cancel_tick_timer()
             self._elapsed_sec   = 0
             self._timer_running = True
             self._tick_timer()
@@ -707,6 +708,7 @@ class _Col1Mixin:
             # ── 스냅샷 삭제 + 타이머 정지 + 리셋 ─────────────
             self._time_fix_prices.clear()
             self._timer_running = False
+            self._cancel_tick_timer()
             self._elapsed_sec   = 0
             if self._timer_lbl:
                 self._timer_lbl.configure(text="00:00:00", fg=DIM_TEXT)
@@ -743,7 +745,14 @@ class _Col1Mixin:
         except Exception:
             pass   # 내부 예외는 무시, 타이머는 반드시 계속됨
         # ── 항상 다음 틱 예약 (try 블록 바깥) ──────────────────────
-        self.after(1000, self._tick_timer)
+        self._tick_after_id = self.after(1000, self._tick_timer)
+
+    def _cancel_tick_timer(self) -> None:
+        """예약된 다음 Time Fix 틱 취소."""
+        after_id = getattr(self, "_tick_after_id", None)
+        if after_id is not None:
+            self.after_cancel(after_id)
+            self._tick_after_id = None
 
     def _update_cum_labels(self) -> None:
         """Cumulative 컬럼 실시간 갱신.

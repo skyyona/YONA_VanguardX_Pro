@@ -176,6 +176,7 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         # 경과 시간 타이머
         self._elapsed_sec : int           = 0
         self._timer_running: bool         = False
+        self._tick_after_id               = None   # 예약된 다음 Time Fix 틱 (after id)
         self._timer_lbl  : tk.Label | None = None
         self._timefix_btn: tk.Button | None = None
 
