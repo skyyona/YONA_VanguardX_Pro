@@ -68,6 +68,7 @@ LAYOUT_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_
 DEFAULT_MAIN_RATIO = 0.36    # 1열 : 2열  (36%)
 DEFAULT_COL1_RATIO = 0.47    # Chart : Middle (2열 30% : 3열 34%)
 DEFAULT_GEOMETRY   = "1560x460"
+_DATA_READY_COALESCE_MS = 300   # 상세 갱신 완료 → 2열·3열 재생성 묶음 대기 (봉 경계 연속 갱신을 1번으로)
 
 
 def load_layout_config() -> dict:
@@ -147,6 +148,7 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         self._row_frames    : list[tuple[tk.Frame, str]] = []
         self._special       : dict[int, set]              = {}
         self._cum_labels    : dict[str, tuple[tk.Label, str, str]] = {}  # sym → (lbl, fixed_text, fixed_color)
+        self._cum_shown     : dict[str, tuple[str, str]] = {}            # sym → 현재 표시 중 (text, color)
         self._change_labels : dict[str, tk.Label]  = {}   # sym → Change% Label (5초 소프트 갱신용)
         self._phase_labels  : dict[str, tuple]     = {}   # sym → (ph_f Frame, ph_lbl Label)
         self._top_bar_f  : tk.Frame | None = None
@@ -179,6 +181,7 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         self._elapsed_sec : int           = 0
         self._timer_running: bool         = False
         self._tick_after_id               = None   # 예약된 다음 Time Fix 틱 (after id)
+        self._data_ready_after_ids: dict[str, str] = {}   # 종목별 예약된 2열·3열 재생성 (after id)
         self._timer_lbl  : tk.Label | None = None
         self._timefix_btn: tk.Button | None = None
 
@@ -803,7 +806,7 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
 
     # ── 실데이터 갱신 완료 콜백 (DataManager 백그라운드 → 메인 스레드) ──
     def _on_data_ready(self, symbol: str) -> None:
-        """STAGE1 완료 콜백 — 2열+3열 즉시 갱신 (콜백 기반).
+        """STAGE1 완료 콜백 — 2열+3열 갱신 (콜백 기반, 같은 종목 연속 완료는 0.3초 안 1번으로 묶음).
 
         ANALYSIS 상태일 때만 갱신:
           - 3열: 지표·파생·에너지·종합 전체 갱신
@@ -828,7 +831,12 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
             except Exception:
                 pass
         try:
-            self.after(0, _check_and_refresh)
+            # 같은 종목 상세 갱신이 짧은 간격으로 연달아 오면(봉 경계 1m·3m·5m·15m 동시 마감 등)
+            # 마지막 1번만 2열·3열 재생성 — 종목별 예약이라 엔진 종목·선택 종목 갱신이 서로 지우지 않음
+            prev = self._data_ready_after_ids.get(symbol)
+            if prev is not None:
+                self.after_cancel(prev)
+            self._data_ready_after_ids[symbol] = self.after(_DATA_READY_COALESCE_MS, _check_and_refresh)
         except Exception:
             pass
 

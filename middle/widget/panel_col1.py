@@ -355,6 +355,7 @@ class _Col1Mixin:
         self._row_frames.clear()
         self._special.clear()
         self._cum_labels.clear()
+        self._cum_shown.clear()
         self._change_labels.clear()
         self._phase_labels.clear()
         self._nl_rows.clear()
@@ -765,6 +766,7 @@ class _Col1Mixin:
         Time Fix 비활성: '+000.00' (미측정)
         """
         # _ctx 경유 접근 (global 불필요)
+        # 표시 값이 바뀐 행만 configure — 1초마다 전 행 재설정 시 화면 다시 그리기 부담 (실측 메인 스레드 8%)
         for sym, (lbl, _ft, _fc) in self._cum_labels.items():
             try:
                 if self._time_fixed and self._time_fix_prices:
@@ -779,9 +781,11 @@ class _Col1Mixin:
                             txt, col = "+0.00%", DIM_TEXT
                     else:
                         txt, col = "+0.00%", DIM_TEXT
-                    lbl.configure(text=txt, fg=col)
                 else:
-                    lbl.configure(text="+000.00", fg=DIM_TEXT)
+                    txt, col = "+000.00", DIM_TEXT
+                if self._cum_shown.get(sym) != (txt, col):
+                    lbl.configure(text=txt, fg=col)
+                    self._cum_shown[sym] = (txt, col)
             except Exception:
                 pass
 

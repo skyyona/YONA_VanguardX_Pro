@@ -668,9 +668,14 @@ class _Col2Mixin:
     def _draw_canvas_fallback(self) -> None:
         cv = tk.Canvas(self._chart_f, bg="#0D0D0D", highlightthickness=0)
         cv.pack(fill="both", expand=True)
-        self.update_idletasks()
-        W = cv.winfo_width() or 700
-        H = cv.winfo_height() or 340
+        # 캔버스 = 차트 프레임 전체 → 프레임의 현재 크기 사용
+        # (update_idletasks()는 앱 전체 화면 배치를 즉시 강제 처리 — 실측 메인 스레드 12%)
+        W = self._chart_f.winfo_width()
+        H = self._chart_f.winfo_height()
+        if W <= 1 or H <= 1:
+            # 프레임이 아직 화면 배치 전 — 배치되면(Configure) 실제 크기로 다시 그림
+            cv.bind("<Configure>", lambda e: self._refresh_chart())
+            return
 
         sym      = self._sel_var.get()
         tf_label = self._tf_var.get()
