@@ -24,56 +24,44 @@ from middle.widget.middle_panel import MiddlePanel
 from bottom_engine.widget.bottom_panel import BottomModuleMockup
 
 # ── 단일 인스턴스 락 (L09-2) ──────────────────────────────────────
-_LOCK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".app.lock")
+# Windows 이름 있는 뮤텍스 — 프로세스가 어떻게 끝나든(정상·강제 종료·크래시·PC 종료) OS가 자동 해제.
+# (기존 PID 파일 방식: 강제 종료 후 남은 PID를 다른 프로세스가 붙잡거나 재사용하면 '중복 실행' 오판 — 2026-11-05 재현)
+_MUTEX_NAME = "Local\\YONA_VanguardX_Pro_SingleInstance"
+_ERROR_ACCESS_DENIED  = 5
+_ERROR_ALREADY_EXISTS = 183
+
+_k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+_k32.CreateMutexW.restype  = ctypes.c_void_p
+_k32.CreateMutexW.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p)
+_k32.CloseHandle.argtypes  = (ctypes.c_void_p,)
+
+_instance_mutex: int | None = None   # 앱 실행 동안 보유 (닫히면 다음 실행 허용)
 
 
 def _acquire_instance_lock() -> None:
-    """앱 이중 실행을 방지하는 파일 기반 락 획득.
-    이미 동일 PID가 살아 있으면 경고 후 종료, 비정상 종료 잔여 락은 자동 제거.
-    """
-    if os.path.exists(_LOCK_FILE):
-        old_pid: int | None = None
-        try:
-            with open(_LOCK_FILE, encoding="utf-8") as _f:
-                old_pid = int(_f.read().strip())
-        except Exception:
-            pass
-
-        alive = False
-        if old_pid:
-            _handle = ctypes.windll.kernel32.OpenProcess(0x0400, False, old_pid)
-            if _handle:
-                ctypes.windll.kernel32.CloseHandle(_handle)
-                alive = True
-            else:
-                # 비정상 종료 후 잔여 락 파일 — 삭제 후 계속
-                try:
-                    os.remove(_LOCK_FILE)
-                except Exception:
-                    pass
-
-        if alive:
-            import tkinter.messagebox as _mb
-            _r = tk.Tk()
-            _r.withdraw()
-            _mb.showerror("중복 실행", "YONA VanguardX Pro가 이미 실행 중입니다.")
-            _r.destroy()
-            sys.exit(0)
-
-    try:
-        with open(_LOCK_FILE, "w", encoding="utf-8") as _f:
-            _f.write(str(os.getpid()))
-    except Exception:
-        pass  # 락 파일 생성 실패 시 진행 허용
+    """앱 이중 실행 방지 — 같은 이름 뮤텍스가 이미 있으면 경고 후 종료."""
+    global _instance_mutex
+    handle = _k32.CreateMutexW(None, False, _MUTEX_NAME)
+    err = ctypes.get_last_error()
+    # 이미 존재: 핸들은 받지만 ERROR_ALREADY_EXISTS / 권한이 다른(관리자) 실행본 보유: NULL + ACCESS_DENIED
+    if (handle and err == _ERROR_ALREADY_EXISTS) or (not handle and err == _ERROR_ACCESS_DENIED):
+        if handle:
+            _k32.CloseHandle(handle)
+        import tkinter.messagebox as _mb
+        _r = tk.Tk()
+        _r.withdraw()
+        _mb.showerror("중복 실행", "YONA VanguardX Pro가 이미 실행 중입니다.")
+        _r.destroy()
+        sys.exit(0)
+    _instance_mutex = handle   # 생성 실패(그 외 오류) 시 None — 진행 허용 (기존 정책과 동일)
 
 
 def _release_instance_lock() -> None:
-    """앱 종료 시 락 파일 제거."""
-    try:
-        if os.path.exists(_LOCK_FILE):
-            os.remove(_LOCK_FILE)
-    except Exception:
-        pass
+    """앱 종료 시 뮤텍스 핸들 닫기 (프로세스 종료 시에도 OS가 자동으로 닫음)."""
+    global _instance_mutex
+    if _instance_mutex:
+        _k32.CloseHandle(_instance_mutex)
+        _instance_mutex = None
 
 
 HEADER_HEIGHT = 52   # 상/하 패딩 1px로 최소화 (기존 76px → 52px)

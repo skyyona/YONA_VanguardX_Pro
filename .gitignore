@@ -10,6 +10,5 @@ data/*
 !logs/.gitkeep
 .pytest_cache/
 .claude/
-.app.lock
 trade_history.json
 backtest_cache/
