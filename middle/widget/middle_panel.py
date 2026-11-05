@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import json
+import queue
 import webbrowser
 import datetime
 import tkinter as tk
@@ -69,6 +70,7 @@ DEFAULT_MAIN_RATIO = 0.36    # 1열 : 2열  (36%)
 DEFAULT_COL1_RATIO = 0.47    # Chart : Middle (2열 30% : 3열 34%)
 DEFAULT_GEOMETRY   = "1560x460"
 _DATA_READY_COALESCE_MS = 300   # 상세 갱신 완료 → 2열·3열 재생성 묶음 대기 (봉 경계 연속 갱신을 1번으로)
+_UI_QUEUE_POLL_MS       = 100   # 작업 스레드 → 화면 스레드 전달 줄 확인 주기
 
 
 def load_layout_config() -> dict:
@@ -121,11 +123,15 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
                 pass   # start_auto_refresh는 on_app_start()에서 호출
             except Exception:
                 _data_mgr = None
+        # 작업 스레드 → 화면 스레드 전달 줄 (작업 스레드는 Tk를 호출하지 않음 — _post 참고)
+        self._ui_queue: queue.SimpleQueue = queue.SimpleQueue()
+        self.after(_UI_QUEUE_POLL_MS, self._drain_ui_queue)
         # 콜백 등록 (DataManager → 화면 자동 재갱신) — START 전에도 등록
+        # DataManager는 작업 스레드에서 호출 → 전달 줄을 거쳐 화면 스레드에서 실행
         if _data_mgr is not None:
-            _data_mgr._on_detail_ready_cb  = self._on_data_ready
-            _data_mgr._on_ranking_ready_cb = self._soft_update_ranking
-            _data_mgr._on_klines_ready_cb  = self._on_klines_ready
+            _data_mgr._on_detail_ready_cb  = lambda sym: self._post(self._on_data_ready, sym)
+            _data_mgr._on_ranking_ready_cb = lambda: self._post(self._soft_update_ranking)
+            _data_mgr._on_klines_ready_cb  = lambda: self._post(self._on_klines_ready)
 
         # ── 앱 상태 머신 ─────────────────────────────────────
         # 'IDLE': 초기/STOP 후 | 'RANKING': START 후 | 'ANALYSIS': 심볼 선택 후
@@ -805,6 +811,25 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         self._do_refresh_detail()
 
     # ── 실데이터 갱신 완료 콜백 (DataManager 백그라운드 → 메인 스레드) ──
+    def _post(self, fn, *args) -> None:
+        """작업 스레드 → 화면 스레드 실행 요청 (Tk 호출 없음, 어느 스레드에서도 안전).
+        작업 스레드가 Tk(after 등)를 직접 호출하면 스레드 종료 후에도 Tcl 스레드별
+        Event 핸들이 1개씩 남음 (2026-11-05 실측·재현)."""
+        self._ui_queue.put((fn, args))
+
+    def _drain_ui_queue(self) -> None:
+        """화면 스레드: 전달 줄의 요청을 받은 순서대로 실행 후 다음 확인 예약."""
+        while True:
+            try:
+                fn, args = self._ui_queue.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                fn(*args)
+            except Exception:
+                pass   # 한 요청 실패가 나머지 요청·다음 확인을 막지 않음
+        self.after(_UI_QUEUE_POLL_MS, self._drain_ui_queue)
+
     def _on_data_ready(self, symbol: str) -> None:
         """STAGE1 완료 콜백 — 2열+3열 갱신 (콜백 기반, 같은 종목 연속 완료는 0.3초 안 1번으로 묶음).
 

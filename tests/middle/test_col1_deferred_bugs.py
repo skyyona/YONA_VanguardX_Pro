@@ -2,12 +2,14 @@
 tests/middle/test_col1_deferred_bugs.py
 1열 정리 4단계 — 미뤄 둔 버그 수정 검증 (실제 Tk 타이머·위젯 경로, 데이터 관리자는 대역).
 """
+import queue
 import time
 import tkinter as tk
 
 import pytest
 
 import middle.widget.shared_context as _ctx
+import middle.widget.middle_panel as mp_mod
 from middle.widget.middle_panel import MiddlePanel
 
 
@@ -137,10 +139,17 @@ class _SlowDM:
         return None
 
 
+def _start_ui_queue(p):
+    """MiddlePanel.__init__과 같이 작업 스레드 → 화면 스레드 전달 줄·확인 루프 준비."""
+    p._ui_queue = queue.SimpleQueue()
+    p.after(mp_mod._UI_QUEUE_POLL_MS, p._drain_ui_queue)
+
+
 def _pending_panel(root, monkeypatch, dm):
     monkeypatch.setattr(_ctx, "_data_mgr", dm)
     p = MiddlePanel.__new__(MiddlePanel)
     tk.Frame.__init__(p, root)
+    _start_ui_queue(p)
     p._sort_mode = "Pending Listing"
     p._pending_cache, p._pending_status, p._pending_after_id = [], "loading", None
     p._inner = tk.Frame(root)
@@ -206,6 +215,7 @@ def test_settling_load_in_worker_and_failure_message(root, monkeypatch):
         monkeypatch.setattr(_ctx, "_data_mgr", dm)
         p = MiddlePanel.__new__(MiddlePanel)
         tk.Frame.__init__(p, root)
+        _start_ui_queue(p)
         p._checked_settling, p._settling_cache, p._settling_status = set(), [], "loading"
         p._t_tree = ttk.Treeview(root, columns=("n", "chk", "sym", "chg", "st"), show="headings")
         t0 = time.time()

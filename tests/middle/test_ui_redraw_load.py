@@ -4,6 +4,7 @@ tests/middle/test_ui_redraw_load.py
 ① 2열 차트: 앱 전체 배치 강제(update_idletasks) 없이 차트 프레임 크기로 그리기, 배치 전이면 Configure 후 다시 그림
 ② 상세 갱신 완료 → 2열·3열 재생성: 같은 종목 0.3초 안 연속 완료는 1번으로 묶음 (종목별)
 ③ Time Fix 누적%: 표시 값이 바뀐 행만 configure
+④ 작업 스레드 → 화면 스레드 전달 줄: 작업 스레드는 Tk 미호출 (2026-11-05 Event 핸들 증가 대응)
 """
 import time
 import tkinter as tk
@@ -159,3 +160,63 @@ def test_cum_labels_configure_only_changed(monkeypatch):
     p._time_fixed = False
     p._update_cum_labels()
     assert la.cfg["text"] == lb.cfg["text"] == "+000.00"
+
+
+# ── ④ 작업 스레드 → 화면 스레드 전달 줄 (2026-11-05 Event 핸들 증가 대응) ──
+class _CbDM:
+    """MiddlePanel이 콜백을 등록하는 속성만 가진 데이터 관리자 대역."""
+    _running = False
+    _on_detail_ready_cb = _on_ranking_ready_cb = _on_klines_ready_cb = None
+
+
+def _full_panel(root, monkeypatch, tmp_path):
+    from middle.data.blacklist import BlacklistManager
+    dm = _CbDM()
+    monkeypatch.setattr(mp_mod, "_data_mgr", dm)
+    monkeypatch.setattr(mp_mod, "_bl_mgr", BlacklistManager(tmp_path / "bl.json"))
+    p = MiddlePanel(root)
+    return p, dm
+
+
+def test_datamanager_callbacks_run_on_main_thread_without_worker_tk_calls(root, monkeypatch, tmp_path):
+    import threading
+    p, dm = _full_panel(root, monkeypatch, tmp_path)
+    main = threading.main_thread()
+    ran, after_threads = [], []
+    p._on_data_ready       = lambda s: ran.append(("detail", s, threading.current_thread() is main))
+    p._soft_update_ranking = lambda: ran.append(("ranking", threading.current_thread() is main))
+    p._on_klines_ready     = lambda: ran.append(("klines", threading.current_thread() is main))
+    real_after = p.after
+    def _after(*a, **kw):
+        after_threads.append(threading.current_thread() is main)
+        return real_after(*a, **kw)
+    p.after = _after
+    def _worker():
+        dm._on_detail_ready_cb("AUSDT")
+        dm._on_ranking_ready_cb()
+        dm._on_klines_ready_cb()
+    ts = [threading.Thread(target=_worker) for _ in range(3)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    assert ran == []                                   # 작업 스레드에서 즉시 실행 안 함
+    _run_until(root, lambda: len(ran) == 9)
+    assert ran == [("detail", "AUSDT", True), ("ranking", True), ("klines", True)] * 3
+    assert after_threads and all(after_threads)        # 작업 스레드의 Tk(after) 호출 0회
+    p.destroy()
+
+
+def test_ui_queue_continues_after_failing_request(root, monkeypatch, tmp_path):
+    p, _ = _full_panel(root, monkeypatch, tmp_path)
+    ran = []
+    def _boom():
+        raise RuntimeError("x")
+    p._post(_boom)
+    p._post(ran.append, 1)
+    _run_until(root, lambda: ran == [1])
+    assert ran == [1]                                  # 앞 요청 실패가 뒤 요청을 막지 않음
+    p._post(ran.append, 2)
+    _run_until(root, lambda: ran == [1, 2])
+    assert ran == [1, 2]                               # 확인 루프 계속 동작
+    p.destroy()

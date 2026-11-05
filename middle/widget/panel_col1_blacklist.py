@@ -206,7 +206,7 @@ class _Col1BlacklistMixin:
                         entries = _SettlingDetector.detect(info)
                 except Exception:
                     entries = None
-            self.after(0, lambda: self._apply_settling_data(entries))
+            self._post(self._apply_settling_data, entries)   # 작업 스레드는 Tk 미호출 (MiddlePanel._post)
         threading.Thread(target=_load, daemon=True).start()
 
     def _apply_settling_data(self, entries: "list | None") -> None:

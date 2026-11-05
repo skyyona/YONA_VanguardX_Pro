@@ -869,7 +869,7 @@ class _Col1Mixin:
         def _load():
             raw = _ctx._data_mgr.fetch_pending_listings() if _ctx._data_mgr is not None else None
             entries = _PendingListingDetector.parse(raw) if raw is not None else None
-            self.after(0, lambda: self._apply_pending_data(entries))
+            self._post(self._apply_pending_data, entries)   # 작업 스레드는 Tk 미호출 (MiddlePanel._post)
         threading.Thread(target=_load, daemon=True).start()
         self._schedule_pending_refresh()
 
