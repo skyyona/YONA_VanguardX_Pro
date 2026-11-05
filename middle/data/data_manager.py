@@ -26,6 +26,7 @@ _STAGE2_INTERVAL = 60    # 경량 갱신: L/S·FR·OI (초) — Rate Limit 예�
 # long_ratio(50.0)/funding_rate(0.0)/oi_change(0.0) 기본값으로 영구 채점된다.
 # 이 3개 필드는 sharp_rise·sharp_decline·fourtf·newlisted·player 5개 스코어러가 모두 사용한다.
 _STAGE2_TOPN     = 100
+_G2_RSI_BARS     = 14 + 5   # M4 준비 G2: 15m 마감 봉 19개 RSI(14) — trading_engine·backtest_runner G2와 동일
 _STAGE3_INTERVAL = 60    # klines 갱신: 4TF OHLCV+지표 (초)
 _LOOP_BASE       = 5     # 루프 기본 단위 (초) — TICKER_INTERVAL과 동기화
 _SPREAD_INTERVAL = 60    # 호가 스프레드 표본 주기 (초) — bookTicker 전체 1회 가중치 5
@@ -52,7 +53,7 @@ _VWAP_ATR5M_BARS_DETAIL = 79   # _refresh_detail
 # ── 단계별 필드 소유권 ────────────────────────────────────────
 # 각 갱신 단계는 자기가 담당하는 필드만 캐시에 병합한다.
 # 통째 교체 방식은 네트워크 대기 중 다른 단계가 쓴 결과를 되돌린다.
-_STAGE2_FIELDS = ("long_ratio", "funding_rate", "oi_change")
+_STAGE2_FIELDS = ("long_ratio", "funding_rate", "oi_change", "_stage2_ready")
 _STAGE3_FIELDS = (
     "atr", "atr_pct", "atr_pct_5m", "vss", "bpr", "price_change_pct",
     "pattern", "align", "e5", "e10", "e20", "e50",
@@ -69,6 +70,9 @@ from middle.data.funding_rate_data import FundingRateFetcher
 from middle.data.open_interest_data import OpenInterestFetcher
 from middle.data.longshort_data import LongShortFetcher
 from middle.models import OHLCVBar, SymbolTicker
+# M4 준비(1열) = 엔진 M4Entry와 같은 G2 RSI 함수·같은 모드 설정(use_macro) — 엔진 모듈은 중단을 import하지 않음(순환 없음)
+from bottom_engine.strategy.rsi_divergence import calc_rsi_series
+from bottom_engine.strategy_settings.strategy_loader import StrategyLoader
 
 from middle.col3_analysis_panels.technical_analysis.rsi import RSI
 from middle.col3_analysis_panels.technical_analysis.bpr import BPR
@@ -140,6 +144,15 @@ def _has_newer(cur: dict, bars: dict) -> bool:
     return False
 
 
+def _apply_liq(ind: dict) -> None:
+    """갱신 대상 행 청산 근접도 — 상세 경로(_compute_detail)와 같은 함수·입력(1h ATR%·FR%·롱 비율).
+    STAGE2(FR·롱 비율)와 STAGE3(1h ATR%)가 모두 반영된 뒤에만 계산 — 그 전에는 기본값(±2.0) 유지."""
+    if ind.get("_data_ready") and ind.get("_stage2_ready"):
+        liq = LiquidationProximityPanel.estimate(ind["atr_pct"], ind["funding_rate"], ind["long_ratio"])
+        ind["liq_long_pct"]  = liq.liq_long_pct
+        ind["liq_short_pct"] = liq.liq_short_pct
+
+
 def _stoch_tf_dict(r: StochRSIResult | None) -> dict:
     """StochRSIResult → tf dict (SYMBOL_IND 포맷)."""
     if r is None:
@@ -172,6 +185,7 @@ class MiddleDataManager:
         self._ind_cache:       dict[str, dict]            = {}   # symbol → ind dict
         self._ohlcv_cache:     dict[str, dict[str, list[OHLCVBar]]] = {}
         self._ranking_rows:    list                       = []
+        self._sort_mode:       str                        = "24h Ticker"   # 1열 Sort by — M4 준비 G7.5 적용 여부 기준
         self._onboard_map:     dict[str, int]             = {}
         self._cross_ts_cache:  dict[str, dict[str, float]] = {}  # sym→{tf_key→교차 unix ts}
         self._spread_hist:     dict[str, deque]           = {}   # symbol → 최근 스프레드(%) 표본
@@ -289,7 +303,21 @@ class MiddleDataManager:
         if self._ranking_rows:
             return self._ranking_rows
         # 캐시 없으면 ticker 기반 즉시 생성
-        return [self._make_row(t) for t in self._tickers[:200]]
+        use_macro = self._m4_use_macro()
+        return [self._make_row(t, use_macro) for t in self._tickers[:200]]
+
+    def set_sort_mode(self, mode: str) -> None:
+        """1열 Sort by 변경 — M4 준비 G7.5 적용 기준(같은 이름 엔진 모드의 use_macro) 교체 후 랭킹 풀 즉시 재생성.
+        표시 전용: 하단 엔진 모드·설정은 바꾸지 않는다 (읽기만)."""
+        with self._lock:
+            self._sort_mode = mode
+        self._rebuild_ranking_rows()
+
+    def _m4_use_macro(self) -> bool:
+        """1열 Sort by와 이름이 같은 엔진 모드의 use_macro (_strategy.json, 없으면 엔진 기본값) — 행 생성 1회마다 읽음."""
+        with self._lock:
+            mode = self._sort_mode
+        return StrategyLoader.load_or_default(mode).use_macro
 
     def get_ohlcv(self, symbol: str, interval: str = "5m", n: int = 60) -> list[dict]:
         """generate_ohlcv() 호환 dict 리스트 반환.
@@ -512,6 +540,7 @@ class MiddleDataManager:
                 if fr:
                     ind["funding_rate"] = fr.funding_rate * 100.0
                 ind["oi_change"] = oi
+                ind["_stage2_ready"] = True   # 청산 근접도 계산 조건 (_apply_liq)
                 with self._lock:
                     # 네트워크 대기 중 다른 단계가 갱신한 필드를 되돌리지 않도록
                     # 현재 캐시를 기준으로 이 단계 담당 필드만 덮어쓴다.
@@ -520,6 +549,8 @@ class MiddleDataManager:
                         merged = dict(cur)
                         merged.update({k: ind[k] for k in _STAGE2_FIELDS if k in ind})
                         ind = merged
+                    if sym != self._engine_sym:   # 엔진 종목 청산 값은 상세 경로 값 유지 (엔진 입력 불변)
+                        _apply_liq(ind)
                     self._ind_cache[sym] = ind
             except Exception:
                 pass
@@ -643,6 +674,7 @@ class MiddleDataManager:
                         merged = dict(cur)
                         merged.update({k: ind[k] for k in _STAGE3_FIELDS if k in ind})
                         ind = merged
+                    _apply_liq(ind)   # 엔진 종목은 STAGE3 대상 아님 (함수 첫머리에서 제외)
                     self._ind_cache[sym] = ind
                     sym_cache = self._ohlcv_cache.setdefault(sym, {})
                     sym_cache.update(bars)
@@ -759,7 +791,8 @@ class MiddleDataManager:
         with self._lock:
             # 거래량 정렬된 상위 200개 (기존: API 응답 순서 첫 200개 → 수정)
             tickers_snap = list(self._sorted_tickers[:200])
-        rows = [self._make_row(t) for t in tickers_snap]
+        use_macro = self._m4_use_macro()
+        rows = [self._make_row(t, use_macro) for t in tickers_snap]
         with self._lock:
             self._ranking_rows = rows
 
@@ -770,7 +803,8 @@ class MiddleDataManager:
         with self._lock:
             tickers_snap = list(self._tickers)   # 전체 원본 복사
         tickers_snap.sort(key=lambda t: t.price_change_pct, reverse=True)
-        return [self._make_row(t) for t in tickers_snap[:limit]]
+        use_macro = self._m4_use_macro()
+        return [self._make_row(t, use_macro) for t in tickers_snap[:limit]]
 
     def get_newlisted_rows(self) -> list:
         """Newly Listed 모드 전용: 전체 _tickers에서 상장 30일 이내 심볼만 행 반환.
@@ -779,6 +813,7 @@ class MiddleDataManager:
         with self._lock:
             tickers_snap = list(self._tickers)
             onboard_snap = dict(self._onboard_map)
+        use_macro = self._m4_use_macro()
         result = []
         for t in tickers_snap:
             ob = onboard_snap.get(t.symbol, 0)
@@ -786,7 +821,7 @@ class MiddleDataManager:
                 continue
             days = _days_since_listing(ob)
             if 0 < days <= 30:
-                result.append(self._make_row(t))
+                result.append(self._make_row(t, use_macro))
         return result
 
     def _fetch_onboard_map(self) -> None:
@@ -1073,24 +1108,25 @@ class MiddleDataManager:
 
     # ══ 랭킹 행 빌더 ══════════════════════════════════════════════
 
-    def _make_row(self, tkr: SymbolTicker) -> tuple:
-        """ticker → 실데이터 11-tuple 랭킹 행 생성."""
+    def _make_row(self, tkr: SymbolTicker, use_macro: bool) -> tuple:
+        """ticker → 실데이터 11-tuple 랭킹 행 생성.
+        use_macro: 1열 Sort by와 이름이 같은 엔진 모드의 G7.5 적용 여부 (_m4_use_macro)."""
         sym  = tkr.symbol
         chg  = tkr.price_change_pct
 
         # [1] 신규 상장 days
         days = self.get_listing_days(sym)
 
-        # [2,3] M4 진입 준비 상태 (G2 15m추세 + G7.5 거시 점수)
+        # [2,3] M4 진입 준비 상태 (G2 15m RSI 50 + G7.5 거시 점수) — 엔진 M4Entry와 같은 판정
         ind = self._ind_cache.get(sym)
-        if ind:
-            # G2: 15m 추세 합의 (M4Entry G2 게이트 동일 로직)
-            k15  = ind.get("tf15", {}).get("k", 50.0)
-            d15  = ind.get("tf15", {}).get("d", 50.0)
-            sp15 = k15 - d15
-            g2_long  = sp15 >= 2.0
-            g2_short = sp15 <= -2.0
-
+        b15 = self._ohlcv_cache.get(sym, {}).get("15m", [])
+        rsi15: float | None = None
+        if ind and len(b15) >= _G2_RSI_BARS:
+            # G2: 엔진·백테스트와 같은 15m 마감 봉 19개 RSI(14) — 엔진도 이 캐시(get_ohlcv)를 사용
+            _rsi_list = calc_rsi_series([b.close for b in b15[-_G2_RSI_BARS:]], period=14)
+            if _rsi_list:
+                rsi15 = _rsi_list[-1]
+        if rsi15 is not None:
             # G7.5: 거시 추세 점수 -3~+3 (M4Entry G7.5 게이트 동일 로직)
             macro_score = 0
             for _tf in ("tf1h", "tf4h", "tf1d"):
@@ -1100,31 +1136,28 @@ class MiddleDataManager:
                 if   _sp >=  2.0: macro_score += 1
                 elif _sp <= -2.0: macro_score -= 1
 
-            if g2_long:
-                if macro_score <= -1:
+            if rsi15 > 50.0:            # G2 롱만 통과
+                if use_macro and macro_score <= -1:
                     align_txt = "▲ 거시차단"
                     align_col = _ORA
                 else:
                     align_txt = "▲ 롱 대기"
                     align_col = _POS
-            elif g2_short:
-                if macro_score >= 1:
+            elif rsi15 < 50.0:          # G2 숏만 통과
+                if use_macro and macro_score >= 1:
                     align_txt = "▼ 거시차단"
                     align_col = _YEL
                 else:
                     align_txt = "▼ 숏 대기"
                     align_col = _NEG
-            elif sp15 > 0:
-                align_txt = "↗ 롱 기울기"
-                align_col = _LGR
-            elif sp15 < 0:
-                align_txt = "↘ 숏 기울기"
-                align_col = "#b85070"
-            else:
+            else:                       # RSI 정확히 50 — 엔진 G2 롱·숏 모두 통과
                 align_txt = "↔ 중립"
                 align_col = _DIM
+        elif self._vol_rank.get(sym, 999) <= _STAGE2_TOPN:
+            align_txt = "─ 로딩중"      # 갱신 대상(거래량 상위 100) — 다음 STAGE3 완료 시 표시
+            align_col = _DIM
         else:
-            align_txt = "─ 로딩중"
+            align_txt = "─ 데이터 없음"  # 갱신 대상 밖 — 15m 봉·지표를 계산하지 않음
             align_col = _DIM
 
         # [4,5] 24h 변동률

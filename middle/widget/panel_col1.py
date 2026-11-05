@@ -253,6 +253,9 @@ class _Col1Mixin:
         # [W3] Sort by 모드는 중단 모듈 내부 표시 상태다.
         #      하단 거래 엔진으로 전파하지 않는다.
         self._sort_mode = mode
+        # M4 준비 G7.5 적용 기준 = 같은 이름 엔진 모드의 use_macro (엔진 설정은 읽기만)
+        if _ctx._data_mgr is not None:
+            _ctx._data_mgr.set_sort_mode(mode)
         if self._sort_btn:
             self._sort_btn.configure(text=f"  {mode}  ▼")
         # 컬럼 헤더 동적 교체 (col4, col5)
