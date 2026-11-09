@@ -69,7 +69,7 @@ from middle.data.ohlcv_data import OHLCVData
 from middle.data.funding_rate_data import FundingRateFetcher
 from middle.data.open_interest_data import OpenInterestFetcher
 from middle.data.longshort_data import LongShortFetcher
-from middle.models import OHLCVBar, SymbolTicker
+from middle.models import OHLCVBar, SymbolTicker, FundingRateData
 # M4 준비(1열) = 엔진 M4Entry와 같은 G2 RSI 함수·같은 모드 설정(use_macro) — 엔진 모듈은 중단을 import하지 않음(순환 없음)
 from bottom_engine.strategy.rsi_divergence import calc_rsi_series
 from bottom_engine.strategy_settings.strategy_loader import StrategyLoader
@@ -190,6 +190,9 @@ class MiddleDataManager:
         self._cross_ts_cache:  dict[str, dict[str, float]] = {}  # sym→{tf_key→교차 unix ts}
         self._spread_hist:     dict[str, deque]           = {}   # symbol → 최근 스프레드(%) 표본
         self._deriv_cache:     dict[str, tuple]           = {}   # symbol → (fr, oi, ls) 마지막 REST 값 — WS 봉 마감 재계산용
+        # 정산 펀딩비 재사용 — 값은 정산 시각에만 바뀌므로 다음 정산 전 재조회 생략 (fundingRate 500회/5분/IP 한도)
+        self._fr_cache:        dict[str, FundingRateData] = {}   # symbol → 마지막으로 받은 정산 펀딩비
+        self._fr_window:       dict[str, tuple[int, int]] = {}   # symbol → (마지막 정산 시각, 다음 정산 시각) ms
 
         # ── 상태 ───────────────────────────────────────────────
         self._last_tkr_refresh: float = 0.0
@@ -521,18 +524,55 @@ class MiddleDataManager:
                 hist = self._spread_hist.setdefault(sym, deque(maxlen=_SPREAD_SAMPLES))
                 hist.append((ask - bid) / ((ask + bid) / 2) * 100.0)
 
+    def _refresh_funding_window(self) -> None:
+        """종목별 (마지막 정산 시각, 다음 정산 시각) 갱신 — premiumIndex 전체 1회(가중치 10) + fundingInfo 1회.
+        fundingInfo에 없는 종목은 간격 1시간(최소)으로 본다 → 받은 값이 최신으로 확인되지 않아 매 주기 조회(기존 동작).
+        premiumIndex 조회 실패 시 창을 비운다 → 모든 종목 매 주기 조회(기존 동작)."""
+        rows  = self._client.fetch_all_premium_index()
+        hours = {d.get("symbol", ""): d.get("fundingIntervalHours")
+                 for d in self._client.fetch_funding_info()} if rows else {}
+        win: dict[str, tuple[int, int]] = {}
+        for d in rows:
+            try:
+                sym = d["symbol"]
+                nxt = int(d["nextFundingTime"])
+                h   = int(hours.get(sym) or 1)
+            except (KeyError, TypeError, ValueError):
+                continue
+            if nxt > 0 and h > 0:
+                win[sym] = (nxt - h * 3_600_000, nxt)
+        with self._lock:
+            self._fr_window = win
+
+    def _get_funding(self, symbol: str) -> FundingRateData | None:
+        """가장 최근 정산 펀딩비 (fundingRate?limit=1 — 백테스트 이력과 같은 정산 값).
+        저장 값이 마지막 정산 시각 이후 값이고 다음 정산 전이면 재사용, 아니면 조회
+        (정산 직후 새 값 미게시 → 저장 값이 마지막 정산 시각보다 이전 → 다음 호출에서 재조회)."""
+        now_ms = time.time() * 1000
+        with self._lock:
+            cur = self._fr_cache.get(symbol)
+            win = self._fr_window.get(symbol)
+        if cur is not None and win is not None and cur.funding_time >= win[0] and now_ms < win[1]:
+            return cur
+        fr = self._fr_svc.fetch(symbol)
+        if fr is not None:
+            with self._lock:
+                self._fr_cache[symbol] = fr
+        return fr
+
     def _refresh_topn_scores(self, n: int = 100) -> None:
         """STAGE2: 상위 N개 심볼 L/S·FR·OI 병렬 갱신 (5스레드, ~15초).
         Sharp Rise·Decline 별점·필터 정확도 및 장 단계 실데이터화.
         """
         tickers = list(self._sorted_tickers[:n])
+        self._refresh_funding_window()
 
         def _one(ticker: "SymbolTicker") -> None:
             sym      = ticker.symbol
             existing = self._ind_cache.get(sym, {})
             try:
                 ls = self._ls_svc.fetch(sym)
-                fr = self._fr_svc.fetch(sym)
+                fr = self._get_funding(sym)
                 oi = self._oi_svc.fetch_change_pct(sym)
                 ind = dict(existing) if existing else self._simple_ind(ticker)
                 if ls:
@@ -844,7 +884,7 @@ class MiddleDataManager:
                 bars: dict[str, list[OHLCVBar]] = {tf: fut.result() for tf, fut in futs.items()}
 
             # 파생 데이터
-            fr  = self._fr_svc.fetch(symbol)
+            fr  = self._get_funding(symbol)
             oi  = self._oi_svc.fetch_change_pct(symbol)
             ls  = self._ls_svc.fetch(symbol)
 

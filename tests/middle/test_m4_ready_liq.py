@@ -146,8 +146,17 @@ class _OI:
         return 1.5
 
 
+class _Client:   # STAGE2 정산 시각 조회 대역 — 빈 응답 = 펀딩비 매 주기 조회(기존 동작)
+    def fetch_all_premium_index(self):
+        return []
+
+    def fetch_funding_info(self):
+        return []
+
+
 def _stage_dm(monkeypatch, syms, engine_sym=""):
     dm = _dm(monkeypatch)
+    dm._client = _Client()
     dm._ohlcv_svc, dm._fr_svc, dm._ls_svc, dm._oi_svc = _OHLCV(), _FR(), _LS(), _OI()
     dm._sorted_tickers = [_tkr(s, 1e9 - i) for i, s in enumerate(syms)]
     dm._engine_sym = engine_sym

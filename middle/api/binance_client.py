@@ -205,3 +205,14 @@ class MiddleBinanceClient:
         url = f"{_FUTURES_BASE}/fapi/v1/premiumIndex?symbol={symbol}"
         return self._get(url)
 
+    def fetch_all_premium_index(self) -> list[dict]:
+        """전체 심볼 premiumIndex — 다음 정산 시각(nextFundingTime) 용도, 심볼 미지정 가중치 10.
+        lastFundingRate는 다음 정산 예상값이라 정산 펀딩비와 다르다 (2026-11-08 실측 100종목 중 65 불일치) — 값으로 쓰지 않는다."""
+        data = self._get(f"{_FUTURES_BASE}/fapi/v1/premiumIndex")
+        return [d for d in data if isinstance(d, dict)] if isinstance(data, list) else []
+
+    def fetch_funding_info(self) -> list[dict]:
+        """심볼별 펀딩 간격(fundingIntervalHours) — fundingRate와 500회/5분/IP 한도 공유."""
+        data = self._get(f"{_FUTURES_BASE}/fapi/v1/fundingInfo")
+        return [d for d in data if isinstance(d, dict)] if isinstance(data, list) else []
+
