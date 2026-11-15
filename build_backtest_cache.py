@@ -33,6 +33,7 @@ from datetime import datetime
 _ROOT = pathlib.Path(__file__).parent
 sys.path.insert(0, str(_ROOT))
 
+from core import rate_gate
 from bottom_engine.backtest.backtest_runner import BacktestRunner, _TF_BARS
 from bottom_engine.backtest.historical_data_loader import HistoricalDataLoader
 
@@ -258,4 +259,6 @@ def main():
 
 
 if __name__ == "__main__":
+    rate_gate.install()        # 바이낸스 429/418 공통 차단 (앱과 차단 기록 공유)
+    rate_gate.wait_if_blocked()  # 시작 시 차단 중이면 해제까지 대기 (수집 중 차단은 로더 재시도·검증이 처리)
     main()

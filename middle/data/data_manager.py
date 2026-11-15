@@ -58,6 +58,7 @@ _FORECAST_TOPN       = 100         # 1열 24h Ticker 목록 (24h 변동률 상�
 _FORECAST_WORKERS    = 3
 _FORECAST_BARS_LIMIT = 300         # 마감 299봉 ≥ 지표 필요 289 (가중치 2)
 _FORECAST_OI_LIMIT   = 290         # 24h OI (futures/data, 가중치 0·IP 1,000회/5분 — 15분 1회 종목당 1회)
+_OHLCV_RETRY_SEC     = 30          # get_ohlcv 빈 결과 뒤 재조회 대기 (초)
 _FORECAST_KEEP_MS    = 1_800_000   # 조회 실패·일시 부족 시 직전 정상 판정 유지 한도 (30분 — 15분 주기 1회 실패 허용)
 # ── 단계별 필드 소유권 ────────────────────────────────────────
 # 각 갱신 단계는 자기가 담당하는 필드만 캐시에 병합한다.
@@ -70,6 +71,7 @@ _STAGE3_FIELDS = (
     "tf1", "tf3", "tf5", "tf15", "tf1h", "tf4h", "tf1d",
 )
 
+from core import rate_gate
 from middle.api.binance_client import MiddleBinanceClient
 from middle.data.ticker_data import TickerData
 from middle.data.websocket_ticker import WebSocketTicker
@@ -236,6 +238,10 @@ class MiddleDataManager:
         self._forecast_checked: dict[str, int] = {}                             # symbol → 마지막 계산 5분 구간
         # 1열 목록 제외 판정(블랙리스트) — middle_panel이 BlacklistManager.is_blacklisted 연결. 24h 목록·예고 목록 공용
         self._list_excluded = lambda symbol: False
+        # 주기 작업 겹침 방지·시작 직후 요청 몰림 분산 (2026-11-15)
+        self._jobs_running: set[str] = set()      # 실행 중 주기 작업 이름 (STAGE2·STAGE3·예고)
+        self._stage3_done = False                  # 시작 후 STAGE3 첫 갱신 완료 — 그 전엔 예고 판정 안 함
+        self._ohlcv_fail: dict[tuple[str, str], float] = {}   # (symbol, tf) → get_ohlcv 빈 결과 시각
         self._forecast:        dict[str, dict]            = {}   # symbol → get_forecast() 기록
         self._forecast_slot:   int                        = -1   # 마지막 실행 15분 구간 (-1 = 시작 첫 확인)
         self._forecast_logged: dict[str, int] | None      = None # symbol → 마지막 기록 판정 시각 (None = 파일에서 아직 안 읽음)
@@ -301,6 +307,7 @@ class MiddleDataManager:
             self._forecast.clear()
             self._forecast_checked.clear()
             self._forecast_slot = -1
+            self._stage3_done = False
 
     def request_selected(self, symbol: str) -> None:
         """선택 심볼 상세 데이터 비동기 갱신 요청."""
@@ -377,13 +384,20 @@ class MiddleDataManager:
         """generate_ohlcv() 호환 dict 리스트 반환.
         캐시 없으면 갱신 경로와 같은 봉 수(_KLINES_LIMITS)로 받아 캐시 — 짧은 목록이 캐시에 남지 않게 함."""
         bars = self._ohlcv_cache.get(symbol, {}).get(interval, [])
-        if not bars:
+        key = (symbol, interval)
+        # 빈 결과(조회 실패·차단) 뒤 _OHLCV_RETRY_SEC 안에는 다시 조회하지 않음 — 하단 차트 약 2초 갱신이 매번
+        # 재조회하던 문제 (2026-11-15)
+        if not bars and time.time() - self._ohlcv_fail.get(key, 0.0) >= _OHLCV_RETRY_SEC:
             try:
                 bars = self._ohlcv_svc.fetch(symbol, interval, _KLINES_LIMITS[interval])
                 sym_cache = self._ohlcv_cache.setdefault(symbol, {})
                 sym_cache[interval] = bars
             except Exception:
                 bars = []
+            if bars:
+                self._ohlcv_fail.pop(key, None)
+            else:
+                self._ohlcv_fail[key] = time.time()
         return [{"o": b.open, "h": b.high, "l": b.low,
                  "c": b.close, "v": b.quote_volume} for b in bars[-n:]]
 
@@ -523,9 +537,8 @@ class MiddleDataManager:
         # ── 초기 실행 ─────────────────────────────────────────
         self._refresh_tickers()
         self._fetch_onboard_map()
-        threading.Thread(target=self._refresh_topn_scores,
-                         args=(_STAGE2_TOPN,), daemon=True).start()
-        threading.Thread(target=self._refresh_topn_klines,  args=(100,), daemon=True).start()
+        self._start_job("stage2", self._refresh_topn_scores, _STAGE2_TOPN)
+        self._start_job("stage3", self._refresh_topn_klines, 100)
         threading.Thread(target=self._refresh_spreads, daemon=True).start()
 
         # ── 주기 카운터 (5초 단위) ────────────────────────────
@@ -541,18 +554,17 @@ class MiddleDataManager:
             # WebSocket 연결(is_connected=True)만으로는 충분하지 않음:
             # 한국 IP에서 연결은 되나 데이터 Push가 없는 상황 존재
             # → 실제 데이터를 받은 경우(has_received_data=True)만 REST 스킵
-            if _elapsed % _TICKER_INTERVAL_SEC == 0:
+            if _elapsed % _TICKER_INTERVAL_SEC == 0 and rate_gate.remaining() <= 0:   # 차단 중 REST 생략
                 if self._ws_ticker is None or not self._ws_ticker.has_received_data:
                     self._refresh_tickers()
 
             # ── STAGE2: 60초마다 경량 갱신 (L/S·FR·OI) ───────
             if _elapsed % _STAGE2_INTERVAL == 0:
-                threading.Thread(target=self._refresh_topn_scores,
-                                 args=(_STAGE2_TOPN,), daemon=True).start()
+                self._start_job("stage2", self._refresh_topn_scores, _STAGE2_TOPN)
 
             # ── STAGE3: 60초마다 klines 갱신 ─────────────────
             if _elapsed % _STAGE3_INTERVAL == 0:
-                threading.Thread(target=self._refresh_topn_klines, args=(100,), daemon=True).start()
+                self._start_job("stage3", self._refresh_topn_klines, 100)
                 # WS klines 미수신 시 선택 심볼 지표 고착 방지 (엔진 정지 상태 대응)
                 if self._ws_klines is None or not self._ws_klines.has_received_data:
                     with self._lock:
@@ -572,8 +584,9 @@ class MiddleDataManager:
                 threading.Thread(target=self._refresh_spreads, daemon=True).start()
 
             # ── 가격 예고: 15분 봉 마감 + 240초마다 24h 상위 100·선택 종목 ──
-            if self._forecast_due(int(time.time() * 1000)):
-                threading.Thread(target=self._refresh_forecasts, daemon=True).start()
+            #   시작 후 STAGE3 첫 갱신이 끝난 뒤부터 (시작 1분 요청 몰림 분산 — 11-13 시작 분 1,501·판정 분 1,818)
+            if self._stage3_done and self._forecast_due(int(time.time() * 1000)):
+                self._start_job("forecast", self._refresh_forecasts)
 
             # ── 카운터 리셋 (1시간 기준) + onboard_map 갱신 ──
             if _elapsed >= 3600:
@@ -644,6 +657,8 @@ class MiddleDataManager:
                 pass
 
     def _forecast_one_safe(self, symbol: str, in_list: bool) -> dict | None:
+        if rate_gate.remaining() > 0:   # 차단 중 — 조회하지 않음 (직전 판정 유지)
+            return None
         try:
             return self._forecast_one(symbol, in_list)
         except Exception as e:
@@ -708,6 +723,21 @@ class MiddleDataManager:
                 except Exception:
                     pass
 
+    def _start_job(self, name: str, target, *args) -> None:
+        """주기 작업 스레드 시작 — 같은 작업이 아직 실행 중이면 건너뜀 (느린 응답·차단 중 겹침 방지, 2026-11-15)."""
+        with self._lock:
+            if name in self._jobs_running:
+                return
+            self._jobs_running.add(name)
+
+        def run():
+            try:
+                target(*args)
+            finally:
+                with self._lock:
+                    self._jobs_running.discard(name)
+        threading.Thread(target=run, daemon=True).start()
+
     def _refresh_spreads(self) -> None:
         """전체 심볼 호가 스프레드 (ask−bid)/mid×100 표본 1개씩 추가 — 조회 실패 시 기존 표본 유지."""
         rows = self._client.fetch_all_book_tickers()
@@ -768,6 +798,8 @@ class MiddleDataManager:
         self._refresh_funding_window()
 
         def _one(ticker: "SymbolTicker") -> None:
+            if rate_gate.remaining() > 0:   # 차단 중 — 남은 종목 조회 생략 (기존 값 유지)
+                return
             sym      = ticker.symbol
             existing = self._ind_cache.get(sym, {})
             try:
@@ -806,6 +838,8 @@ class MiddleDataManager:
         tickers = list(self._sorted_tickers[:n])
 
         def _one(ticker: "SymbolTicker") -> None:
+            if rate_gate.remaining() > 0:   # 차단 중 — 남은 종목 조회 생략 (기존 값 유지)
+                return
             sym      = ticker.symbol
             if sym == self._engine_sym:
                 return   # 엔진 종목은 상세 갱신·WS 봉 마감 경로만 사용 (STAGE3 갱신 시점 경합 차단)
@@ -927,6 +961,7 @@ class MiddleDataManager:
 
         with ThreadPoolExecutor(max_workers=_STAGE3_WORKERS) as pool:
             pool.map(_one, tickers)
+        self._stage3_done = True   # 시작 후 첫 완료 → 예고 판정 시작 가능
 
         # STAGE3 완료 콜백 → TF합의·ATR%·EMA 즉시 UI 반영
         cb = self._on_klines_ready_cb

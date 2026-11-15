@@ -18,6 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
+from core import rate_gate
 from middle.api.binance_client import MiddleBinanceClient
 from middle.data.ohlcv_data import parse_kline_row
 from middle.analysis.forecast import PARAMS_PATH, LABEL_TEXT, STEP_MS, HORIZON_BARS, log_path
@@ -31,6 +32,7 @@ cl = MiddleBinanceClient()
 
 def _path(sym: str, t: int):
     """판정 시각 t(봉 마감) 이후 12h: (12h 수익률 %, 4h 안 최저 %, 4h 안 최고 %) — 봉 부족이면 None."""
+    rate_gate.wait_if_blocked()              # 차단 중이면 해제까지 대기 (앱과 같은 차단 기록 공유)
     raw = cl._get(f"{B}/fapi/v1/klines?symbol={sym}&interval=5m&startTime={t - STEP_MS}&limit={HORIZON_BARS + 2}")
     time.sleep(0.3)
     if int(cl._last_used_weight or 0) > 1500:
@@ -130,4 +132,5 @@ def main(apply: bool) -> None:
 
 
 if __name__ == "__main__":
+    rate_gate.install()   # 바이낸스 429/418 공통 차단 (앱과 차단 기록 공유)
     main("--apply" in sys.argv[1:])

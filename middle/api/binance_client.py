@@ -24,6 +24,7 @@ _FUTURES_BASE = "https://fapi.binance.com"
 _SPOT_BASE    = "https://api.binance.com"
 
 _TRADING_CACHE_TTL = 300   # TRADING 심볼 캐시 유효 기간 (초, 5분)
+_TRADING_RETRY_SEC = 60    # exchangeInfo 조회 실패 뒤 재조회 대기 (초) — WS 시세 1초 콜백마다 재조회하던 문제 (2026-11-15)
 
 _ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
 
@@ -55,6 +56,7 @@ class MiddleBinanceClient:
         self._api_key = env.get("MIDDLE_BINANCE_API_KEY", "")
         self._trading_symbols:    set[str] = set()
         self._trading_cache_ts:   float    = 0.0
+        self._trading_fail_ts:    float    = 0.0   # 마지막 exchangeInfo 조회 실패 시각
         # 최근 응답의 X-MBX-USED-WEIGHT-1M — 레이트리밋 실측 확인용
         self._last_used_weight:   str      = ""
 
@@ -99,6 +101,8 @@ class MiddleBinanceClient:
         now = time.time()
         if self._trading_symbols and (now - self._trading_cache_ts) < _TRADING_CACHE_TTL:
             return self._trading_symbols
+        if now - self._trading_fail_ts < _TRADING_RETRY_SEC:
+            return self._trading_symbols   # 최근 실패 — 기존 캐시(없으면 빈 집합) 그대로, 재조회 안 함
         ei = self.fetch_exchange_info()
         if ei:
             syms = {
@@ -109,6 +113,8 @@ class MiddleBinanceClient:
             if syms:
                 self._trading_symbols  = syms
                 self._trading_cache_ts = now
+                return self._trading_symbols
+        self._trading_fail_ts = now
         return self._trading_symbols
 
     # ── 24h Ticker ────────────────────────────────────────────

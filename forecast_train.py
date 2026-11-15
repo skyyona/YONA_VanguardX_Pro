@@ -22,6 +22,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
+from core import rate_gate
 from middle.api.binance_client import MiddleBinanceClient
 from middle.data.ohlcv_data import parse_kline_row
 from middle.models import OHLCVBar
@@ -50,6 +51,7 @@ def collect() -> None:
 
     def get(url: str, pause: float):
         for _ in range(2):
+            rate_gate.wait_if_blocked()          # 차단 중이면 해제까지 대기 (앱과 같은 차단 기록 공유)
             r = cl._get(url)
             time.sleep(pause)
             if int(cl._last_used_weight or 0) > 1500:
@@ -240,4 +242,5 @@ def train() -> None:
 
 
 if __name__ == "__main__":
+    rate_gate.install()   # 바이낸스 429/418 공통 차단 (앱과 차단 기록 공유)
     {"collect": collect, "train": train}[sys.argv[1] if len(sys.argv) > 1 else "train"]()

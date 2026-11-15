@@ -15,6 +15,7 @@ import ctypes
 import threading
 import tkinter as tk
 
+from core import rate_gate
 from core.event_bus import EventBus
 from core.config import DARK_BG
 from header.widget.header_panel import HeaderPanel
@@ -235,5 +236,6 @@ if __name__ == "__main__":
         encoding="utf-8",
     )
     _acquire_instance_lock()  # [B] 단일 인스턴스 락 획득
+    rate_gate.install()       # 바이낸스 REST 429/418 공통 차단 — 중단·하단·헤더·앱 안 백테스트 로더 공통 (2026-11-15)
     app = YONAVanguardXPro()
     app.mainloop()
