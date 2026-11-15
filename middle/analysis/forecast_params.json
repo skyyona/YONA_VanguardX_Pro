@@ -1,0 +1,349 @@
+{
+ "version": 1,
+ "trained_at": "2026-11-10T00:22:43",
+ "train_period": [
+  "2026-10-11 23:45",
+  "2026-10-31 23:30"
+ ],
+ "test_period": [
+  "2026-11-01 11:45",
+  "2026-11-09 12:15"
+ ],
+ "symbols": 150,
+ "features": [
+  "r1h",
+  "r4h",
+  "abs_r4h",
+  "r24",
+  "r24_sq",
+  "dd_high",
+  "high_age_h",
+  "dd_if_pumped",
+  "oi1h",
+  "oi4h",
+  "oi24h",
+  "oi4h_if_flat",
+  "taker1h",
+  "taker4h",
+  "vol4h_vs_24h"
+ ],
+ "mu": [
+  -0.015435106651494066,
+  -0.05675169657265515,
+  1.6289892972158673,
+  -0.3211750510236471,
+  0.9033675498961684,
+  -4.479280676985997,
+  13.321230891872883,
+  -0.1636150787318797,
+  0.028043868648881393,
+  0.13639714693293817,
+  1.041460079059248,
+  -0.01616770299084151,
+  -0.03343278059685676,
+  -0.03932780871542181,
+  -0.1514210905840814
+ ],
+ "sd": [
+  1.631588142640669,
+  3.426937587216373,
+  3.015545697099682,
+  9.499136885855304,
+  12.593974030150642,
+  5.14443492736794,
+  8.226212248614384,
+  1.72294759241338,
+  1.813617814095818,
+  4.631428918821073,
+  16.96282878874046,
+  2.1404625195117046,
+  0.299006400129919,
+  0.17309606148969753,
+  0.8599417862217622
+ ],
+ "models": {
+  "dn": {
+   "w": [
+    0.1358033258512734,
+    -0.009987034505612212,
+    0.1162257204857366,
+    0.6475445581624251,
+    -0.44827893459603035,
+    -0.7169324902736397,
+    -0.021883083909766426,
+    0.10344276543410749,
+    -0.04955691273662856,
+    0.053543572734166045,
+    0.02015624220136179,
+    0.1049306836707615,
+    0.12653073842924373,
+    -0.07752514715935677,
+    0.07181654696128123
+   ],
+   "b": -2.433624342633838
+  },
+  "up": {
+   "w": [
+    0.016090097923791135,
+    -0.05098441054187968,
+    0.2827351386779626,
+    0.4376107732112777,
+    -0.17760505880415897,
+    -0.6328031825922859,
+    0.021571191084638106,
+    0.1868438901431105,
+    0.04706819596141582,
+    0.097140669013007,
+    -0.014947323692796126,
+    0.11437947503961324,
+    -0.061590022540522656,
+    0.13406427954654712,
+    0.12316004262405628
+   ],
+   "b": -2.870035115622925
+  },
+  "big": {
+   "w": [
+    0.0903106185300247,
+    -0.050719419019550384,
+    0.331019849856898,
+    0.8071726112794403,
+    -0.46127257734463256,
+    -0.9093419399109934,
+    0.006256780625957763,
+    0.15681417168551187,
+    -0.052535850073817544,
+    0.14597209253879642,
+    0.02405926687148734,
+    0.14957363417015557,
+    0.04373640178824329,
+    -0.005898024440686484,
+    0.1300960199194809
+   ],
+   "b": -1.8387865077577052
+  }
+ },
+ "labels": [
+  {
+   "key": "peak_drop",
+   "context": "list",
+   "model": "dn",
+   "r24_range": [
+    15.0,
+    1000000000.0
+   ],
+   "quantile": 0.1,
+   "threshold": 0.7942706618741737,
+   "direction": "S",
+   "adopted": false,
+   "live_status": "미채택",
+   "test": {
+    "events": 19,
+    "base_hit_pct": 34.52,
+    "hit_pct": 47.37,
+    "lift": 1.37,
+    "dir_mean_pct": 5.458,
+    "dir_median_pct": 4.537,
+    "dir_profit_ratio_pct": 68.4,
+    "adverse3_4h_pct": 78.9,
+    "days": 7,
+    "day_t": 1.59,
+    "symbols": 12,
+    "half1_dir_mean_pct": -0.136,
+    "half2_dir_mean_pct": 6.116
+   }
+  },
+  {
+   "key": "down",
+   "context": "list",
+   "model": "dn",
+   "r24_range": [
+    -1000000000.0,
+    15.0
+   ],
+   "quantile": 0.1,
+   "threshold": 0.19593071119853292,
+   "direction": "S",
+   "adopted": false,
+   "live_status": "미채택",
+   "test": {
+    "events": 197,
+    "base_hit_pct": 14.92,
+    "hit_pct": 26.4,
+    "lift": 1.77,
+    "dir_mean_pct": -1.136,
+    "dir_median_pct": 0.993,
+    "dir_profit_ratio_pct": 55.8,
+    "adverse3_4h_pct": 57.9,
+    "days": 9,
+    "day_t": -0.62,
+    "symbols": 60,
+    "half1_dir_mean_pct": 2.117,
+    "half2_dir_mean_pct": -4.357
+   }
+  },
+  {
+   "key": "early_up",
+   "context": "list",
+   "model": "up",
+   "r24_range": [
+    -1000000000.0,
+    15.0
+   ],
+   "quantile": 0.05,
+   "threshold": 0.17846108578535488,
+   "direction": "L",
+   "adopted": false,
+   "live_status": "미채택",
+   "test": {
+    "events": 127,
+    "base_hit_pct": 11.25,
+    "hit_pct": 24.41,
+    "lift": 2.17,
+    "dir_mean_pct": 1.629,
+    "dir_median_pct": -1.338,
+    "dir_profit_ratio_pct": 40.9,
+    "adverse3_4h_pct": 60.6,
+    "days": 9,
+    "day_t": 0.32,
+    "symbols": 49,
+    "half1_dir_mean_pct": -2.337,
+    "half2_dir_mean_pct": 5.411
+   }
+  },
+  {
+   "key": "big_move",
+   "context": "list",
+   "model": "big",
+   "r24_range": [
+    -1000000000.0,
+    15.0
+   ],
+   "quantile": 0.05,
+   "threshold": 0.532237576364407,
+   "direction": "A",
+   "adopted": true,
+   "live_status": "검증 중",
+   "test": {
+    "events": 126,
+    "base_hit_pct": 26.16,
+    "hit_pct": 53.97,
+    "lift": 2.06,
+    "dir_mean_pct": 1.714,
+    "dir_median_pct": -1.75,
+    "dir_profit_ratio_pct": 40.5,
+    "adverse3_4h_pct": 65.1,
+    "days": 9,
+    "day_t": 10.75,
+    "symbols": 45,
+    "half1_dir_mean_pct": -2.852,
+    "half2_dir_mean_pct": 6.28
+   }
+  },
+  {
+   "key": "peak_drop",
+   "context": "all",
+   "model": "dn",
+   "r24_range": [
+    15.0,
+    1000000000.0
+   ],
+   "quantile": 0.1,
+   "threshold": 1.0,
+   "direction": "S",
+   "adopted": false,
+   "live_status": "미채택",
+   "test": {
+    "events": 0,
+    "base_hit_pct": 0.0
+   }
+  },
+  {
+   "key": "down",
+   "context": "all",
+   "model": "dn",
+   "r24_range": [
+    -1000000000.0,
+    15.0
+   ],
+   "quantile": 0.1,
+   "threshold": 0.11930537115006047,
+   "direction": "S",
+   "adopted": true,
+   "live_status": "검증 중",
+   "test": {
+    "events": 686,
+    "base_hit_pct": 10.31,
+    "hit_pct": 21.14,
+    "lift": 2.05,
+    "dir_mean_pct": 0.555,
+    "dir_median_pct": 0.786,
+    "dir_profit_ratio_pct": 57.6,
+    "adverse3_4h_pct": 33.8,
+    "days": 9,
+    "day_t": 0.13,
+    "symbols": 136,
+    "half1_dir_mean_pct": 0.787,
+    "half2_dir_mean_pct": 0.325
+   }
+  },
+  {
+   "key": "early_up",
+   "context": "all",
+   "model": "up",
+   "r24_range": [
+    -1000000000.0,
+    15.0
+   ],
+   "quantile": 0.05,
+   "threshold": 0.1310522428887098,
+   "direction": "L",
+   "adopted": false,
+   "live_status": "미채택",
+   "test": {
+    "events": 415,
+    "base_hit_pct": 6.33,
+    "hit_pct": 15.42,
+    "lift": 2.44,
+    "dir_mean_pct": -0.601,
+    "dir_median_pct": -0.835,
+    "dir_profit_ratio_pct": 42.9,
+    "adverse3_4h_pct": 50.4,
+    "days": 9,
+    "day_t": 0.49,
+    "symbols": 121,
+    "half1_dir_mean_pct": -1.809,
+    "half2_dir_mean_pct": 0.409
+   }
+  },
+  {
+   "key": "big_move",
+   "context": "all",
+   "model": "big",
+   "r24_range": [
+    -1000000000.0,
+    15.0
+   ],
+   "quantile": 0.05,
+   "threshold": 0.3343934813844237,
+   "direction": "A",
+   "adopted": true,
+   "live_status": "검증 중",
+   "test": {
+    "events": 410,
+    "base_hit_pct": 16.64,
+    "hit_pct": 40.24,
+    "lift": 2.42,
+    "dir_mean_pct": -0.14,
+    "dir_median_pct": -0.657,
+    "dir_profit_ratio_pct": 45.1,
+    "adverse3_4h_pct": 49.0,
+    "days": 9,
+    "day_t": 6.39,
+    "symbols": 115,
+    "half1_dir_mean_pct": -1.911,
+    "half2_dir_mean_pct": 1.483
+   }
+  }
+ ]
+}

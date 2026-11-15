@@ -60,8 +60,9 @@ def _run_threads_inline(monkeypatch):
 # ── REST 마감 확정 판정 ────────────────────────────────────────────────
 
 def _raw(bars: list[OHLCVBar]) -> list[list]:
+    """바이낸스 klines 응답 원소 12칸 형식 (8 거래 수·9 매수 체결량·10 매수 체결 금액·11 미사용)."""
     return [[b.open_time, str(b.open), str(b.high), str(b.low), str(b.close), str(b.volume),
-             b.close_time, str(b.quote_volume)] for b in bars]
+             b.close_time, str(b.quote_volume), 0, str(b.taker_buy_volume), "0", "0"] for b in bars]
 
 
 def test_parse_klines_drops_last_element():

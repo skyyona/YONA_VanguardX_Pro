@@ -3,6 +3,7 @@ tests/middle/test_col_dedupe.py
 1열 정리 3단계(중복 통합) — 행 배경 단일 정의, Gold(Player 맵 재사용·블랙리스트 제외),
 3열 Player 표시(태그 문구·방향 단일 출처, 복수 플레이어 메시지 공용 키, 파생 판정 줄 = 에너지 패널 태그).
 """
+import threading
 import tkinter as tk
 
 import pytest
@@ -11,6 +12,7 @@ import middle.widget.shared_context as _ctx
 from middle.analysis.tag_detector import TagDetector, _TAG_META, _make_tag
 from middle.col1_ranking.ranking.gold_ranking import GoldRanking
 from middle.data.data_manager import MiddleDataManager
+from middle.analysis.forecast import Forecaster
 from middle.widget.constants import (
     DARK_ROW_EVN, DARK_ROW_ODD, GOLD_ROW_BG, LIGHT_GREEN, NEGATIVE, ORANGE, PLAYER_MIX_ROW_BG,
     PLAYER_ROW_BG, PLAYER_SHORT_ROW_BG, POSITIVE,
@@ -46,6 +48,9 @@ def _dm(monkeypatch, ind: dict) -> MiddleDataManager:
     m._ind_cache = {s: dict(v) for s, v in ind.items()}
     m._tkr_map, m._onboard_map = {}, {}
     m._ranking_rows = [_row(s) for s in ind]
+    m._vol_rank = {s: i + 1 for i, s in enumerate(ind)}   # 갱신 대상(거래량 상위 100) — 지표 사용 (_ind_fresh)
+    m._engine_sym = m._last_detail_sym = ""
+    m._lock, m._forecast, m._forecaster = threading.Lock(), {}, Forecaster(None)   # 가격 예고 — 판정식 없음
     monkeypatch.setattr(_ctx, "_data_mgr", m)
     return m
 

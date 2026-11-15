@@ -52,6 +52,7 @@ def test_energy_panel_uses_full_keys_beyond_display_top4(monkeypatch):
         m._ind_cache = {"CUTUSDT": {"long_ratio": 86.0, "funding_rate": 0.105, "oi_change": 10.1, "vss": 2.6,
                                     "bpr": 0.66, "atr": 5.0, "price_change_pct": 1.0}}
         m._tkr_map, m._onboard_map, m._ranking_rows = {}, {}, []
+        m._vol_rank, m._engine_sym, m._last_detail_sym = {"CUTUSDT": 1}, "", ""   # 갱신 대상 — 지표 사용 (_ind_fresh)
         monkeypatch.setattr(_ctx, "_data_mgr", m)
         det = m.get_player("CUTUSDT")
         assert [t.tag_key for t in det.tags] == ["FOMO 극단", "FR+ 과열", "롱 스퀴즈", "청산 헌터"]

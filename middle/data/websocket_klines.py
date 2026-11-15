@@ -25,6 +25,7 @@ import websocket   # websocket-client
 from middle.models import OHLCVBar
 
 _RECONNECT_DELAY = 5   # 재연결 대기 (초)
+_STALE_SEC       = 90  # 마지막 마감 봉 수신 후 이 시간이 지나면 "수신 중 아님" — 1m 봉 마감 60초 + 여유 (2026-11-12)
 _TFS = ("1m", "3m", "5m", "15m", "1h", "4h", "1d")   # 봉 마감 감지 TF — data_manager _DETAIL_TFS 전체
 
 
@@ -43,7 +44,7 @@ class WebSocketKlines:
         self._ws: websocket.WebSocketApp | None = None
         self._running               = False
         self._connected             = False
-        self._data_received         = False
+        self._last_data_time        = 0.0    # 마지막 마감 봉 수신 시각
         self._symbol                = ""
         self._intentional_close     = False
         self._last_error: str       = ""
@@ -56,8 +57,9 @@ class WebSocketKlines:
 
     @property
     def has_received_data(self) -> bool:
-        """실제 봉 마감 데이터를 받은 적 있는지 (연결 성공과 별개)."""
-        return self._data_received
+        """최근 _STALE_SEC 안에 실제 봉 마감 데이터를 받았는지 (연결 성공과 별개).
+        끊김·데이터 없는 연결이 이어지면 False로 돌아가 선택 종목 REST 상세 갱신 대체가 다시 동작한다."""
+        return time.time() - self._last_data_time < _STALE_SEC
 
     @property
     def last_error(self) -> str:
@@ -157,8 +159,9 @@ class WebSocketKlines:
                     volume=float(kline["v"]),
                     quote_volume=float(kline["q"]),
                     close_time=int(kline["T"]),
+                    taker_buy_volume=float(kline["V"]),
                 )
-                self._data_received = True
+                self._last_data_time = time.time()
                 self._on_closed(sym, tf, bar)
         except Exception as e:
             self._last_error      = f"[klines:{self._symbol}] msg: {e}"

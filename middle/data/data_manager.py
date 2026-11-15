@@ -17,6 +17,7 @@ import threading
 import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 # ── 배경 갱신 주기 상수 ────────────────────────────────────────
 _TICKER_INTERVAL_SEC = 5   # ticker 갱신 (초) — 5초마다 전체 변동률 갱신
@@ -50,6 +51,14 @@ _KLINES_LIMITS: dict[str, int] = {
 # VWAP·5m ATR%는 5m 봉 전체를 쓰므로 5m 199봉 확대 전 창 유지 (VWAP 표시·5m ATR% 손절 제안 값 불변)
 _VWAP_ATR5M_BARS_TOPN   = 59   # STAGE3
 _VWAP_ATR5M_BARS_DETAIL = 79   # _refresh_detail
+# 가격 예고 — 별도 조회 (위 _KLINES_LIMITS 5m 200은 엔진 지표·백테스트 일치 값이라 변경하지 않음)
+_FORECAST_CYCLE_MS   = 900_000     # 15분 봉 마감마다
+_FORECAST_DELAY_MS   = 240_000     # 마감 후 240초 — 해당 시각 OI(limit 290 조회) 게시: 90초 63~74%·180초 72~82%·240초 100% (2026-11-11 실측 3회, 24h 상위 100)
+_FORECAST_TOPN       = 100         # 1열 24h Ticker 목록 (24h 변동률 상위 100)
+_FORECAST_WORKERS    = 3
+_FORECAST_BARS_LIMIT = 300         # 마감 299봉 ≥ 지표 필요 289 (가중치 2)
+_FORECAST_OI_LIMIT   = 290         # 24h OI (futures/data, 가중치 0·IP 1,000회/5분 — 15분 1회 종목당 1회)
+_FORECAST_KEEP_MS    = 1_800_000   # 조회 실패·일시 부족 시 직전 정상 판정 유지 한도 (30분 — 15분 주기 1회 실패 허용)
 # ── 단계별 필드 소유권 ────────────────────────────────────────
 # 각 갱신 단계는 자기가 담당하는 필드만 캐시에 병합한다.
 # 통째 교체 방식은 네트워크 대기 중 다른 단계가 쓴 결과를 되돌린다.
@@ -70,6 +79,7 @@ from middle.data.funding_rate_data import FundingRateFetcher
 from middle.data.open_interest_data import OpenInterestFetcher
 from middle.data.longshort_data import LongShortFetcher
 from middle.models import OHLCVBar, SymbolTicker, FundingRateData
+from middle.analysis.forecast import compute_features, Forecaster, INSUFFICIENT_TEXT, log_path as forecast_log_path
 # M4 준비(1열) = 엔진 M4Entry와 같은 G2 RSI 함수·같은 모드 설정(use_macro) — 엔진 모듈은 중단을 import하지 않음(순환 없음)
 from bottom_engine.strategy.rsi_divergence import calc_rsi_series
 from bottom_engine.strategy_settings.strategy_loader import StrategyLoader
@@ -153,6 +163,33 @@ def _apply_liq(ind: dict) -> None:
         ind["liq_short_pct"] = liq.liq_short_pct
 
 
+def _read_logged_times(path: Path, tail_bytes: int = 262_144) -> dict[str, int]:
+    """가격 예고 기록 파일 끝부분(약 256KB ≈ 최근 2,500행 · 15분 100행 기준 약 6시간)의 종목별 마지막 판정 시각.
+    파일 없음·읽기 실패 → 빈 dict. 형식이 다른 줄(헤더·잘린 첫 줄)은 건너뛴다."""
+    out: dict[str, int] = {}
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - tail_bytes))
+            lines = f.read().decode("utf-8", errors="replace").splitlines()
+    except OSError:
+        return out
+    if size > tail_bytes and lines:
+        lines = lines[1:]                    # 중간부터 읽은 첫 줄은 잘렸을 수 있음
+    for line in lines:
+        parts = line.split(",", 2)
+        if len(parts) < 3:
+            continue
+        try:
+            t = int(parts[0])
+        except ValueError:
+            continue
+        if t > out.get(parts[1], 0):
+            out[parts[1]] = t
+    return out
+
+
 def _stoch_tf_dict(r: StochRSIResult | None) -> dict:
     """StochRSIResult → tf dict (SYMBOL_IND 포맷)."""
     if r is None:
@@ -193,6 +230,15 @@ class MiddleDataManager:
         # 정산 펀딩비 재사용 — 값은 정산 시각에만 바뀌므로 다음 정산 전 재조회 생략 (fundingRate 500회/5분/IP 한도)
         self._fr_cache:        dict[str, FundingRateData] = {}   # symbol → 마지막으로 받은 정산 펀딩비
         self._fr_window:       dict[str, tuple[int, int]] = {}   # symbol → (마지막 정산 시각, 다음 정산 시각) ms
+        # 가격 예고 — 판정식 forecast_params.json (없거나 형식 오류면 비활성)
+        self._forecaster = Forecaster.load()
+        self._forecast_log: Path = forecast_log_path(self._forecaster.version)   # 판정식 버전별 기록 파일
+        self._forecast_checked: dict[str, int] = {}                             # symbol → 마지막 계산 5분 구간
+        # 1열 목록 제외 판정(블랙리스트) — middle_panel이 BlacklistManager.is_blacklisted 연결. 24h 목록·예고 목록 공용
+        self._list_excluded = lambda symbol: False
+        self._forecast:        dict[str, dict]            = {}   # symbol → get_forecast() 기록
+        self._forecast_slot:   int                        = -1   # 마지막 실행 15분 구간 (-1 = 시작 첫 확인)
+        self._forecast_logged: dict[str, int] | None      = None # symbol → 마지막 기록 판정 시각 (None = 파일에서 아직 안 읽음)
 
         # ── 상태 ───────────────────────────────────────────────
         self._last_tkr_refresh: float = 0.0
@@ -252,6 +298,9 @@ class MiddleDataManager:
             self._cross_ts_cache.clear()
             self._spread_hist.clear()
             self._deriv_cache.clear()
+            self._forecast.clear()
+            self._forecast_checked.clear()
+            self._forecast_slot = -1
 
     def request_selected(self, symbol: str) -> None:
         """선택 심볼 상세 데이터 비동기 갱신 요청."""
@@ -266,6 +315,8 @@ class MiddleDataManager:
         if self._ws_klines is not None and not pinned:
             self._ws_klines.set_symbol(symbol)
         threading.Thread(target=self._refresh_detail, args=(symbol,), daemon=True).start()
+        if self._running and self._forecaster.ok:   # 가격 예고 — 자동 갱신 중에만 (최근 5m 마감 기준 재계산)
+            threading.Thread(target=self._refresh_selected_forecast, args=(symbol,), daemon=True).start()
 
     def set_engine_symbol(self, symbol: str) -> None:
         """거래 엔진 종목 고정("" = 해제). 고정 중에는 WS klines가 이 종목만 구독 — 중단 모듈 클릭으로 바뀌지 않음."""
@@ -351,11 +402,28 @@ class MiddleDataManager:
             hist = self._spread_hist.get(symbol)
             return statistics.median(hist) if hist else None
 
+    def _ind_fresh(self, symbol: str) -> bool:
+        """지표 캐시가 지금 갱신되는 종목인지 — 거래량 상위 100(STAGE2·3 대상)·엔진 종목·선택 종목.
+        그 밖(갱신 대상에서 빠진 종목)에 남은 캐시는 옛 값이라 1열 행·Player 표시에 쓰지 않는다
+        (2026-11-12 — 급등 때 100위 안에 들었다 빠진 종목이 옛 '롱 대기'·추세 단계를 계속 표시하던 문제).
+        엔진 입력(get_ind)은 바꾸지 않는다."""
+        return (self._vol_rank.get(symbol, 999) <= _STAGE2_TOPN
+                or symbol in (self._engine_sym, self._last_detail_sym))
+
+    def get_row(self, symbol: str) -> tuple | None:
+        """종목 하나의 1열 행(11-tuple) — 1열 목록과 같은 _make_row·현재 Sort by의 use_macro. 시세 없으면 None.
+        3열이 거래량 상위 200(get_ranking_rows) 밖 종목(24h Ticker·Newly Listed 목록)도 1열과 같은 값을 쓰도록."""
+        tkr = self._tkr_map.get(symbol)
+        return self._make_row(tkr, self._m4_use_macro()) if tkr is not None else None
+
     def get_player(self, symbol: str) -> TagDetectionResult | None:
         """Player Detection 단일 정의 — 캐시 지표(STAGE2·STAGE3·상세 갱신) 7개 입력.
         has_rise_tag·has_decline_tag는 절단 전 전체 태그 기준, tags는 강도순 상위 4개(표시용).
-        1열 행 배경·Sharp rise/decline Player 가산점·Gold·3열 Player 가산점이 함께 사용. 지표 없음 → None.
+        1열 행 배경·Sharp rise/decline Player 가산점·Gold·3열 Player 가산점이 함께 사용.
+        지표 없음·갱신 대상 밖(_ind_fresh 아님) → None.
         (엔진 금지 조건용 ind["_player_keys"]와는 별개 — 상세 갱신 시점 값)"""
+        if not self._ind_fresh(symbol):
+            return None
         ind = self.get_ind(symbol)
         if not ind:
             return None
@@ -369,14 +437,14 @@ class MiddleDataManager:
             price_chg_pct = ind.get("price_change_pct",  0.0),
         )
 
-    def get_player_map(self) -> dict[str, dict]:
-        """랭킹 풀(거래량 상위 200) 전 심볼 Player 감지 — 태그가 감지된 심볼만.
+    def get_player_map(self, symbols: list[str] | None = None) -> dict[str, dict]:
+        """Player 감지 — 태그가 감지된 심볼만. symbols: 대상 종목(1열에 표시할 목록), None이면 랭킹 풀(거래량 상위 200).
         {symbol: {"tags": [(tag_text, tag_color, strength_pct), ...] 강도순 상위 4,
                   "direction": "long" | "short" | "mixed",   # 상승 태그만 / 하락 태그만 / 둘 다
                   "has_rise": bool, "has_decline": bool}}"""
         result: dict[str, dict] = {}
-        for row in self.get_ranking_rows():
-            sym = row[0]
+        syms = symbols if symbols is not None else [row[0] for row in self.get_ranking_rows()]
+        for sym in syms:
             try:
                 det = self.get_player(sym)
             except Exception:
@@ -503,10 +571,142 @@ class MiddleDataManager:
             if _elapsed % _SPREAD_INTERVAL == 0:
                 threading.Thread(target=self._refresh_spreads, daemon=True).start()
 
+            # ── 가격 예고: 15분 봉 마감 + 240초마다 24h 상위 100·선택 종목 ──
+            if self._forecast_due(int(time.time() * 1000)):
+                threading.Thread(target=self._refresh_forecasts, daemon=True).start()
+
             # ── 카운터 리셋 (1시간 기준) + onboard_map 갱신 ──
             if _elapsed >= 3600:
                 threading.Thread(target=self._fetch_onboard_map, daemon=True).start()
                 _elapsed = 0
+
+    # ══ 가격 예고 (화면 표시 전용 — 엔진·백테스트 미사용) ══════════
+
+    def get_forecast(self, symbol: str) -> dict | None:
+        """{"t": 판정 봉 마감 ms, "feats", "result", "text", "status", "price"} — 계산 전이면 None,
+        연속 기록 부족이면 feats·result·price None + 판단 보류 문구."""
+        with self._lock:
+            return self._forecast.get(symbol)
+
+    def _forecast_one(self, symbol: str, in_list: bool) -> dict | None:
+        """5m 봉 300개(마감 299)·5m OI 290개 조회 → 지표·판정 (forecast.compute_features·Forecaster 단일 정의).
+        in_list: 1열 24h Ticker 목록(24h 변동률 상위 100) 종목 — 목록 조건 경계로 판정."""
+        now_ms = int(time.time() * 1000)
+        with self._lock:
+            self._forecast_checked[symbol] = now_ms // 300_000
+        bars = self._ohlcv_svc.fetch(symbol, "5m", _FORECAST_BARS_LIMIT)
+        oi   = self._oi_svc.fetch_series(symbol, "5m", _FORECAST_OI_LIMIT)
+        feats = compute_features(bars, oi)
+        if feats is None and bars and (bars[-1].close_time + 1) not in oi:
+            bars = bars[:-1]                     # 마지막 봉 마감 OI 미게시(마감 후 최대 약 240초) → 직전 마감 봉 기준
+            feats = compute_features(bars, oi)
+        if feats is None:   # 판단 보류 표시 (기록 파일 제외)
+            with self._lock:
+                prev = self._forecast.get(symbol)
+                # 조회 일시 실패(빈 응답)·일시 부족: 30분 안의 직전 정상 판정은 유지 — '휴장·신규 상장' 오표시·판정 소실 방지
+                if prev is None or prev["feats"] is None or now_ms - prev["t"] > _FORECAST_KEEP_MS:
+                    self._forecast[symbol] = {"t": bars[-1].close_time + 1 if bars else 0, "feats": None,
+                                              "result": None, "text": INSUFFICIENT_TEXT, "status": "", "price": None}
+            return None
+        result = self._forecaster.judge(feats, in_list)
+        text, status = self._forecaster.display(result)
+        rec = {"t": bars[-1].close_time + 1, "feats": feats, "result": result,
+               "text": text, "status": status, "price": bars[-1].close}
+        with self._lock:
+            self._forecast[symbol] = rec
+        return rec
+
+    def _refresh_forecasts(self) -> None:
+        """판정 → 캐시 갱신·기록 파일 추가(4주 실사용 검증용).
+        대상: 24h 변동률 상위 100(1열 24h Ticker 목록, 'list' 조건) + 그 밖 거래량 상위 100('all' 조건 — 검증 표본,
+        2026-11-12 추가: 그 밖 조건 표시가 기록 0행이라 검증 불가였음) + 선택 종목."""
+        with self._lock:
+            by_vol = list(self._sorted_tickers[:_FORECAST_TOPN])
+            selected = self._last_detail_sym
+        list_syms = [t.symbol for t in self._change_ranked(_FORECAST_TOPN)]
+        in_set = set(list_syms)
+        other_syms = [t.symbol for t in by_vol if t.symbol not in in_set]
+        syms = list_syms + other_syms
+        flags = [True] * len(list_syms) + [False] * len(other_syms)
+        if selected and selected not in syms:
+            syms.append(selected)
+            flags.append(False)
+        if not syms or not self._forecaster.ok:
+            return
+        with ThreadPoolExecutor(max_workers=_FORECAST_WORKERS) as pool:
+            recs = list(pool.map(self._forecast_one_safe, syms, flags))
+        self._append_forecast_log([(s, r) for s, r in zip(syms, recs) if r is not None])
+        cb = self._on_detail_ready_cb
+        if cb is not None and selected and selected in syms:
+            try:
+                cb(selected)
+            except Exception:
+                pass
+
+    def _forecast_one_safe(self, symbol: str, in_list: bool) -> dict | None:
+        try:
+            return self._forecast_one(symbol, in_list)
+        except Exception as e:
+            logging.warning("middle forecast %s: %s", symbol, e)
+            return None
+
+    def _forecast_due(self, now_ms: int) -> bool:
+        """판정 실행 여부 — 15분 봉 마감 + _FORECAST_DELAY_MS마다 1회.
+        시작(앱 실행·STOP 후 START) 첫 확인: 마감 후 대기 시간 안이면 곧 있을 정기 실행을 기다리고
+        (같은 봉 두 번 판정 방지 — 2026-11-10 23:01 시작 시 93행 중복), 그 밖이면 바로 실행."""
+        slot = (now_ms - _FORECAST_DELAY_MS) // _FORECAST_CYCLE_MS
+        if self._forecast_slot == -1:
+            self._forecast_slot = slot
+            return now_ms % _FORECAST_CYCLE_MS >= _FORECAST_DELAY_MS
+        if slot != self._forecast_slot:
+            self._forecast_slot = slot
+            return True
+        return False
+
+    def _append_forecast_log(self, rows: list) -> None:
+        """data/forecast_log_{판정식 버전}.csv — 판정 시점·종목·조건·가격·점수·해당 표시(채택 여부 무관 전체 후보) 기록.
+        이미 기록한 판정 시점 이하(같은 봉 재판정·직전 봉 대체 판정)는 건너뛴다 — 앱 재시작 후에도
+        기존 파일 끝부분에서 종목별 마지막 기록 시점을 읽어 이어간다."""
+        if self._forecast_logged is None:
+            self._forecast_logged = _read_logged_times(self._forecast_log)
+        rows = [(s, r) for s, r in rows if r["t"] > self._forecast_logged.get(s, 0)]
+        if not rows:
+            return
+        new = not self._forecast_log.exists()
+        try:
+            self._forecast_log.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._forecast_log, "a", encoding="utf-8", newline="") as f:
+                if new:
+                    f.write("t_close,symbol,context,price,r24,score_dn,score_up,score_big,labels,shown\n")
+                for sym, r in rows:
+                    sc = r["result"].get("scores", {})
+                    f.write(f"{r['t']},{sym},{r['result']['context']},{r['price']},{r['feats']['r24']:.4f},"
+                            f"{sc.get('dn', 0):.6f},{sc.get('up', 0):.6f},{sc.get('big', 0):.6f},"
+                            f"{'|'.join(r['result'].get('labels', []))},{'|'.join(r['result'].get('shown', []))}\n")
+                    self._forecast_logged[sym] = r["t"]
+        except OSError as e:
+            logging.warning("middle forecast log: %s", e)
+
+    def _refresh_selected_forecast(self, symbol: str) -> None:
+        """선택 종목 예고 — 마지막 판정이 최근 마감 5m 봉보다 이전이면 재계산 후 화면 갱신 콜백.
+        같은 5분 구간에 이미 계산했으면 생략 (판단 보류 종목을 30초마다 다시 조회하던 문제 — 2026-11-12)."""
+        cur = self.get_forecast(symbol)
+        now_ms = int(time.time() * 1000)
+        last_close = (now_ms - 60_000) // 300_000 * 300_000
+        if cur is not None and cur["t"] >= last_close:
+            return
+        with self._lock:
+            if self._forecast_checked.get(symbol) == now_ms // 300_000:
+                return
+        in_list = symbol in {t.symbol for t in self._change_ranked(_FORECAST_TOPN)}
+        self._forecast_one_safe(symbol, in_list)
+        if self.get_forecast(symbol) is not None and symbol == self._last_detail_sym:   # 판단 보류도 화면 갱신
+            cb = self._on_detail_ready_cb
+            if cb is not None:
+                try:
+                    cb(symbol)
+                except Exception:
+                    pass
 
     def _refresh_spreads(self) -> None:
         """전체 심볼 호가 스프레드 (ask−bid)/mid×100 표본 1개씩 추가 — 조회 실패 시 기존 표본 유지."""
@@ -837,14 +1037,20 @@ class MiddleDataManager:
             self._ranking_rows = rows
 
     def get_all_ranked_by_change(self, limit: int = 100) -> list:
-        """24h Ticker 모드 전용: 전체 심볼(628개) 변동률 내림차순 top N 반환.
+        """24h Ticker 모드 전용: 전체 심볼 변동률 내림차순 top N 반환 (블랙리스트 먼저 제외 — _change_ranked).
         tickers[:200] 절단 없이 전체에서 가장 많이 오른 심볼 표시.
         """
+        use_macro = self._m4_use_macro()
+        return [self._make_row(t, use_macro) for t in self._change_ranked(limit)]
+
+    def _change_ranked(self, limit: int) -> list[SymbolTicker]:
+        """24h 변동률 내림차순 상위 limit — 블랙리스트를 먼저 빼고 자른다 (항상 limit개, 2026-11-12).
+        1열 24h Ticker 목록과 가격 예고 '목록' 조건의 단일 정의."""
         with self._lock:
             tickers_snap = list(self._tickers)   # 전체 원본 복사
+        tickers_snap = [t for t in tickers_snap if not self._list_excluded(t.symbol)]
         tickers_snap.sort(key=lambda t: t.price_change_pct, reverse=True)
-        use_macro = self._m4_use_macro()
-        return [self._make_row(t, use_macro) for t in tickers_snap[:limit]]
+        return tickers_snap[:limit]
 
     def get_newlisted_rows(self) -> list:
         """Newly Listed 모드 전용: 전체 _tickers에서 상장 30일 이내 심볼만 행 반환.
@@ -1158,8 +1364,10 @@ class MiddleDataManager:
         days = self.get_listing_days(sym)
 
         # [2,3] M4 진입 준비 상태 (G2 15m RSI 50 + G7.5 거시 점수) — 엔진 M4Entry와 같은 판정
-        ind = self._ind_cache.get(sym)
-        b15 = self._ohlcv_cache.get(sym, {}).get("15m", [])
+        # 갱신 대상 밖 종목의 남은 캐시(옛 값)는 쓰지 않음 → '데이터 없음'·추세 단계는 24h 변동률 구간 (_ind_fresh)
+        fresh = self._ind_fresh(sym)
+        ind = self._ind_cache.get(sym) if fresh else None
+        b15 = self._ohlcv_cache.get(sym, {}).get("15m", []) if fresh else []
         rsi15: float | None = None
         if ind and len(b15) >= _G2_RSI_BARS:
             # G2: 엔진·백테스트와 같은 15m 마감 봉 19개 RSI(14) — 엔진도 이 캐시(get_ohlcv)를 사용

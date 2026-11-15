@@ -16,6 +16,7 @@ class OHLCVBar:
     volume:       float        # base asset volume
     quote_volume: float        # USDT volume
     close_time:   int
+    taker_buy_volume: float = 0.0   # 시장가 매수 체결량(base) — klines k[9]·WS "V" (가격 예고 지표)
 
 
 @dataclass

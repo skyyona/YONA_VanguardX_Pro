@@ -29,6 +29,7 @@ from middle.models import SymbolTicker
 
 _STREAM_URL      = "wss://fstream.binance.com/market/stream?streams=!miniTicker@arr"
 _RECONNECT_DELAY = 5   # 재연결 대기 (초)
+_STALE_SEC       = 15  # 마지막 수신 후 이 시간이 지나면 "수신 중 아님" — 1초 Push, REST 대체 갱신 재개 (2026-11-12)
 
 
 class WebSocketTicker:
@@ -46,7 +47,7 @@ class WebSocketTicker:
         self._ws: websocket.WebSocketApp | None = None
         self._running       = False
         self._connected     = False
-        self._data_received = False   # 실제 데이터 수신 여부 (연결 성공과 별개)
+        self._last_data_time = 0.0    # 마지막 실제 데이터 수신 시각 (연결 성공과 별개)
         self._thread: threading.Thread | None = None
 
     @property
@@ -55,8 +56,9 @@ class WebSocketTicker:
 
     @property
     def has_received_data(self) -> bool:
-        """실제 데이터를 받은 적 있는지 (연결만 됐는지 vs 데이터도 왔는지 구분)."""
-        return self._data_received
+        """최근 _STALE_SEC 안에 실제 데이터를 받았는지 (연결만 됐는지 vs 데이터도 오는지 구분).
+        끊김·데이터 없는 연결이 이어지면 False로 돌아가 REST 대체 갱신이 다시 동작한다."""
+        return time.time() - self._last_data_time < _STALE_SEC
 
     # ── 공개 인터페이스 ───────────────────────────────────────
     def start(self) -> None:
@@ -113,7 +115,7 @@ class WebSocketTicker:
                 return
             tickers = self._parse(items)
             if tickers:
-                self._data_received = True   # 실제 데이터 수신 확인
+                self._last_data_time = time.time()   # 실제 데이터 수신 확인
                 self._on_update(tickers)
         except Exception:
             pass

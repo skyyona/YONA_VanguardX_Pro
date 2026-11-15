@@ -27,6 +27,17 @@ class OpenInterestFetcher:
         except (KeyError, ValueError):
             return None
 
+    def fetch_series(self, symbol: str, period: str = "5m", limit: int = 290) -> dict[int, float]:
+        """OI 이력 {timestamp ms: sumOpenInterest} — timestamp는 해당 시각의 OI (봉 마감 시각 = 다음 봉 open_time).
+        조회 실패·형식 오류 항목은 제외."""
+        out: dict[int, float] = {}
+        for x in self._client.fetch_open_interest_hist(symbol, period, limit):
+            try:
+                out[int(x["timestamp"])] = float(x["sumOpenInterest"])
+            except (KeyError, TypeError, ValueError):
+                continue
+        return out
+
     def fetch_change_pct(self, symbol: str, period: str = "5m", lookback: int = 2) -> float:
         """OI 변화율 (%) 반환.
         lookback: 몇 기간 전 대비 현재 OI 변화율을 계산할지

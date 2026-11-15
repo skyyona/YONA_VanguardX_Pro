@@ -47,6 +47,18 @@ def get_ind(symbol: str) -> dict:
     return {}
 
 
+def get_forecast(symbol: str) -> dict | None:
+    """가격 예고 기록 — data_manager.get_forecast 단일 정의. 매니저 없거나 계산 전이면 None."""
+    if _data_mgr is not None:
+        return _data_mgr.get_forecast(symbol)
+    return None
+
+
+def forecast_enabled() -> bool:
+    """가격 예고 판정식(forecast_params.json) 사용 가능 여부."""
+    return _data_mgr is not None and _data_mgr._forecaster.ok
+
+
 def get_player(symbol: str):
     """Player Detection 결과(TagDetectionResult) — data_manager.get_player 단일 정의. 매니저·지표 없으면 None."""
     if _data_mgr is not None:
@@ -61,11 +73,19 @@ def get_listing_days(symbol: str) -> int:
     return 0
 
 
-def get_player_map() -> dict:
-    """랭킹 풀 Player 감지 맵 {symbol: {tags, direction, has_rise, has_decline}}. 매니저 없으면 빈 dict."""
+def get_player_map(symbols: list[str] | None = None) -> dict:
+    """Player 감지 맵 {symbol: {tags, direction, has_rise, has_decline}} — symbols(1열 표시 목록) 또는 랭킹 풀.
+    매니저 없으면 빈 dict."""
     if _data_mgr is not None:
-        return _data_mgr.get_player_map()
+        return _data_mgr.get_player_map(symbols)
     return {}
+
+
+def get_row(symbol: str) -> tuple | None:
+    """종목 하나의 1열 행(11-tuple) — data_manager.get_row 단일 정의 (거래량 상위 200 밖 포함). 없으면 None."""
+    if _data_mgr is not None:
+        return _data_mgr.get_row(symbol)
+    return None
 
 
 def request_detail(symbol: str) -> None:

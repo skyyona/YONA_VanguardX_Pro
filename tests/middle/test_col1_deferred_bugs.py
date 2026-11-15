@@ -79,6 +79,7 @@ def test_header_restored_after_pending(mode, col4):
     p = MiddlePanel.__new__(MiddlePanel)
     p._sort_mode, p._sort_btn = "24h Ticker", None
     p._hdr_labels = [_Lbl() for _ in range(6)]
+    p._time_fixed = False   # MiddlePanel.__init__ 기본값 (Sort by 변경 시 Time Fix 자동 해제 확인용)
     p.after = lambda ms, fn=None, *a: None
     p._on_sort_mode_changed = lambda m: None
     p._rebuild_ranking_rows = lambda: None

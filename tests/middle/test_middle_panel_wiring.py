@@ -11,6 +11,7 @@ import pytest
 
 import middle.widget.shared_context as _ctx
 from middle.data.data_manager import MiddleDataManager
+from middle.analysis.forecast import Forecaster
 from middle.widget.middle_panel import MiddlePanel
 
 _MODES = ["24h Ticker", "Sharp rise", "Sharp decline", "Volatility",
@@ -57,6 +58,9 @@ class _DM:
     def get_ranking_rows(self):
         return self.rows
 
+    def get_row(self, sym):   # 1열 행 단일 정의 대역 — 시세가 있는 종목(여기선 랭킹 행)만 행 반환
+        return next((r for r in self.rows if r[0] == sym), None)
+
     def get_newlisted_rows(self):
         return []
 
@@ -69,6 +73,11 @@ class _DM:
         return None
 
     get_player = MiddleDataManager.get_player   # Player 판정 단일 정의 (get_ind 기반)
+    _ind_fresh = lambda self, sym: True          # 대역 지표 = 갱신 대상 값 (MiddleDataManager._ind_fresh)
+    _forecaster = Forecaster(None)   # 가격 예고 판정식 없음 → 3열 '판정식 없음' 표시
+
+    def get_forecast(self, sym):
+        return None
 
     def get_listing_days(self, sym):
         return 0
@@ -102,17 +111,19 @@ def _panel(**attrs) -> MiddlePanel:
 
 
 # ── Sort by 전환: 1열 상태 + 2열 탭 + 3열 판정 제목·갱신 순서 ─────────────
+@pytest.mark.parametrize("state", ["ANALYSIS", "RANKING"])
 @pytest.mark.parametrize("mode", _MODES)
-def test_select_sort_cross_column_sequence(mode):
+def test_select_sort_cross_column_sequence(mode, state):
     title = _Lbl()
     btn = _Lbl()
     popup = _Popup()
     p = _panel(_sort_mode="24h Ticker", _sort_btn=btn, _verdict_title_lbl=title,
-               _hdr_labels=[_Lbl() for _ in range(6)])
+               _hdr_labels=[_Lbl() for _ in range(6)], _app_state=state, _time_fixed=False)
     p._select_sort(mode, popup)
 
     tab = {"4TF Optimization": "macro", "Sharp rise": "mtf", "Sharp decline": "mtf"}.get(mode, "chart")
-    expected = [("tab", tab), ("verdict",), ("rebuild",)]
+    # 3열 판정 다시 그리기는 분석 중(종목 선택 상태)일 때만 (2026-11-12 B-2)
+    expected = [("tab", tab)] + ([("verdict",)] if state == "ANALYSIS" else []) + [("rebuild",)]
     if mode == "Pending Listing":
         expected.insert(0, ("after", 0, "_load_pending_then_rebuild"))
     assert p.calls == expected
@@ -124,7 +135,7 @@ def test_select_sort_cross_column_sequence(mode):
 
 def test_select_sort_without_title_label_still_refreshes():
     p = _panel(_sort_mode="24h Ticker", _sort_btn=None, _verdict_title_lbl=None,
-               _hdr_labels=[_Lbl() for _ in range(6)])
+               _hdr_labels=[_Lbl() for _ in range(6)], _app_state="ANALYSIS", _time_fixed=False)
     p._select_sort("Volatility", _Popup())
     assert p.calls == [("tab", "chart"), ("verdict",), ("rebuild",)]
 

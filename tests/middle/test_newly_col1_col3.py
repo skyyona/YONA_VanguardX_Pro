@@ -10,6 +10,7 @@ import pytest
 import middle.widget.shared_context as _ctx
 from middle.col1_ranking.ranking.newlisted_scorer import NewlistedScorer
 from middle.data.data_manager import MiddleDataManager
+from middle.analysis.forecast import Forecaster
 from middle.widget.middle_panel import MiddlePanel
 
 
@@ -39,10 +40,18 @@ class _DM:
     def get_ranking_rows(self):
         return []
 
+    def get_row(self, sym):   # 1열 행 단일 정의 대역 — 시세가 있는 종목(여기선 Newly 행)만 행 반환
+        return next((r for r in _NL_ROWS if r[0] == sym), None)
+
     def get_ind(self, sym):
         return _IND.get(sym, {})
 
     get_player = MiddleDataManager.get_player   # Player 판정 단일 정의 (get_ind 기반)
+    _ind_fresh = lambda self, sym: True          # 대역 지표 = 갱신 대상 값 (MiddleDataManager._ind_fresh)
+    _forecaster = Forecaster(None)   # 가격 예고 판정식 없음 → 3열 '판정식 없음' 표시
+
+    def get_forecast(self, sym):
+        return None
 
     def get_listing_days(self, sym):
         return {r[0]: r[1] for r in _NL_ROWS}.get(sym, 0)

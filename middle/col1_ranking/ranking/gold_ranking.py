@@ -62,12 +62,12 @@ class GoldRanking:
         return sq * 0.35 + atr_score * 0.25
 
     @staticmethod
-    def get_top1(player_map: dict | None = None) -> str:
-        """현재 랭킹 목록(블랙리스트 제외)에서 종합 점수 1위 심볼 반환. 없으면 빈 문자열."""
+    def get_top1(player_map: dict | None = None, symbols: list[str] | None = None) -> str:
+        """종합 점수 1위 심볼 반환 (블랙리스트 제외). 없으면 빈 문자열.
+        symbols: 대상 종목(1열에 표시할 목록) — None이면 랭킹 풀(거래량 상위 200)."""
         best_sym, best_score = "", -1.0
         try:
-            for row in _live_ranking():
-                sym = row[0]
+            for sym in (symbols if symbols is not None else [row[0] for row in _live_ranking()]):
                 if is_blacklisted(sym):
                     continue
                 try:

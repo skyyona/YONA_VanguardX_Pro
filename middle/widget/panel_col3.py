@@ -3,12 +3,14 @@ middle/widget/panel_col3.py
 3열 분석 패널 (기술지표/파생/에너지/종합판단) 믹스인
 """
 from __future__ import annotations
+from datetime import datetime
 import tkinter as tk
 import tkinter.ttk as ttk
 from middle.widget.constants import *
 
 # ── shared_context에서 헬퍼 함수 import (단일 정의, 중복 없음) ──
-from middle.widget.shared_context import get_ind, _live_ranking, get_ticker_info, get_player, get_listing_days
+from middle.widget.shared_context import (get_ind, _live_ranking, get_ticker_info, get_player, get_listing_days,
+                                         get_forecast, forecast_enabled, get_row)
 import middle.widget.shared_context as _ctx
 from middle.col3_analysis_panels.derivative_analysis.open_interest import OpenInterestPanel
 from middle.col3_analysis_panels.derivative_analysis.funding_rate import FundingRatePanel
@@ -33,7 +35,8 @@ class _Col3Mixin:
             w.destroy()
 
         sym  = self._sel_var.get()
-        data = next((d for d in _live_ranking() if d[0] == sym), None)
+        # 1열 행과 같은 값 — 거래량 상위 200 밖 종목(24h Ticker·Newly Listed 목록)도 포함 (data_manager.get_row 단일 정의)
+        data = get_row(sym)
 
         # ── Assign Symbol 버튼: sym 있으면 top-200 여부 무관하게 항상 갱신 ──
         action_bar = getattr(self, '_action_bar', None)
@@ -58,7 +61,7 @@ class _Col3Mixin:
             assign_btn.pack(side="right", padx=4)
 
         if not data:
-            # 200위 밖 심볼: 심볼명 + —— (별점/장단계) + 등락률 + 순위 뱃지
+            # 시세 없는 심볼(거래 목록에 없음): 심볼명 + —— (M4 준비/추세 단계) + 등락률 + 순위 뱃지
             info = get_ticker_info(sym)
             chg      = info[0] if info else 0.0
             vol_rank = info[1] if info else 999
@@ -92,7 +95,7 @@ class _Col3Mixin:
         tk.Label(left, text=symbol, bg=DARK_PANEL, fg=DARK_TEXT,
                  font=("Segoe UI", 10, "bold")).pack(side="left")
 
-        if days > 0:
+        if 0 < days <= 30:   # 1열 신규 배지와 같은 조건 (상장 30일 이하)
             tk.Label(left, text=f" 신규{days}일",
                      bg=NEW_BG, fg=NEW_FG,
                      font=("Segoe UI", 7, "bold"), padx=3).pack(side="left", padx=(6, 0))
@@ -106,9 +109,16 @@ class _Col3Mixin:
         tk.Label(left, text=change, bg=DARK_PANEL, fg=change_color,
                  font=("Segoe UI", 10, "bold")).pack(side="left", padx=(10, 0))
 
-        tk.Label(left, text="  TOP 200 ",
-                 bg="#0A1F0A", fg=POSITIVE,
-                 font=("Segoe UI", 7, "bold"), padx=3).pack(side="left", padx=(6, 0))
+        info = get_ticker_info(sym)
+        vol_rank = info[1] if info else 999
+        if vol_rank <= 200:
+            tk.Label(left, text="  TOP 200 ",
+                     bg="#0A1F0A", fg=POSITIVE,
+                     font=("Segoe UI", 7, "bold"), padx=3).pack(side="left", padx=(6, 0))
+        else:   # 거래량 상위 200 밖 (24h Ticker·Newly Listed 목록 종목) — 거래량 순위 뱃지
+            tk.Label(left, text=f"  {vol_rank}위 ",
+                     bg="#2A1A00", fg="#CC6600",
+                     font=("Segoe UI", 7, "bold"), padx=3).pack(side="left", padx=(6, 0))
 
     # ─── Assign 버튼 처리 ─────────────────────────────────────
     def _on_assign(self, symbol: str) -> None:
@@ -543,6 +553,8 @@ class _Col3Mixin:
         oi      = ind.get("oi_change", 0.0)
         lr      = ind.get("long_ratio", 50.0)
 
+        self._render_forecast(sym)
+
         lines = []
         # 기술 요약 — TechnicalVerdictPanel 위임
         tv = TechnicalVerdictPanel.analyze(
@@ -569,10 +581,13 @@ class _Col3Mixin:
 
         # ── Sort by="24h Ticker" 선정 근거 (24h 변동률 + 전체 순위) ──
         if self._sort_mode == "24h Ticker":
-            _row = next((d for d in _live_ranking() if d[0] == sym), None)
+            _row = get_row(sym)   # 24h 목록은 거래량 상위 200 밖 종목 포함
             if _row is not None:
-                _sorted = self._get_sorted_ranking()
-                _rank = next((i + 1 for i, r in enumerate(_sorted) if r[0] == sym), None)
+                # 1열에 표시된 순위 우선 (분석 중 1열은 멈춰 있음 — 1열 # 칸과 같은 숫자), 1열에 없으면 실시간 순위
+                _rank = next((i + 1 for i, (_, s) in enumerate(getattr(self, "_row_frames", [])) if s == sym), None)
+                if _rank is None:
+                    _sorted = self._get_sorted_ranking()
+                    _rank = next((i + 1 for i, r in enumerate(_sorted) if r[0] == sym), None)
                 ctx_f = tk.Frame(self._verdict_f, bg=DARK_PANEL)
                 ctx_f.pack(fill="x", padx=10, pady=(2, 1))
                 tk.Label(ctx_f, text="🎯 24h 변동률 ", bg=DARK_PANEL, fg=ACCENT_BLUE,
@@ -860,6 +875,39 @@ class _Col3Mixin:
         cv_lev.bind("<Configure>", _draw_lev)
         cv_lev.after(15, _draw_lev)
 
+    # ─── 가격 예고 (12시간) — 종합 분석 맨 위, 화면 표시 전용 ──────
+    def _render_forecast(self, sym: str) -> None:
+        """data_manager.get_forecast 결과 표시: 문구(방향·내용) + 판정 시각·근거 수치·검증 상태."""
+        hdr = tk.Frame(self._verdict_f, bg=DARK_PANEL)
+        hdr.pack(fill="x", padx=10, pady=(4, 0))
+        tk.Label(hdr, text="🔮 가격 예고 (12시간)", bg=DARK_PANEL, fg=ACCENT_BLUE,
+                 font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
+        fc = get_forecast(sym)
+        if not forecast_enabled():
+            head, tail, col, sub = "─ 판정식 없음", "forecast_params.json 학습 필요", DIM_TEXT, ""
+        elif fc is None:
+            head, tail, col, sub = "─ 계산 중", "5분 봉·OI 24시간치 수신 대기", DIM_TEXT, ""
+        else:
+            head, _, tail = fc["text"].partition(" — ")
+            col = (NEGATIVE if head.startswith("▼") else POSITIVE if head.startswith("▲")
+                   else ORANGE if head.startswith("⚡") else DIM_TEXT)
+            ft = fc["feats"]
+            sub = "" if ft is None else (
+                f"{datetime.fromtimestamp(fc['t'] / 1000):%H:%M} 판정 · 24h {ft['r24']:+.1f}% · "
+                f"고점 대비 {ft['dd_high']:+.1f}% · OI 4h {ft['oi4h']:+.1f}%")
+            if sub and fc["status"]:
+                sub += f" · {fc['status']}"
+        body = tk.Frame(self._verdict_f, bg=DARK_PANEL)
+        body.pack(fill="x", padx=10, pady=(1, 0))
+        tk.Label(body, text=head, bg=DARK_PANEL, fg=col,
+                 font=("Segoe UI", 9, "bold"), anchor="w").pack(side="left")
+        tk.Label(body, text=f"  {tail}", bg=DARK_PANEL, fg=col,
+                 font=("Segoe UI", 8), anchor="w").pack(side="left")
+        if sub:
+            tk.Label(self._verdict_f, text=sub, bg=DARK_PANEL, fg=DIM_TEXT,
+                     font=("Consolas", 7), anchor="w").pack(fill="x", padx=10)
+        tk.Frame(self._verdict_f, bg="#2A2A2A", height=1).pack(fill="x", padx=10, pady=(3, 2))
+
     # ─── 롱/숏 엔진 양방향 상태 판단 ────────────────────────────
     @staticmethod
     def _engine_status(phase: str, long_r: float):
@@ -934,10 +982,9 @@ class _Col3Mixin:
         return max(0.05, min(0.95, raw))
 
     def _get_phase_for_sym(self, sym: str) -> tuple:
-        for data in _live_ranking():
-            if data[0] == sym:
-                return data[8], data[9]
-        return "", DIM_TEXT
+        """1열 행의 추세 단계 (거래량 상위 200 밖 종목 포함 — 엔진 판단이 1열 표시와 같은 추세 단계 사용)."""
+        data = get_row(sym)
+        return (data[8], data[9]) if data else ("", DIM_TEXT)
 
     # ─── Col 4: Player Detection 상세 + 에너지 ────────────────
     def _refresh_energy(self) -> None:

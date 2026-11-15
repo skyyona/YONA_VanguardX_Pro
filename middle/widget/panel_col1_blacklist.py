@@ -349,6 +349,7 @@ class _Col1BlacklistMixin:
 
         self._refresh_settling_ui()    # Settling에서 추가된 심볼 즉시 제거
         self._refresh_blacklist_ui()   # Blacklist에 추가된 심볼 표시
+        self._release_time_fix_for_rebuild()   # 재생성이 고정 순위를 깨므로 Time Fix 자동 해제
         self._rebuild_ranking_rows()   # Ranking에서 즉시 제외
 
     def _release_from_blacklist(self) -> None:
@@ -382,4 +383,5 @@ class _Col1BlacklistMixin:
 
         self._refresh_settling_ui()    # Settling에 해제된 심볼 복귀 표시
         self._refresh_blacklist_ui()   # Blacklist에서 제거된 심볼 삭제
+        self._release_time_fix_for_rebuild()   # 재생성이 고정 순위를 깨므로 Time Fix 자동 해제
         self._rebuild_ranking_rows()   # Ranking에 즉시 복귀

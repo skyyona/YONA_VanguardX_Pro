@@ -292,6 +292,7 @@ class _Col1Mixin:
 
         # 2열 탭·3열 종합분석 연동 — MiddlePanel._on_sort_mode_changed
         self._on_sort_mode_changed(mode)
+        self._release_time_fix_for_rebuild()
         self._rebuild_ranking_rows()
 
     # ─── Sort by 점수 계산 — ranking/ 폴더 각 Scorer 클래스로 위임 ──
@@ -361,6 +362,7 @@ class _Col1Mixin:
         self._cum_shown.clear()
         self._change_labels.clear()
         self._phase_labels.clear()
+        self._m4_labels.clear()
         self._nl_rows.clear()
 
         # ③ pack_forget (0.17ms) — 즉시 화면에서 제거
@@ -370,27 +372,28 @@ class _Col1Mixin:
             except Exception:
                 pass
 
-        # Player Detection — 랭킹 풀 전 심볼 태그 감지 (행 빌드 전 확정)
-        #   행 배경·Sharp rise/decline Player 가산점·Gold가 같은 결과 사용 (data_manager.get_player 단일 정의)
-        self._player_tags_map = get_player_map()
-        # Gold Ranking — 종합 1위 심볼 갱신 (행 빌드 전 확정, 위 Player 맵 재사용)
-        self._gold_sym        = GoldRanking.get_top1(self._player_tags_map)
+        # 표시할 목록 먼저 확정 — Player·Gold를 이 목록 종목 기준으로 계산
+        #   (24h Ticker·Newly Listed 목록은 거래량 상위 200 밖 종목 포함 — 2026-11-12)
+        data = ([] if getattr(self, '_app_state', 'IDLE') == "IDLE" or self._sort_mode == "Pending Listing"
+                else self._get_sorted_ranking())
+        syms = [r[0] for r in data]
+        # Player Detection — 행 배경·Sharp rise/decline Player 가산점·Gold가 같은 결과 사용 (data_manager.get_player 단일 정의)
+        self._player_tags_map = get_player_map(syms)
+        # Gold Ranking — 표시 목록 중 종합 1위 (위 Player 맵 재사용)
+        self._gold_sym        = GoldRanking.get_top1(self._player_tags_map, syms)
 
         # ④ 동기 빌드 (~104ms) — 청크 없이 한번에, 리스트 안정적 표시
-        self._build_ranking_rows()
+        self._build_ranking_rows(data)
 
         # ⑤ 선택 심볼 하이라이트 복원 (패널 갱신 없음 — flicker 방지)
-        cur = self._sel_var.get()
-        for idx, (_, sym) in enumerate(self._row_frames):
-            if sym == cur:
-                self._restore_row_highlight(idx)
-                break
-        else:
-            # 현재 선택 심볼이 새 목록에 없을 때 — 하이라이트만 복원
-            # _on_select 대신 _restore_row_highlight 사용:
-            # → rebuild 완료 시 자동으로 분석/바이낸스 실행되는 부작용 방지
-            if self._row_frames:
-                self._restore_row_highlight(0)
+        #   분석 중(종목 선택 상태)이고 그 종목이 새 목록에 있을 때만 — 없으면 강조하지 않음
+        #   (선택하지 않은 첫 행을 선택처럼 강조하던 문제 — 2026-11-12)
+        if getattr(self, '_app_state', 'IDLE') == "ANALYSIS":
+            cur = self._sel_var.get()
+            for idx, (_, sym) in enumerate(self._row_frames):
+                if sym == cur:
+                    self._restore_row_highlight(idx)
+                    break
 
         # ⑥ old 행 백그라운드 destroy (숨겨진 상태, 시각 영향 없음)
         if old_children:
@@ -405,15 +408,16 @@ class _Col1Mixin:
                 pass
 
     # ─── 랭킹 행 생성 ─────────────────────────────────────────
-    def _build_ranking_rows(self) -> None:
-        """랭킹 행 전체 생성."""
+    def _build_ranking_rows(self, data: list | None = None) -> None:
+        """랭킹 행 전체 생성. data: _rebuild_ranking_rows가 확정한 표시 목록 (None이면 여기서 계산)."""
         # _ctx 경유 접근 (global 불필요)   # 함수 최상단 선언 (if 블록 안 global 제거용)
         if getattr(self, '_app_state', 'IDLE') == "IDLE":
             return
         if self._sort_mode == "Pending Listing":
             self._build_pending_rows()
             return
-        data = self._get_sorted_ranking()
+        if data is None:
+            data = self._get_sorted_ranking()
         for idx, row in enumerate(data):
             (symbol, days,
              tf_text, tf_color,
@@ -631,6 +635,7 @@ class _Col1Mixin:
             else:
                 tf_lbl = tk.Label(tf_f, text=tf_text, bg=row_bg, fg=tf_color,
                                   font=("Segoe UI", 9, "bold"), anchor="center")
+                self._m4_labels[symbol] = tf_lbl   # M4 준비 — 소프트 갱신용 참조 (Time Fix 중에도 갱신)
             tf_lbl.pack(fill="both", expand=True, padx=2)
             self._special[idx].add(tf_lbl)
 
@@ -711,21 +716,35 @@ class _Col1Mixin:
             if self._timer_lbl:
                 self._timer_lbl.configure(fg=POSITIVE)
         else:
-            # ── 스냅샷 삭제 + 타이머 정지 + 리셋 ─────────────
-            self._time_fix_prices.clear()
-            self._timer_running = False
-            self._cancel_tick_timer()
-            self._elapsed_sec   = 0
-            if self._timer_lbl:
-                self._timer_lbl.configure(text="00:00:00", fg=DIM_TEXT)
-            if self._timefix_btn:
-                self._timefix_btn.configure(
-                    text="⏱  Time Fix",
-                    bg="#1A2A1A", fg=POSITIVE,
-                    activebackground="#1A3A1A", activeforeground=POSITIVE)
+            self._clear_time_fix()
             # Time Fix 해제 시 최신 순위로 즉시 재정렬 (Time Fix 중엔 순위 고정)
             self.after(50, self._rebuild_ranking_rows)
         self._update_cum_labels()
+
+    def _clear_time_fix(self) -> None:
+        """Time Fix 해제 상태로 정리 — 스냅샷 삭제 + 타이머 정지 + 리셋 + 버튼 복원 (재정렬은 호출부)."""
+        self._time_fix_prices.clear()
+        self._timer_running = False
+        self._cancel_tick_timer()
+        self._elapsed_sec   = 0
+        if self._timer_lbl:
+            self._timer_lbl.configure(text="00:00:00", fg=DIM_TEXT)
+        if self._timefix_btn:
+            self._timefix_btn.configure(
+                text="⏱  Time Fix",
+                bg="#1A2A1A", fg=POSITIVE,
+                activebackground="#1A3A1A", activeforeground=POSITIVE)
+
+    def _release_time_fix_for_rebuild(self) -> None:
+        """목록을 다시 만드는 사용자 동작(Sort by 변경·블랙리스트 등록/해제·Clear) 전 Time Fix 자동 해제.
+        재생성은 고정 순위·고정 Change%를 깨고 새 종목 Cumulative가 회색 +0.00%로 남으므로
+        고정 상태로 두지 않는다 (2026-11-12). 타이머 칸에 '자동 해제' 표시. 재생성은 호출부가 한다."""
+        if not self._time_fixed:
+            return
+        self._time_fixed = False
+        self._clear_time_fix()
+        if self._timer_lbl:
+            self._timer_lbl.configure(text="자동 해제", fg=YELLOW)
 
     def _tick_timer(self) -> None:
         if not self._timer_running:
@@ -1118,7 +1137,7 @@ class _Col1Mixin:
             pass
 
     def _do_soft_ranking_update(self) -> None:
-        """메인 스레드에서 실행: 5초마다 Change%·장단계 숫자만 업데이트.
+        """메인 스레드에서 실행: 시세 갱신마다 Change%·M4 준비·장단계만 업데이트.
 
         Time Fix 활성 중: Change% 고정 유지 (덮어쓰지 않음), 장단계만 갱신
         Time Fix 비활성: Change% + 장단계 모두 갱신
@@ -1148,6 +1167,14 @@ class _Col1Mixin:
                             chg_lbl.configure(text=new_chg, fg=new_chg_col)
                         except Exception:
                             pass
+
+                # ── M4 준비 (기본 Col4 모드만 등록됨) — Time Fix 중에도 엔진 준비 상태는 갱신 (2026-11-12) ──
+                m4_lbl = self._m4_labels.get(sym)
+                if m4_lbl is not None and (m4_lbl.cget("text"), m4_lbl.cget("fg")) != (row_data[2], row_data[3]):
+                    try:
+                        m4_lbl.configure(text=row_data[2], fg=row_data[3])
+                    except Exception:
+                        pass
 
                 # ── [W-A] 장단계 라벨 업데이트 ─────────────────────────────
                 # Col5(_phase_labels)가 '장단계'를 표시하는 경우에만 갱신한다.

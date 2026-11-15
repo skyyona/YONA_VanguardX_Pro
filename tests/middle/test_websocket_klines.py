@@ -23,7 +23,7 @@ def _make_kline_msg(symbol: str, tf: str, closed: bool) -> str:
             "e": "kline",
             "s": symbol,
             "k": {"t": 1_700_000_000_000, "T": 1_700_000_059_999, "i": tf, "x": closed,
-                  "o": "63900", "h": "64100", "l": "63800", "c": "64000", "v": "12.5", "q": "800000"},
+                  "o": "63900", "h": "64100", "l": "63800", "c": "64000", "v": "12.5", "q": "800000", "V": "7.25"},
         },
     })
 
@@ -62,7 +62,7 @@ def test_on_message_calls_callback_on_closed_candle():
     bar = called[0][2]
     assert (bar.open_time, bar.close_time) == (1_700_000_000_000, 1_700_000_059_999)
     assert (bar.open, bar.high, bar.low, bar.close) == (63900.0, 64100.0, 63800.0, 64000.0)
-    assert (bar.volume, bar.quote_volume) == (12.5, 800000.0)
+    assert (bar.volume, bar.quote_volume, bar.taker_buy_volume) == (12.5, 800000.0, 7.25)
     assert ws.has_received_data is True
 
 

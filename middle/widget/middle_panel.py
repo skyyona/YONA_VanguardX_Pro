@@ -132,6 +132,8 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
             _data_mgr._on_detail_ready_cb  = lambda sym: self._post(self._on_data_ready, sym)
             _data_mgr._on_ranking_ready_cb = lambda: self._post(self._soft_update_ranking)
             _data_mgr._on_klines_ready_cb  = lambda: self._post(self._on_klines_ready)
+            if _bl_mgr is not None:   # 24h 목록·예고 목록에서 블랙리스트를 자르기 전에 제외 (항상 100행)
+                _data_mgr._list_excluded = _bl_mgr.is_blacklisted
 
         # ── 앱 상태 머신 ─────────────────────────────────────
         # 'IDLE': 초기/STOP 후 | 'RANKING': START 후 | 'ANALYSIS': 심볼 선택 후
@@ -157,6 +159,7 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         self._cum_shown     : dict[str, tuple[str, str]] = {}            # sym → 현재 표시 중 (text, color)
         self._change_labels : dict[str, tk.Label]  = {}   # sym → Change% Label (5초 소프트 갱신용)
         self._phase_labels  : dict[str, tuple]     = {}   # sym → (ph_f Frame, ph_lbl Label)
+        self._m4_labels     : dict[str, tk.Label]  = {}   # sym → M4 준비 Label (24h Ticker 등 기본 Col4)
         self._top_bar_f  : tk.Frame | None = None
         self._bl_built   : bool = False          # Blacklist 탭 Lazy Build 플래그
         # Blacklist 탭 체크박스 상태 (☐/☑ 토글)
@@ -604,7 +607,9 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         # 종합 분석 패널 제목을 현재 Sort by 모드에 맞게 갱신
         if self._verdict_title_lbl is not None:
             self._verdict_title_lbl.configure(text=f"📋 {mode} 분석 및 권장 레버리지")
-        self._refresh_verdict()
+        # 판단 내용은 분석 중(종목 선택 상태)일 때만 — 선택하지 않은 기본 종목(BTCUSDT) 판단 표시 방지 (2026-11-12)
+        if self._app_state == "ANALYSIS":
+            self._refresh_verdict()
 
     # ── 1열 Time Fix 타이머 1초 틱 연동: 30초마다 3열 선택 심볼 보조 갱신 ──
     def _on_time_fix_tick(self) -> None:
@@ -682,7 +687,8 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
             for w in action_bar.winfo_children():
                 if hasattr(w, '_is_assign_btn'):
                     w.destroy()
-        # 1열 재개 (이미 DataManager는 실행 중)
+        # 1열 재개 (이미 DataManager는 실행 중) — 재생성 전 Time Fix 자동 해제
+        self._release_time_fix_for_rebuild()
         self._rebuild_ranking_rows()
         # 헤더 메시지 복원
         self._set_header_message("← 1열에서 코인 심볼을 클릭하세요")

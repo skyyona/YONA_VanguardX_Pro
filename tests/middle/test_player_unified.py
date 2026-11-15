@@ -43,6 +43,8 @@ def dm(monkeypatch):
                     "WSELLUSDT": dict(_WHALE_SELL), "NONEUSDT": dict(_NONE)}
     m._tkr_map, m._onboard_map = {}, {}
     m._ranking_rows = [_row(s) for s in m._ind_cache]
+    m._vol_rank = {s: i + 1 for i, s in enumerate(m._ind_cache)}   # 갱신 대상(거래량 상위 100) — 지표 사용 (_ind_fresh)
+    m._engine_sym = m._last_detail_sym = ""
     monkeypatch.setattr(_ctx, "_data_mgr", m)
     return m
 
