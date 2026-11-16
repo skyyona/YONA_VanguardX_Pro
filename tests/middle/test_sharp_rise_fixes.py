@@ -136,7 +136,7 @@ def test_c_star_thresholds_same_ratio():
     import middle.widget.panel_col1 as pc1
     assert [math.ceil(13 * t / 16) for t in (14, 11, 8, 5)] == [12, 9, 7, 5]
     src = inspect.getsource(pc1)
-    assert '(12, 9, 7, 5) if self._sort_mode == "Sharp rise" else (14, 11, 8, 5)' in src
+    assert '_t5, _t4, _t3, _t2 = (12, 9, 7, 5)' in src
     assert "청산+{_res['liq_s']" not in src
 
 
