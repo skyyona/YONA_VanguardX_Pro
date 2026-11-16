@@ -386,6 +386,9 @@ class _Col2Mixin:
         hdr2.pack(fill="x")
         tk.Label(hdr2, text="4TF COMPLETE ALIGNMENT", bg=DARK_HEADER, fg=ACCENT_BLUE,
                  font=("Segoe UI", 9, "bold")).pack(side="left", padx=10)
+        # T10: 이 칸의 일치 수 = 단기 다수 방향 기준 — 1열·3열 '단기일치'는 일일 추세 방향 기준 (서로 다른 기준임을 표시)
+        tk.Label(hdr2, text="단기 다수 방향 기준 (1열·3열 단기일치 = 일일 방향 기준)", bg=DARK_HEADER, fg=DIM_TEXT,
+                 font=("Segoe UI", 7)).pack(side="left")
         tk.Frame(f, bg="#333333", height=1).pack(fill="x")
 
         sum4_f = tk.Frame(f, bg=DARK_BG, pady=5)

@@ -51,7 +51,9 @@ def test_missing_tf_data_is_neutral():
 
 
 def _score(monkeypatch, ind):
-    monkeypatch.setattr(_ctx, "_data_mgr", type("DM", (), {"get_ind": lambda self, s: ind})())
+    monkeypatch.setattr(_ctx, "_data_mgr", type("DM", (), {"get_ind": lambda self, s: ind,
+                                                           "ind_ready": lambda self, s: True,   # 실제 지표로 취급
+                                                           "_vol_rank": {}})())
     return FourTFScorer.calc_score("XUSDT")
 
 

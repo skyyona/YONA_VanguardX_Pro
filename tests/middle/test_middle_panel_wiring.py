@@ -51,6 +51,16 @@ class _DM:
     def __init__(self, ind=None, rows=None, fail=False):
         self.ind, self.rows, self.fail = ind or {}, rows or [], fail
         self.requested: list[str] = []
+        self._vol_rank = {r[0]: i + 1 for i, r in enumerate(self.rows)}   # 현재 거래량 순위 (4TF 거래량Top10)
+
+    def ind_ready(self, sym):     # 채점용 실제 지표 여부 — 대역 지표는 실제 값으로 취급
+        return sym in self.ind
+
+    def engine_atr_band(self, mode="Volatility"):
+        return (1.85, 6.0)
+
+    def engine_k_gate(self, mode="4TF Optimization"):
+        return (35.0, 65.0)
 
     def get_ind(self, sym):
         return self.ind.get(sym, {})
@@ -247,7 +257,7 @@ def test_refresh_verdict_4tf_renders(monkeypatch):
         ind = {"tf1h": {"dir": "▲"}, "tf1": {"dir": "▲", "k": 10.0}, "tf3": {"dir": "▲"},
                "tf5": {"dir": "▲"}, "tf15": {"dir": "▼"}, "tf4h": {"dir": "▲"},
                "tf1d": {"dir": "▼"}, "atr": 4.0, "funding_rate": 0.01, "oi_change": 2.0,
-               "long_ratio": 65.0, "volume": {"rank": 3}}
+               "oi_change_1h": 5.0, "long_ratio": 65.0}
         monkeypatch.setattr(_ctx, "_data_mgr", _DM({"AUSDT": ind}, [_row("AUSDT")]))
         monkeypatch.setattr(_ctx, "_bl_mgr", _BL())
         p = MiddlePanel.__new__(MiddlePanel)
@@ -257,7 +267,8 @@ def test_refresh_verdict_4tf_renders(monkeypatch):
         p._refresh_verdict()
         texts = [w.cget("text") for f in p._verdict_f.winfo_children()
                  for w in f.winfo_children() if isinstance(w, tk.Label)]
-        assert "전체 1위 · 총 10/12점" in texts
+        # 10점 만점 (FR·ATR 제거): 단기일치 3 + 1m진입 1 + 일일강도 1 + 거래량Top10 1(1위) + OI 1h 1 + 추세쏠림 1 = 8
+        assert "전체 1위 · 총 8/10점" in texts
         # 일일 추세 1h▲·4h▲·1d▼ → ▲ 2/3 (일일강도 1), 단기 1m▲·3m▲·5m▲·15m▼ → ▲ 3/4 (단기일치 3)
         assert any("단기일치 3/4(+3)" in t and "일일강도 1/2(+1)" in t for t in texts)
         direct = [w.cget("text") for w in p._verdict_f.winfo_children() if isinstance(w, tk.Label)]

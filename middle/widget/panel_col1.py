@@ -596,27 +596,29 @@ class _Col1Mixin:
             if _is_4tf:
                 _res4   = self._calc_4tf_score(symbol)
                 _total4 = _res4["total"]
-                # [W-F] 만점 13 → 12 (거시지지 0~3 → 0~2). 비율 보존: 11/8/6/3
-                if   _total4 >= 11: _stars4, _star4_col = "★★★★★", POSITIVE
-                elif _total4 >=  8: _stars4, _star4_col = "★★★★☆", "#8ad7b5"
-                elif _total4 >=  6: _stars4, _star4_col = "★★★☆☆", YELLOW
+                # 10점 만점 (2026-11-16 FR·ATR 항목 제거) — 12점 만점 11/8/6/3과 같은 비율:
+                #   총점/10 ≥ 기준/12 인 최소 정수 10/7/5/3
+                if   _total4 >= 10: _stars4, _star4_col = "★★★★★", POSITIVE
+                elif _total4 >=  7: _stars4, _star4_col = "★★★★☆", "#8ad7b5"
+                elif _total4 >=  5: _stars4, _star4_col = "★★★☆☆", YELLOW
                 elif _total4 >=  3: _stars4, _star4_col = "★★☆☆☆", ORANGE
                 else:               _stars4, _star4_col = "★☆☆☆☆", DIM_TEXT
 
                 _sc4  = _res4["scores"]
-                _hit4 = sum(1 for v in _sc4.values() if v > 0)
+                # T9: 만점 받은 항목만 '충족' (단기일치 1/4·일일강도 1/2 같은 부분 점수는 부족으로 표시 — 별점과 일치)
+                _FULL4  = {"align": 4, "entry": 1, "macro": 2, "volume": 1, "oi": 1, "balance": 1}
                 _NAMES4 = {"align": "단기일치", "entry": "1m진입", "macro": "일일강도",
-                           "atr": "ATR적정", "volume": "거래량Top10", "fr": "FR중립",
-                           "oi": "OI증가", "balance": "롱숏균형"}
-                _missing4 = [_NAMES4[k] for k, v in _sc4.items() if v == 0]
+                           "volume": "거래량Top10", "oi": "OI 1h증가", "balance": "추세쏠림"}
+                _hit4 = sum(1 for k, v in _sc4.items() if v >= _FULL4[k])
+                _missing4 = [_NAMES4[k] for k, v in _sc4.items() if v < _FULL4[k]]
                 # 일일(1h·4h·1d)·단기(1m~15m) 추세 방향 — middle.analysis.trend 단일 정의
                 _trend4 = f"일{_res4['daily'].direction or '↔'} 단{_res4['short'].direction or '↔'} · "
                 if _missing4:
                     _more = "…" if len(_missing4) > 2 else ""
-                    _4tf_txt = f"{_trend4}✅ {_hit4}/8 충족 · 부족: {', '.join(_missing4[:2])}{_more}"
-                    _4tf_col = YELLOW if _hit4 >= 6 else ORANGE
+                    _4tf_txt = f"{_trend4}✅ {_hit4}/6 충족 · 부족: {', '.join(_missing4[:2])}{_more}"
+                    _4tf_col = YELLOW if _hit4 >= 5 else ORANGE      # 기존 6/8과 같은 비율
                 else:
-                    _4tf_txt = f"{_trend4}✅ {_hit4}/8 전부 충족!  (총 {_total4}/12점)"
+                    _4tf_txt = f"{_trend4}✅ {_hit4}/6 전부 충족!  (총 {_total4}/10점)"
                     _4tf_col = POSITIVE
 
             # ── Col 4 : Squeeze Str or 잠재력 크기 ────────────

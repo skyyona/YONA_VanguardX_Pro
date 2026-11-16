@@ -54,6 +54,13 @@ def engine_atr_band(mode: str = "Volatility") -> tuple[float, float] | None:
     return None
 
 
+def engine_k_gate(mode: str = "4TF Optimization") -> tuple[float, float] | None:
+    """같은 이름 엔진 모드의 G_K 5분 K 기준 (롱 최대, 숏 최소) — data_manager.engine_k_gate 단일 정의. 매니저 없으면 None."""
+    if _data_mgr is not None:
+        return _data_mgr.engine_k_gate(mode)
+    return None
+
+
 def bars_ready(symbol: str) -> bool:
     """봉 지표(ATR% 등)가 실제 값인지 — data_manager.bars_ready 단일 정의. 매니저 없으면 False."""
     if _data_mgr is not None:
@@ -144,6 +151,14 @@ def generate_ohlcv(symbol: str, n: int = 60, interval: str = "5m") -> list:
 def _live_ranking() -> list:
     """실데이터 DataManager에서 랭킹 반환. DataManager 없으면 빈 리스트."""
     return _data_mgr.get_ranking_rows() if _data_mgr is not None else []
+
+
+def get_vol_rank(symbol: str) -> int:
+    """현재 24h 거래량 순위 (5초 시세 갱신마다 재계산되는 _vol_rank) — 지표 캐시 생성 시 고정된 ind["volume"]["rank"] 대신
+    (2026-11-16 T3). 매니저 없거나 순위 없음 → 999."""
+    if _data_mgr is None:
+        return 999
+    return _data_mgr._vol_rank.get(symbol, 999)
 
 
 def get_ticker_info(sym: str) -> tuple[float, int] | None:

@@ -19,7 +19,6 @@ class LongShortAnalysis:
     color_hint:       str     # "long_heavy" | "short_heavy" | "balanced"
     grade:            str     # 인간 친화적 등급 설명
     squeeze_risk:     str     # "Sharp Rise 후보  (숏 스퀴즈↑)" | "Sharp Decline 후보  (롱 스퀴즈↑)" | "—  (완전 균형)"
-    score_4tf:        int     # 4TF Optimization 롱숏균형 점수 (0~1)
     warning:          str     # ⚠️ 경고 문구 (과쏠림 시)
 
 
@@ -50,7 +49,7 @@ class LongShortPanel:
         """LongShortData → LongShortAnalysis 변환."""
         if long_short is None:
             return LongShortAnalysis(50.0, 50.0, 1.0,
-                                     "균형", "balanced", "데이터 없음", "—", 1, "")
+                                     "균형", "balanced", "데이터 없음", "—", "")
 
         long_pct  = long_short.long_account_pct
         short_pct = long_short.short_account_pct
@@ -98,9 +97,6 @@ class LongShortPanel:
         else:
             squeeze_risk = "—  (완전 균형)"
 
-        # 4TF 균형 점수
-        score_4tf = 1 if 30.0 <= long_pct <= 70.0 else 0
-
         # 경고
         warning = ""
         if long_pct >= 80:
@@ -116,7 +112,6 @@ class LongShortPanel:
             color_hint=color_hint,
             grade=grade,
             squeeze_risk=squeeze_risk,
-            score_4tf=score_4tf,
             warning=warning,
         )
 

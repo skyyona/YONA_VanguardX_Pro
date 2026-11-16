@@ -473,6 +473,11 @@ class MiddleDataManager:
         sl, _ = SLCalculator.clamp(p.stop_loss, p.trail_stop, p.leverage, mmr=p.mmr)
         return max(cfg.atr_min, sl / 2.0), cfg.atr_max
 
+    def engine_k_gate(self, mode: str = "4TF Optimization") -> tuple[float, float]:
+        """같은 이름 엔진 모드의 G_K 5분 K 기준 (롱 최대, 숏 최소) — M4Entry G_K와 같은 설정값 (3열 표시 전용, 읽기만)."""
+        cfg = get_mode_config(mode)
+        return cfg.k_long_max, cfg.k_short_min
+
     def bars_ready(self, symbol: str) -> bool:
         """봉 지표(ATR% 등)가 실제 값인지 — 지금 갱신되는 종목(_ind_fresh)이고 STAGE3·상세 갱신 봉 지표가 들어온 경우.
         갱신 대상 밖에 남은 옛 값·시작 직후 기본값(ATR 2.0)은 False (2026-11-16 Volatility V1~V3 · Gold).

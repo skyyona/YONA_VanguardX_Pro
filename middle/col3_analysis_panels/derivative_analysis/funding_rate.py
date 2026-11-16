@@ -16,7 +16,6 @@ class FundingRateAnalysis:
     color_hint:     str     # "long_cost" | "short_cost" | "neutral"
     daily_cost_pct: float   # 하루 FR 비용 (= |rate_pct| × 3교 × leverage)
     grade:          str     # 인간 친화적 등급 설명
-    score_4tf:      int     # 4TF Optimization FR 중립 점수 (0~1)
 
 
 class FundingRatePanel:
@@ -60,16 +59,12 @@ class FundingRatePanel:
         else:
             grade = "안정 🟢  (균형 상태)"
 
-        # Sort by 점수
-        score_4tf = 1 if -0.05 <= rate_pct <= 0.05 else 0
-
         return FundingRateAnalysis(
             rate_pct=round(rate_pct, 4),
             direction=direction,
             color_hint=color_hint,
             daily_cost_pct=round(daily, 4),
             grade=grade,
-            score_4tf=score_4tf,
         )
 
     @classmethod

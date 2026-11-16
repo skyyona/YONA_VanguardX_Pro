@@ -280,12 +280,14 @@ class _Col3Mixin:
                          bg=DARK_PANEL, fg=AtrPercent.color(val),
                          font=("Segoe UI", 7, "bold"), anchor="w").pack(side="left")
 
-            # Sort by="4TF Optimization" 모드: ATR 3~8% 적정 변동성 → ④항목 배지 표시
+            # Sort by="4TF Optimization" 모드: ATR은 점수 항목 아님(2026-11-16 제거) — 엔진 4TF 모드 G4 범위 안 여부만 표시
             if name == "ATR%" and self._sort_mode == "4TF Optimization":
-                _ok = 3.0 <= val <= 8.0
-                tk.Label(row, text=f"  🎯 4TF 적정 변동성 (3~8%) {'✅ +1점' if _ok else '— 0점'}",
-                         bg=DARK_PANEL, fg=ACCENT_BLUE if _ok else DIM_TEXT,
-                         font=("Segoe UI", 7, "bold"), anchor="w").pack(side="left")
+                _band4 = _ctx.engine_atr_band("4TF Optimization")
+                if _band4 is not None:
+                    _ok = _band4[0] <= val <= _band4[1]
+                    tk.Label(row, text=f"  엔진 4TF ATR 범위 {_band4[0]:.2f}~{_band4[1]:.1f}% {'✅' if _ok else '❌'}",
+                             bg=DARK_PANEL, fg=POSITIVE if _ok else ORANGE,
+                             font=("Segoe UI", 7, "bold"), anchor="w").pack(side="left")
 
             # Sort by="Newly Listed" 모드: VSS는 ①Volume Surge 점수 항목 → 배지 표시
             if name == "VSS" and self._sort_mode == "Newly Listed":
@@ -382,11 +384,6 @@ class _Col3Mixin:
                  font=("Segoe UI", 8)).pack(side="left")
         tk.Label(fr_row, text=f"{rec_lev}배/일 {daily:.2f}%", bg=DARK_PANEL, fg=DIM_TEXT,
                  font=("Segoe UI", 7)).pack(side="right")
-        if self._sort_mode == "4TF Optimization":
-            _fr_ok = fra.score_4tf == 1
-            tk.Label(fr_row, text=f"🎯 FR중립 {'✅+1' if _fr_ok else '—0'}",
-                     bg=DARK_PANEL, fg=ACCENT_BLUE if _fr_ok else DIM_TEXT,
-                     font=("Segoe UI", 7, "bold")).pack(side="right", padx=(0, 8))
         if self._sort_mode == "Newly Listed":
             _s_fr_nl = self._calc_newlist_score(sym)["scores"]["funding"]
             tk.Label(fr_row, text=f"🎯 Funding Extreme (+{_s_fr_nl}점)",
@@ -423,8 +420,10 @@ class _Col3Mixin:
         tk.Label(oi_row, text=f"  {oi_icon}", bg=DARK_PANEL, fg=oi_col,
                  font=("Segoe UI", 8)).pack(side="left")
         if self._sort_mode == "4TF Optimization":
-            _oi_ok = oi > 0
-            tk.Label(oi_row, text=f"🎯 OI증가 {'✅+1' if _oi_ok else '—0'}",
+            # T6: 점수 함수 결과 그대로 — 점수 기준은 1시간 OI(위 수치는 10분 OI)
+            _res4b = self._calc_4tf_score(sym)
+            _oi_ok = _res4b["scores"]["oi"] == 1
+            tk.Label(oi_row, text=f"🎯 OI 1h {_res4b['oi']:+.1f}% {'✅+1' if _oi_ok else '—0'}",
                      bg=DARK_PANEL, fg=ACCENT_BLUE if _oi_ok else DIM_TEXT,
                      font=("Segoe UI", 7, "bold")).pack(side="right")
         if self._sort_mode == "Newly Listed":
@@ -465,8 +464,9 @@ class _Col3Mixin:
                  bg=DARK_PANEL, fg=lr_col,
                  font=("Segoe UI", 8, "bold")).pack(side="left")
         if self._sort_mode == "4TF Optimization":
-            _bal_ok = lsa.score_4tf == 1
-            tk.Label(ls_row, text=f"🎯 롱숏균형 {'✅+1' if _bal_ok else '—0'}",
+            # T6: 점수 함수 결과 그대로 (추세쏠림: 상승 롱>60 / 하락 롱<40)
+            _bal_ok = self._calc_4tf_score(sym)["scores"]["balance"] == 1
+            tk.Label(ls_row, text=f"🎯 추세쏠림 {'✅+1' if _bal_ok else '—0'}",
                      bg=DARK_PANEL, fg=ACCENT_BLUE if _bal_ok else DIM_TEXT,
                      font=("Segoe UI", 7, "bold")).pack(side="right")
         _ls_grade = lsa.grade
@@ -729,46 +729,73 @@ class _Col3Mixin:
                 tk.Frame(self._verdict_f, bg="#2A2A2A", height=1).pack(
                     fill="x", padx=10, pady=(2, 2))
 
-        # ── Sort by="4TF Optimization" 선정 근거 (8항목 체크리스트 + 전체 순위) ──
+        # ── Sort by="4TF Optimization" 선정 근거 (6항목 체크리스트 + 전체 순위 + 엔진 4TF 기본 조건) ──
         elif self._sort_mode == "4TF Optimization":
             res = self._calc_4tf_score(sym)
-            _sorted = self._get_sorted_ranking()
-            _rank = next((i + 1 for i, r in enumerate(_sorted) if r[0] == sym), None)
-            sc = res["scores"]
             ctx_f = tk.Frame(self._verdict_f, bg=DARK_PANEL)
             ctx_f.pack(fill="x", padx=10, pady=(2, 1))
-            tk.Label(ctx_f, text="🎯 4TF Optimization 선정 근거 ", bg=DARK_PANEL, fg=ACCENT_BLUE,
-                     font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
-            tk.Label(ctx_f, text=f"전체 {_rank}위 · 총 {res['total']}/{res['max']}점",
-                     bg=DARK_PANEL, fg=DARK_TEXT,
-                     font=("Consolas", 8, "bold"), anchor="w").pack(side="left")
-
-            # 일일 추세(1h·4h·1d 같은 방향 2개 이상) = 기준 방향, 단기 추세(1m~15m 3개 이상) 참고
-            tk.Label(self._verdict_f,
-                     text=f"일일 추세 {trend_text(res['daily'])}  ·  단기 추세 {trend_text(res['short'])}",
-                     bg=DARK_PANEL, fg=DARK_TEXT,
-                     font=("Consolas", 8, "bold"), anchor="w").pack(fill="x", padx=10, pady=(0, 1))
-            if res["base_dir"] is None:
-                tk.Label(self._verdict_f,
-                         text="⚠ 일일 추세 중립 (1h·4h·1d 같은 방향 2개 미만) — 단기일치·1m진입·일일강도·롱숏균형 0점",
+            if not res["ready"]:
+                # T8: 갱신 대상 밖·데이터 준비 전 — 옛 값·기본값이라 채점하지 않음
+                tk.Label(ctx_f, text="⚠ 4TF Optimization 채점 보류 (갱신 대상 밖·데이터 준비 중) — 참고용 분석",
                          bg=DARK_PANEL, fg=ORANGE,
-                         font=("Segoe UI", 8), anchor="w").pack(fill="x", padx=10, pady=(0, 1))
+                         font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
+            else:
+                _sorted = self._get_sorted_ranking()
+                _rank = next((i + 1 for i, r in enumerate(_sorted) if r[0] == sym), None)
+                sc = res["scores"]
+                tk.Label(ctx_f, text="🎯 4TF Optimization 선정 근거 ", bg=DARK_PANEL, fg=ACCENT_BLUE,
+                         font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
+                # T8: 목록 밖(4점 미만·일일 중립·50위 밖·블랙리스트) → 'None위' 대신 목록 밖 표시
+                _rank_txt = f"전체 {_rank}위" if _rank is not None else "목록 밖 (4점 미만·일일 중립·50위 밖)"
+                tk.Label(ctx_f, text=f"{_rank_txt} · 총 {res['total']}/{res['max']}점",
+                         bg=DARK_PANEL, fg=DARK_TEXT,
+                         font=("Consolas", 8, "bold"), anchor="w").pack(side="left")
 
-            detail_lines = [
-                (f"단기일치 {sc['align']}/4(+{sc['align']})  "
-                 f"1m진입{'✅' if sc['entry'] else '—'}(+{sc['entry']})  "
-                 f"일일강도 {sc['macro']}/2(+{sc['macro']})"),
-                (f"ATR적정{'✅' if sc['atr'] else '—'}(+{sc['atr']})  "
-                 f"거래량Top10{'✅' if sc['volume'] else '—'}(+{sc['volume']}, rank {res['vol_rank']})"),
-                (f"FR중립{'✅' if sc['fr'] else '—'}(+{sc['fr']})  "
-                 f"OI증가{'✅' if sc['oi'] else '—'}(+{sc['oi']})  "
-                 f"롱숏균형{'✅' if sc['balance'] else '—'}(+{sc['balance']})"),
-            ]
-            for dtxt in detail_lines:
-                drow = tk.Frame(self._verdict_f, bg=DARK_PANEL)
-                drow.pack(fill="x", padx=10, pady=(0, 1))
-                tk.Label(drow, text=dtxt, bg=DARK_PANEL, fg=DIM_TEXT,
-                         font=("Consolas", 8), anchor="w").pack(side="left")
+                # 일일 추세(1h·4h·1d 같은 방향 2개 이상) = 기준 방향, 단기 추세(1m~15m 3개 이상) 참고
+                tk.Label(self._verdict_f,
+                         text=f"일일 추세 {trend_text(res['daily'])}  ·  단기 추세 {trend_text(res['short'])}",
+                         bg=DARK_PANEL, fg=DARK_TEXT,
+                         font=("Consolas", 8, "bold"), anchor="w").pack(fill="x", padx=10, pady=(0, 1))
+                if res["base_dir"] is None:
+                    tk.Label(self._verdict_f,
+                             text="⚠ 일일 추세 중립 (1h·4h·1d 같은 방향 2개 미만) — 목록 제외, 단기일치·1m진입·일일강도·추세쏠림 0점",
+                             bg=DARK_PANEL, fg=ORANGE,
+                             font=("Segoe UI", 8), anchor="w").pack(fill="x", padx=10, pady=(0, 1))
+
+                detail_lines = [
+                    (f"단기일치 {sc['align']}/4(+{sc['align']})  "
+                     f"1m진입{'✅' if sc['entry'] else '—'}(+{sc['entry']})  "
+                     f"일일강도 {sc['macro']}/2(+{sc['macro']})"),
+                    (f"거래량Top10{'✅' if sc['volume'] else '—'}(+{sc['volume']}, rank {res['vol_rank']})  "
+                     f"OI 1h {res['oi']:+.1f}%{'✅' if sc['oi'] else '—'}(+{sc['oi']})  "
+                     f"추세쏠림{'✅' if sc['balance'] else '—'}(+{sc['balance']})"),
+                ]
+                for dtxt in detail_lines:
+                    drow = tk.Frame(self._verdict_f, bg=DARK_PANEL)
+                    drow.pack(fill="x", padx=10, pady=(0, 1))
+                    tk.Label(drow, text=dtxt, bg=DARK_PANEL, fg=DIM_TEXT,
+                             font=("Consolas", 8), anchor="w").pack(side="left")
+
+                # 엔진 4TF 모드 기본 조건 (G4 ATR 범위 · G_K 5분 K) — 점수 아님, 배정 전 확인용 (다른 진입 조건은 별도)
+                _band4 = _ctx.engine_atr_band("4TF Optimization")
+                _kg = _ctx.engine_k_gate("4TF Optimization")
+                if _band4 is not None and _kg is not None:
+                    _atr4 = res["atr"]
+                    _atr_ok = _band4[0] <= _atr4 <= _band4[1]
+                    _k5 = ind.get("tf5", {}).get("k", 50.0)
+                    if res["base_dir"] == "▲":
+                        _k_ok, _k_rule = _k5 <= _kg[0], f"롱 ≤{_kg[0]:.0f}"
+                    elif res["base_dir"] == "▼":
+                        _k_ok, _k_rule = _k5 >= _kg[1], f"숏 ≥{_kg[1]:.0f}"
+                    else:
+                        _k_ok, _k_rule = False, "방향 중립"
+                    _eng_ok = _atr_ok and _k_ok
+                    tk.Label(self._verdict_f,
+                             text=(f"엔진 4TF 기본 조건: ATR {_atr4:.2f}% ({_band4[0]:.2f}~{_band4[1]:.1f}) "
+                                   f"{'✅' if _atr_ok else '❌'} · 5분 K {_k5:.0f} ({_k_rule}) {'✅' if _k_ok else '❌'}"
+                                   f" — 다른 진입 조건 별도"),
+                             bg=DARK_PANEL, fg=POSITIVE if _eng_ok else ORANGE,
+                             font=("Consolas", 8), anchor="w").pack(fill="x", padx=10, pady=(0, 1))
             tk.Frame(self._verdict_f, bg="#2A2A2A", height=1).pack(
                 fill="x", padx=10, pady=(2, 2))
 
