@@ -69,7 +69,9 @@ _FORECAST_KEEP_MS    = 1_800_000   # 조회 실패·일시 부족 시 직전 정
 # ── 단계별 필드 소유권 ────────────────────────────────────────
 # 각 갱신 단계는 자기가 담당하는 필드만 캐시에 병합한다.
 # 통째 교체 방식은 네트워크 대기 중 다른 단계가 쓴 결과를 되돌린다.
-_STAGE2_FIELDS = ("long_ratio", "funding_rate", "oi_change", "oi_change_1h", "_stage2_ready")
+_STAGE2_FIELDS = ("long_ratio", "funding_rate", "oi_change", "oi_change_1h", "_stage2_ready", "_ls_ts", "_fr_ts")
+# 채점용 롱숏·FR이 실제 값으로 인정되는 최대 경과 (초) — STAGE2 3회 주기: 연속 2회 조회 실패까지 직전 실제 값 사용 (2026-11-16 H)
+_DERIV_FRESH_SEC = 180.0
 _STAGE3_FIELDS = (
     "atr", "atr_pct", "atr_pct_5m", "vss", "bpr", "price_change_pct",
     "pattern", "align", "e5", "e10", "e20", "e50",
@@ -255,7 +257,7 @@ class MiddleDataManager:
         self._onboard_map:     dict[str, int]             = {}
         self._cross_ts_cache:  dict[str, dict[str, float]] = {}  # sym→{tf_key→교차 unix ts}
         self._spread_hist:     dict[str, deque]           = {}   # symbol → 최근 스프레드(%) 표본
-        self._deriv_cache:     dict[str, tuple]           = {}   # symbol → (fr, oi, ls, oi_1h) 마지막 REST 값 — WS 봉 마감 재계산용
+        self._deriv_cache:     dict[str, tuple]           = {}   # symbol → (fr, oi, ls, oi_1h, 조회 시각) 마지막 REST 값 — WS 봉 마감 재계산용
         # 정산 펀딩비 재사용 — 값은 정산 시각에만 바뀌므로 다음 정산 전 재조회 생략 (fundingRate 500회/5분/IP 한도)
         self._fr_cache:        dict[str, FundingRateData] = {}   # symbol → 마지막으로 받은 정산 펀딩비
         self._fr_window:       dict[str, tuple[int, int]] = {}   # symbol → (마지막 정산 시각, 다음 정산 시각) ms
@@ -461,14 +463,17 @@ class MiddleDataManager:
 
     def ind_ready(self, symbol: str) -> bool:
         """채점용 지표가 실제 값인지 — 지금 갱신되는 종목(_ind_fresh)이고 봉 지표가 들어왔으며
-        롱숏·FR·OI가 STAGE2(거래량 상위 100) 또는 상세 갱신(엔진·선택 종목)으로 반영된 경우.
-        그 밖(갱신 대상 밖에 남은 옛 값·시작 직후 기본값)은 False (2026-11-16 Sharp rise A)."""
+        롱숏·FR을 실제로 받은 지 _DERIV_FRESH_SEC 이내인 경우 (STAGE2·상세 갱신이 남긴 성공 시각 _ls_ts·_fr_ts).
+        그 밖(갱신 대상 밖에 남은 옛 값·시작 직후 기본값·조회 실패로 남은 기본값 50%·0%)은 False
+        (2026-11-16 Sharp rise A · H — 조회 실패 기본값이 rise·decline 자격을 동시에 얻던 문제)."""
         if not self._ind_fresh(symbol):
             return False
         ind = self._ind_cache.get(symbol)
         if not ind or not ind.get("_data_ready"):
             return False
-        return bool(ind.get("_stage2_ready")) or symbol in (self._engine_sym, self._last_detail_sym)
+        now = time.time()
+        return (now - ind.get("_ls_ts", 0.0) <= _DERIV_FRESH_SEC
+                and now - ind.get("_fr_ts", 0.0) <= _DERIV_FRESH_SEC)
 
     def get_row(self, symbol: str) -> tuple | None:
         """종목 하나의 1열 행(11-tuple) — 1열 목록과 같은 _make_row·현재 Sort by의 use_macro. 시세 없으면 None.
@@ -868,10 +873,14 @@ class MiddleDataManager:
                 fr = self._get_funding(sym)
                 oi, oi_1h = self._oi_svc.fetch_changes(sym)
                 ind = dict(existing) if existing else self._simple_ind(ticker)
+                now_s = time.time()
+                # 조회 실패(None)면 값·성공 시각 모두 직전 그대로 — 성공 시각은 채점 가능 판정(ind_ready)에만 사용
                 if ls:
                     ind["long_ratio"]   = ls.long_account_pct
-                if fr:
+                    ind["_ls_ts"]       = now_s
+                if fr:                                   # 저장 값 재사용(_get_funding)도 다음 정산 전까지 실제 값
                     ind["funding_rate"] = fr.funding_rate * 100.0
+                    ind["_fr_ts"]       = now_s
                 ind["oi_change"] = oi
                 ind["oi_change_1h"] = oi_1h   # Sharp rise OI 항목 (1시간, 부호 유지)
                 ind["_stage2_ready"] = True   # 청산 근접도 계산 조건 (_apply_liq)
@@ -1222,9 +1231,10 @@ class MiddleDataManager:
             fr  = self._get_funding(symbol)
             oi, oi_1h = self._oi_svc.fetch_changes(symbol)
             ls  = self._ls_svc.fetch(symbol)
+            deriv_ts = time.time()   # 파생 데이터 조회 시각 — WS 봉 마감 재계산도 이 시각 기준 (재계산 시각 아님)
 
             with self._lock:
-                self._deriv_cache[symbol] = (fr, oi, ls, oi_1h)
+                self._deriv_cache[symbol] = (fr, oi, ls, oi_1h, deriv_ts)
                 # 단조 가드 — WS로 이미 반영된 더 최신 봉을 REST 응답(마감 직후 이전 봉까지)으로 되돌리지 않음
                 cached = self._ohlcv_cache.get(symbol, {})
                 for tf in _DETAIL_TFS:
@@ -1237,11 +1247,13 @@ class MiddleDataManager:
                 self._last_refresh_error_time = time.time()
             logging.warning("middle detail %s: %s", symbol, e)
             return
-        self._compute_detail(symbol, bars, fr, oi, ls, oi_1h)
+        self._compute_detail(symbol, bars, fr, oi, ls, oi_1h, deriv_ts)
 
-    def _compute_detail(self, symbol: str, bars: dict, fr, oi, ls, oi_1h: float = 0.0) -> None:
+    def _compute_detail(self, symbol: str, bars: dict, fr, oi, ls, oi_1h: float = 0.0,
+                        deriv_ts: float = 0.0) -> None:
         """봉·파생 데이터로 상세 지표 계산 후 캐시 반영 — REST 갱신·WS 봉 마감 접합 공용.
-        oi: 10분 OI 변화율 · oi_1h: 1시간 OI 변화율 (Sharp rise OI 항목)."""
+        oi: 10분 OI 변화율 · oi_1h: 1시간 OI 변화율 (Sharp rise OI 항목) · deriv_ts: 파생 데이터 조회 시각.
+        롱숏·FR 조회 실패(None)면 엔진 입력은 기존대로 50%·0%(백테스트 중립값과 같음), 성공 시각은 0 → 채점 보류."""
         try:
             # 지표 계산 (1h 기준)
             b1h  = bars.get("1h", [])
@@ -1299,6 +1311,7 @@ class MiddleDataManager:
                 vwap_r=vwap_r, pat=pat, fr_pct=fr_pct, oi_chg=oi_chg, oi_1h=oi_1h,
                 long_pct=long_pct, liq=liq, lev=lev.leverage,
                 player_keys=list(det.keys), eb=eb,
+                ls_ts=deriv_ts if ls else 0.0, fr_ts=deriv_ts if fr else 0.0,
             )
 
             # volume_ratio — 1m 최근 봉 / 20봉 평균
@@ -1350,6 +1363,7 @@ class MiddleDataManager:
         rsi, bpr, vss, atr, atr_5m, ema, vwap_r, pat,
         fr_pct, oi_chg, oi_1h, long_pct, liq, lev,
         player_keys, eb,
+        ls_ts=0.0, fr_ts=0.0,
     ) -> dict:
         price = tkr.last_price if tkr else 1.0
         chg   = tkr.price_change_pct if tkr else 0.0
@@ -1408,6 +1422,9 @@ class MiddleDataManager:
             #   상세 갱신에서만 생성 — 없으면 엔진은 Player 판정 데이터 미준비로 진입 보류
             #   (화면 표시 태그는 get_player 단일 정의 사용)
             "_player_keys": player_keys,
+            # 롱숏·FR 조회 성공 시각 (실패 = 0 → 채점 보류, ind_ready) — 엔진 미사용
+            "_ls_ts": ls_ts,
+            "_fr_ts": fr_ts,
             "_data_ready":  True,
         }
 

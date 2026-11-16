@@ -9,6 +9,7 @@ tests/middle/test_sharp_decline_fixes.py
  F 3열: 목록 밖 순위·OI(1h) 부호·채점 보류·미달 조건만 표시
 """
 import inspect
+import time
 
 import pytest
 
@@ -36,8 +37,9 @@ def _put(dm, sym, stage2=True, data=True, **kw):
     ind = dict(dm._simple_ind(dm._tkr_map[sym]), **_STRONG)
     ind.update(kw)
     ind["_data_ready"] = data
-    if stage2:
+    if stage2:                                  # STAGE2 롱숏·FR 조회 성공 (성공 시각 기록 — ind_ready)
         ind["_stage2_ready"] = True
+        ind["_ls_ts"] = ind["_fr_ts"] = time.time()
     dm._ind_cache[sym] = ind
 
 
@@ -71,12 +73,16 @@ def test_a_refresh_set_requires_both_stages(dm):
 
 
 def test_a_selected_or_engine_symbol_uses_detail_values(dm):
+    # 상세 갱신(선택·엔진 종목) — 거래량 순위와 무관하게 롱숏·FR 조회 성공 시각이 있으면 실제 값
     _put(dm, "S160USDT", stage2=False)
-    assert SharpDeclineScorer.calc_score("S160USDT")["ready"] is False
     dm._last_detail_sym = "S160USDT"
+    assert SharpDeclineScorer.calc_score("S160USDT")["ready"] is False      # 조회 성공 기록 없음 (H: 기존엔 선택 종목이면 True)
+    dm._ind_cache["S160USDT"].update(_ls_ts=time.time(), _fr_ts=time.time())
     assert SharpDeclineScorer.calc_score("S160USDT")["ready"] is True
     dm._last_detail_sym, dm._engine_sym = "", "S160USDT"
     assert SharpDeclineScorer.calc_score("S160USDT")["ready"] is True
+    dm._engine_sym = ""                                          # 갱신 대상 밖 → 성공 시각 있어도 옛 값
+    assert SharpDeclineScorer.calc_score("S160USDT")["ready"] is False
 
 
 def test_a_gold_gets_no_decline_credit_from_stale(dm):

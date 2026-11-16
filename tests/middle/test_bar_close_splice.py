@@ -42,7 +42,7 @@ def _dm(symbol: str = "AUSDT", engine: str = "") -> MiddleDataManager:
 def _capture(dm: MiddleDataManager):
     """_compute_detail·_refresh_detail 호출 기록 (계산·네트워크 대신)."""
     log = {"compute": [], "refresh": []}
-    dm._compute_detail = lambda sym, bars, fr, oi, ls, oi_1h=0.0: log["compute"].append((sym, bars))
+    dm._compute_detail = lambda sym, bars, fr, oi, ls, oi_1h=0.0, deriv_ts=0.0: log["compute"].append((sym, bars))
     dm._refresh_detail = lambda sym: log["refresh"].append(sym)
     return log
 
@@ -154,7 +154,7 @@ def test_rest_refresh_keeps_newer_cached_bars():
     dm._oi_svc = types.SimpleNamespace(fetch_changes=lambda s: (0.0, 0.0))
     dm._ls_svc = types.SimpleNamespace(fetch=lambda s: None)
     got = []
-    dm._compute_detail = lambda sym, bars, fr, oi, ls, oi_1h=0.0: got.append(bars)
+    dm._compute_detail = lambda sym, bars, fr, oi, ls, oi_1h=0.0, deriv_ts=0.0: got.append(bars)
     dm._refresh_detail("AUSDT")
     assert got[0]["1m"] is cached_1m
     assert got[0]["5m"][-1].close_time == _END - 1

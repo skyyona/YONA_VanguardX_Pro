@@ -9,6 +9,7 @@ tests/middle/test_sharp_rise_fixes.py
  F 3열: 목록 밖 순위 표시·OI(1h) 부호·채점 보류 문구
 """
 import inspect
+import time
 
 import pytest
 
@@ -37,8 +38,9 @@ def _put(dm, sym, stage2=True, data=True, **kw):
     ind = dict(dm._simple_ind(dm._tkr_map[sym]), **_STRONG)
     ind.update(kw)
     ind["_data_ready"] = data
-    if stage2:
+    if stage2:                                  # STAGE2 롱숏·FR 조회 성공 (성공 시각 기록 — ind_ready)
         ind["_stage2_ready"] = True
+        ind["_ls_ts"] = ind["_fr_ts"] = time.time()
     dm._ind_cache[sym] = ind
 
 
@@ -72,13 +74,16 @@ def test_a_refresh_set_requires_both_stages(dm):
 
 
 def test_a_selected_or_engine_symbol_uses_detail_values(dm):
-    # 상세 갱신(선택·엔진 종목)은 _data_ready만 붙임 — 거래량 순위와 무관하게 실제 값
+    # 상세 갱신(선택·엔진 종목) — 거래량 순위와 무관하게 롱숏·FR 조회 성공 시각이 있으면 실제 값
     _put(dm, "S160USDT", stage2=False)
-    assert SharpRiseScorer.calc_score("S160USDT")["ready"] is False
     dm._last_detail_sym = "S160USDT"
+    assert SharpRiseScorer.calc_score("S160USDT")["ready"] is False      # 조회 성공 기록 없음 (H: 기존엔 선택 종목이면 True)
+    dm._ind_cache["S160USDT"].update(_ls_ts=time.time(), _fr_ts=time.time())
     assert SharpRiseScorer.calc_score("S160USDT")["ready"] is True
     dm._last_detail_sym, dm._engine_sym = "", "S160USDT"
     assert SharpRiseScorer.calc_score("S160USDT")["ready"] is True
+    dm._engine_sym = ""                                          # 갱신 대상 밖 → 성공 시각 있어도 옛 값
+    assert SharpRiseScorer.calc_score("S160USDT")["ready"] is False
 
 
 def test_a_no_manager_not_ready(monkeypatch):
@@ -243,7 +248,7 @@ def test_b_stage2_and_detail_store_1h(dm):
     assert (ind["oi_change"], ind["oi_change_1h"]) == (1.25, 6.5)
     assert "oi_change_1h" in dm_mod._STAGE2_FIELDS               # STAGE3 병합이 되돌리지 않음
     src = inspect.getsource(MiddleDataManager._refresh_detail)
-    assert "oi, oi_1h = self._oi_svc.fetch_changes(symbol)" in src and "(fr, oi, ls, oi_1h)" in src
+    assert "oi, oi_1h = self._oi_svc.fetch_changes(symbol)" in src and "(fr, oi, ls, oi_1h, deriv_ts)" in src
     assert '"oi_change_1h": oi_1h' in inspect.getsource(MiddleDataManager._build_ind_dict)
 
 
