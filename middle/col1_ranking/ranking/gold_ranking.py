@@ -1,18 +1,19 @@
 """
 middle/col1_ranking/ranking/gold_ranking.py
-종합 1위 (Gold Ranking) — 모든 Sort by 모드와 무관하게
-수익 가능성이 가장 높은 코인 심볼 1개를 자동 선별.
+종합 1위 (Gold Ranking) — 1열에 표시된 목록(현재 Sort by 모드 목록) 중
+같은 종합 점수식으로 수익 가능성이 가장 높은 코인 심볼 1개를 선별.
 
 방향 분리 평가 (롱·숏 방향 충돌 방지):
   4TF ▲  →  롱 기회 = tf × 0.40 + SharpRise(qualified) × 0.35 + ATR × 0.25
   4TF ▼  →  숏 기회 = tf × 0.40 + SharpDecline(qualified) × 0.35 + ATR × 0.25
   4TF 중립 →  중립  = max(Rise, Decline)(qualified) × 0.35 + ATR × 0.25
   최종 = max(롱 기회, 숏 기회, 중립)   (0.0 ~ 1.0)
-후보 = 랭킹 풀(거래량 상위 200) 중 블랙리스트 제외 (1열 목록과 같은 제외 기준)
+후보 = 1열 표시 목록(symbols) 중 블랙리스트·봉 지표 미준비(bars_ready 아님) 제외
+  (2026-11-16 G — 갱신 대상 밖 옛 값·기본값 ATR·4TF가 종합 점수에 들어가던 문제)
 """
 from __future__ import annotations
 
-from middle.widget.shared_context import get_ind, _live_ranking, is_blacklisted
+from middle.widget.shared_context import bars_ready, get_ind, _live_ranking, is_blacklisted
 from middle.col1_ranking.ranking.fourtf_scorer import FourTFScorer
 from middle.col1_ranking.ranking.sharp_rise_scorer import SharpRiseScorer
 from middle.col1_ranking.ranking.sharp_decline_scorer import SharpDeclineScorer
@@ -68,8 +69,8 @@ class GoldRanking:
         best_sym, best_score = "", -1.0
         try:
             for sym in (symbols if symbols is not None else [row[0] for row in _live_ranking()]):
-                if is_blacklisted(sym):
-                    continue
+                if is_blacklisted(sym) or not bars_ready(sym):
+                    continue   # 봉 지표 미준비(갱신 대상 밖 옛 값·기본값) — 종합 점수 신뢰 불가
                 try:
                     s = GoldRanking.calc(sym, player_map)
                     if s > best_score:

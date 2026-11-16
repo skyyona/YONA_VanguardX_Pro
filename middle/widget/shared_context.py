@@ -47,6 +47,20 @@ def get_ind(symbol: str) -> dict:
     return {}
 
 
+def engine_atr_band(mode: str = "Volatility") -> tuple[float, float] | None:
+    """같은 이름 엔진 모드의 G4 ATR% 허용 범위 — data_manager.engine_atr_band 단일 정의. 매니저 없으면 None."""
+    if _data_mgr is not None:
+        return _data_mgr.engine_atr_band(mode)
+    return None
+
+
+def bars_ready(symbol: str) -> bool:
+    """봉 지표(ATR% 등)가 실제 값인지 — data_manager.bars_ready 단일 정의. 매니저 없으면 False."""
+    if _data_mgr is not None:
+        return _data_mgr.bars_ready(symbol)
+    return False
+
+
 def ind_ready(symbol: str) -> bool:
     """채점용 지표가 실제 값인지 — data_manager.ind_ready 단일 정의. 매니저 없으면 False."""
     if _data_mgr is not None:

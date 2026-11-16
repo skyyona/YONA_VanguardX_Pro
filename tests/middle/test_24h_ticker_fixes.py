@@ -105,7 +105,8 @@ def test_player_map_and_gold_use_given_symbols(monkeypatch):
     dm = _dm(monkeypatch)
     for sym, rank in (("AUSDT", 1), ("BUSDT", 2)):
         _with_cache(dm, sym, rank)
-        dm._ind_cache[sym].update({"long_ratio": 86.0, "funding_rate": 0.105})
+        dm._ind_cache[sym].update({"long_ratio": 86.0, "funding_rate": 0.105,
+                                   "_data_ready": True})                      # 봉 지표 반영 — Gold 후보 조건(bars_ready)
     dm._ranking_rows = [dm.get_row("AUSDT")]                                   # 풀 = A만 (B는 풀 밖 24h 목록 종목)
     monkeypatch.setattr(_ctx, "_data_mgr", dm)
     assert set(dm.get_player_map()) == {"AUSDT"}                               # 기본 = 풀 기준 (기존 동작)

@@ -75,9 +75,10 @@ _DERIV_FRESH_SEC = 180.0
 _STAGE3_FIELDS = (
     "atr", "atr_pct", "atr_pct_5m", "vss", "bpr", "price_change_pct",
     "pattern", "align", "e5", "e10", "e20", "e50",
-    "volume_ratio", "swing_bull", "swing_bear", "vwap", "_data_ready",
+    "volume_ratio", "swing_bull", "swing_bear", "vwap", "_data_ready", "_atr_ready",
     "tf1", "tf3", "tf5", "tf15", "tf1h", "tf4h", "tf1d",
 )
+_ATR_MIN_BARS = 15   # 1h ATR%(14) 계산 최소 마감 봉 수 — 미만이면 AtrPercent 0.0 (V4: '데이터 부족' 표시)
 
 from core import rate_gate
 from middle.api.binance_client import MiddleBinanceClient
@@ -93,6 +94,8 @@ from middle.analysis.forecast import compute_features, Forecaster, INSUFFICIENT_
 # M4 준비(1열) = 엔진 M4Entry와 같은 G2 RSI 함수·같은 모드 설정(use_macro) — 엔진 모듈은 중단을 import하지 않음(순환 없음)
 from bottom_engine.strategy.rsi_divergence import calc_rsi_series
 from bottom_engine.strategy_settings.strategy_loader import StrategyLoader
+from bottom_engine.strategy_settings.realtrade_strategy_sort_by import get_mode_config
+from bottom_engine.engine_core.sl_calculator import SLCalculator
 
 from middle.col3_analysis_panels.technical_analysis.rsi import RSI
 from middle.col3_analysis_panels.technical_analysis.bpr import BPR
@@ -460,6 +463,24 @@ class MiddleDataManager:
         엔진 입력(get_ind)은 바꾸지 않는다."""
         return (self._vol_rank.get(symbol, 999) <= _STAGE2_TOPN
                 or symbol in (self._engine_sym, self._last_detail_sym))
+
+    def engine_atr_band(self, mode: str = "Volatility") -> tuple[float, float]:
+        """같은 이름 엔진 모드의 G4 ATR% 허용 범위 (하한, 상한) — M4Entry G4와 같은 식:
+        하한 = max(모드 atr_min, clamp된 SL ÷ 2), 상한 = 모드 atr_max. 설정(_strategy.json)을 읽기만 함 (1열·3열 표시 전용).
+        엔진은 실행 중 조회한 MMR을 쓰므로 SL이 청산 안전 상한에 걸리는 설정이면 하한이 다를 수 있음."""
+        p   = StrategyLoader.load_or_default(mode)
+        cfg = get_mode_config(mode)
+        sl, _ = SLCalculator.clamp(p.stop_loss, p.trail_stop, p.leverage, mmr=p.mmr)
+        return max(cfg.atr_min, sl / 2.0), cfg.atr_max
+
+    def bars_ready(self, symbol: str) -> bool:
+        """봉 지표(ATR% 등)가 실제 값인지 — 지금 갱신되는 종목(_ind_fresh)이고 STAGE3·상세 갱신 봉 지표가 들어온 경우.
+        갱신 대상 밖에 남은 옛 값·시작 직후 기본값(ATR 2.0)은 False (2026-11-16 Volatility V1~V3 · Gold).
+        롱숏·FR까지 필요한 채점은 ind_ready."""
+        if not self._ind_fresh(symbol):
+            return False
+        ind = self._ind_cache.get(symbol)
+        return bool(ind and ind.get("_data_ready"))
 
     def ind_ready(self, symbol: str) -> bool:
         """채점용 지표가 실제 값인지 — 지금 갱신되는 종목(_ind_fresh)이고 봉 지표가 들어왔으며
@@ -944,6 +965,8 @@ class MiddleDataManager:
                         bars[tf] = b
                         if b[-1].close_time + 1 < due:
                             self._stage3_stale = True      # 새 봉 미게시(또는 조회 실패) — 같은 분 안 재시도
+                    elif tf == "1h":
+                        self._stage3_stale = True          # 1h 첫 조회 실패(저장 봉 없음) — ATR 미준비, 같은 분 안 재시도 (V4)
                 if not bars:
                     return
                 if not fetched and existing.get("_data_ready"):
@@ -969,6 +992,7 @@ class MiddleDataManager:
                 ind = dict(existing) if existing else self._simple_ind(ticker)
 
                 ind["atr"]        = atr
+                ind["_atr_ready"] = len(b1h) >= _ATR_MIN_BARS   # False → Volatility '데이터 부족' (값은 기존대로)
                 ind["atr_pct"]    = atr
                 ind["atr_pct_5m"] = atr_5m
                 vss = VSS.calculate(b5m or b1h) if (b5m or b1h) else 1.0
@@ -1312,6 +1336,7 @@ class MiddleDataManager:
                 long_pct=long_pct, liq=liq, lev=lev.leverage,
                 player_keys=list(det.keys), eb=eb,
                 ls_ts=deriv_ts if ls else 0.0, fr_ts=deriv_ts if fr else 0.0,
+                atr_ready=len(b1h) >= _ATR_MIN_BARS,
             )
 
             # volume_ratio — 1m 최근 봉 / 20봉 평균
@@ -1363,7 +1388,7 @@ class MiddleDataManager:
         rsi, bpr, vss, atr, atr_5m, ema, vwap_r, pat,
         fr_pct, oi_chg, oi_1h, long_pct, liq, lev,
         player_keys, eb,
-        ls_ts=0.0, fr_ts=0.0,
+        ls_ts=0.0, fr_ts=0.0, atr_ready=False,
     ) -> dict:
         price = tkr.last_price if tkr else 1.0
         chg   = tkr.price_change_pct if tkr else 0.0
@@ -1425,6 +1450,7 @@ class MiddleDataManager:
             # 롱숏·FR 조회 성공 시각 (실패 = 0 → 채점 보류, ind_ready) — 엔진 미사용
             "_ls_ts": ls_ts,
             "_fr_ts": fr_ts,
+            "_atr_ready": atr_ready,   # 1h 봉 15개 이상으로 ATR% 계산 (False → Volatility '데이터 부족')
             "_data_ready":  True,
         }
 

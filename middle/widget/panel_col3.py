@@ -9,7 +9,7 @@ import tkinter.ttk as ttk
 from middle.widget.constants import *
 
 # ── shared_context에서 헬퍼 함수 import (단일 정의, 중복 없음) ──
-from middle.widget.shared_context import (get_ind, _live_ranking, get_ticker_info, get_player, get_listing_days,
+from middle.widget.shared_context import (bars_ready, get_ind, _live_ranking, get_ticker_info, get_player, get_listing_days,
                                          get_forecast, forecast_enabled, get_row)
 import middle.widget.shared_context as _ctx
 from middle.col3_analysis_panels.derivative_analysis.open_interest import OpenInterestPanel
@@ -684,23 +684,48 @@ class _Col3Mixin:
             tk.Frame(self._verdict_f, bg="#2A2A2A", height=1).pack(
                 fill="x", padx=10, pady=(2, 2))
 
-        # ── Sort by="Volatility" 선정 근거 (ATR% + 변동성 등급 + 전체 순위) ──
+        # ── Sort by="Volatility" 선정 근거 (ATR% + 변동성 등급 + 엔진 ATR 범위 + 전체 순위) ──
         elif self._sort_mode == "Volatility":
             _row = next((d for d in _live_ranking() if d[0] == sym), None)
             if _row is not None:
-                _sorted = self._get_sorted_ranking()
-                _rank = next((i + 1 for i, r in enumerate(_sorted) if r[0] == sym), None)
-                _atr = ind.get("atr", 2.0)
                 ctx_f = tk.Frame(self._verdict_f, bg=DARK_PANEL)
                 ctx_f.pack(fill="x", padx=10, pady=(2, 1))
-                tk.Label(ctx_f, text="🎯 Volatility 선정 근거 ", bg=DARK_PANEL, fg=ACCENT_BLUE,
-                         font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
-                tk.Label(ctx_f, text=f"ATR {_atr:.1f}% ({AtrPercent.label(_atr)})",
-                         bg=DARK_PANEL, fg=AtrPercent.color(_atr),
-                         font=("Consolas", 8, "bold"), anchor="w").pack(side="left")
-                if _rank is not None:
-                    tk.Label(ctx_f, text=f"  (전체 {_rank}위)", bg=DARK_PANEL, fg=DIM_TEXT,
+                if not bars_ready(sym):
+                    # 갱신 대상 밖·데이터 준비 전 — 옛 값·기본값 ATR이라 표시하지 않음 (V6)
+                    tk.Label(ctx_f, text="⚠ Volatility 채점 보류 (갱신 대상 밖·데이터 준비 중) — 참고용 분석",
+                             bg=DARK_PANEL, fg=ORANGE,
+                             font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
+                elif not ind.get("_atr_ready"):
+                    tk.Label(ctx_f, text="⚠ Volatility ATR 데이터 부족 (1h 봉 15개 미만·조회 실패)",
+                             bg=DARK_PANEL, fg=ORANGE,
+                             font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
+                else:
+                    _sorted = self._get_sorted_ranking()
+                    _rank = next((i + 1 for i, r in enumerate(_sorted) if r[0] == sym), None)
+                    _atr = ind.get("atr", 2.0)
+                    tk.Label(ctx_f, text="🎯 Volatility 선정 근거 ", bg=DARK_PANEL, fg=ACCENT_BLUE,
+                             font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
+                    tk.Label(ctx_f, text=f"ATR {_atr:.2f}% ({AtrPercent.label(_atr)})",   # 소수 2자리 (V5)
+                             bg=DARK_PANEL, fg=AtrPercent.color(_atr),
+                             font=("Consolas", 8, "bold"), anchor="w").pack(side="left")
+                    # 목록 밖(100위 밖·블랙리스트) → 순위 대신 목록 밖 표시 (V6)
+                    _rank_txt = f"  (전체 {_rank}위)" if _rank is not None else "  (목록 밖 — 100위 밖)"
+                    tk.Label(ctx_f, text=_rank_txt, bg=DARK_PANEL, fg=DIM_TEXT,
                              font=("Segoe UI", 8), anchor="w").pack(side="left")
+                    # 엔진 Volatility 모드 G4 ATR% 허용 범위 — 1열 '엔진 ATR 범위' 열과 같은 판정 (진입 보장 아님)
+                    _band = _ctx.engine_atr_band("Volatility")
+                    if _band is not None:
+                        _lo, _hi = _band
+                        if _atr > _hi:
+                            _btxt, _bcol = f"▲ 엔진 ATR 범위 초과 (>{_hi:.1f}%) — 진입 차단", ORANGE
+                        elif _atr < _lo:
+                            _btxt, _bcol = f"▼ 엔진 ATR 범위 미만 (<{_lo:.2f}%) — 진입 차단", DIM_TEXT
+                        else:
+                            _btxt, _bcol = f"✓ 엔진 ATR 범위 안 ({_lo:.2f}~{_hi:.1f}%) — 다른 진입 조건은 별도", POSITIVE
+                        brow = tk.Frame(self._verdict_f, bg=DARK_PANEL)
+                        brow.pack(fill="x", padx=10, pady=(0, 1))
+                        tk.Label(brow, text=_btxt, bg=DARK_PANEL, fg=_bcol,
+                                 font=("Consolas", 8), anchor="w").pack(side="left")
                 tk.Frame(self._verdict_f, bg="#2A2A2A", height=1).pack(
                     fill="x", padx=10, pady=(2, 2))
 

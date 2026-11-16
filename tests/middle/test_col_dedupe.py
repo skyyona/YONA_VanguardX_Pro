@@ -45,7 +45,7 @@ class _BL:
 
 def _dm(monkeypatch, ind: dict) -> MiddleDataManager:
     m = MiddleDataManager.__new__(MiddleDataManager)
-    m._ind_cache = {s: dict(v) for s, v in ind.items()}
+    m._ind_cache = {s: dict(v, _data_ready=True) for s, v in ind.items()}   # 봉 지표 반영 — Gold 후보 조건(bars_ready)
     m._tkr_map, m._onboard_map = {}, {}
     m._ranking_rows = [_row(s) for s in ind]
     m._vol_rank = {s: i + 1 for i, s in enumerate(ind)}   # 갱신 대상(거래량 상위 100) — 지표 사용 (_ind_fresh)

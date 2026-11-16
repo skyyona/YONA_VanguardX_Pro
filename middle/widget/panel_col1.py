@@ -273,7 +273,7 @@ class _Col1Mixin:
                 self._hdr_labels[5].configure(text="Opportunity", anchor="center")
             elif mode == "Volatility":
                 self._hdr_labels[4].configure(text="ATR%")
-                self._hdr_labels[5].configure(text="변동성 등급", anchor="center")
+                self._hdr_labels[5].configure(text="엔진 ATR 범위", anchor="center")
             elif mode == "4TF Optimization":
                 self._hdr_labels[4].configure(text="4TF Score")
                 self._hdr_labels[5].configure(text="충족 항목", anchor="center")
@@ -418,6 +418,8 @@ class _Col1Mixin:
             return
         if data is None:
             data = self._get_sorted_ranking()
+        # Volatility: 엔진 Volatility 모드 G4 ATR% 허용 범위 — 행 생성 1회마다 설정 읽기 (2026-11-16 표시 변경)
+        _vol_band = _ctx.engine_atr_band("Volatility") if self._sort_mode == "Volatility" else None
         for idx, row in enumerate(data):
             (symbol, days,
              tf_text, tf_color,
@@ -570,16 +572,25 @@ class _Col1Mixin:
             # ── Volatility col4/col5 사전 계산 ────────────────
             if _is_volatility:
                 # 정렬 기준(ATR%)을 테이블에서 직접 확인 가능하게 노출
-                _atr     = get_ind(symbol).get("atr", 2.0)
-                _atr_txt = f"{_atr:.1f}%"
+                _ind_v   = get_ind(symbol)
+                _atr     = _ind_v.get("atr", 2.0)
+                _atr_txt = f"{_atr:.2f}%"   # 소수 2자리 — 등급 경계(2.0·5.0)와 표시 숫자가 어긋나지 않게 (V5: 4.96→'5.0%' 중간 등)
                 _atr_col = AtrPercent.color(_atr)
-                if _atr > 5.0:
-                    _grade_txt = "🔥 고변동 — 큰 스윙 주의"
-                elif _atr >= 2.0:
-                    _grade_txt = "─ 중간 변동성"
+                if not _ind_v.get("_atr_ready"):
+                    # 1h 봉 15개 미만(신규 상장)·조회 실패 — 0.0을 '저변동'으로 표시하지 않음 (V4)
+                    _atr_txt, _atr_col = "—", DIM_TEXT
+                    _grade_txt, _grade_col = "데이터 부족 (1h 봉 15개 미만·조회 실패)", DIM_TEXT
+                elif _vol_band is None:
+                    _grade_txt, _grade_col = "—", DIM_TEXT
                 else:
-                    _grade_txt = "❄ 저변동 — 스캘핑 부적합"
-                _grade_col = _atr_col
+                    # 엔진 Volatility 모드 G4와 같은 비교(반올림 전 값) — 범위 안이어도 다른 진입 조건은 별도 (진입 보장 아님)
+                    _lo, _hi = _vol_band
+                    if _atr > _hi:
+                        _grade_txt, _grade_col = f"▲ 범위 초과 (>{_hi:.1f}%) — 엔진 진입 차단", ORANGE
+                    elif _atr < _lo:
+                        _grade_txt, _grade_col = f"▼ 범위 미만 (<{_lo:.2f}%) — 엔진 진입 차단", DIM_TEXT
+                    else:
+                        _grade_txt, _grade_col = f"✓ 엔진 ATR 범위 ({_lo:.2f}~{_hi:.1f}%)", POSITIVE
 
             # ── 4TF Optimization col4/col5 사전 계산 ──────────
             if _is_4tf:
