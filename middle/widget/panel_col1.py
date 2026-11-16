@@ -3,9 +3,13 @@ middle/widget/panel_col1.py
 1열 Real-Time Ranking 믹스인 (Blacklist 탭은 panel_col1_blacklist.py)
 """
 from __future__ import annotations
+import logging
 import tkinter as tk
 import tkinter.ttk as ttk
 import webbrowser
+from zoneinfo import ZoneInfo
+
+from core.config import KST_TIMEZONE
 from middle.widget.constants import *
 from middle.widget.constants import _COLS, _POS, _NEG, _YEL, _ORA, _DIM, _LGR
 
@@ -279,16 +283,16 @@ class _Col1Mixin:
                 self._hdr_labels[5].configure(text="충족 항목", anchor="center")
             elif mode == "Pending Listing":
                 self._hdr_labels[1].configure(text="심볼  [유형]")
-                self._hdr_labels[2].configure(text="상장예정일시",  anchor="center")
+                self._hdr_labels[2].configure(text="상장예정 KST",  anchor="center")
                 self._hdr_labels[3].configure(text="남은시간",      anchor="center")
                 self._hdr_labels[4].configure(text="markPrice",   anchor="center")
                 self._hdr_labels[5].configure(text="",             anchor="center")
             else:
                 self._hdr_labels[4].configure(text="M4 준비")
                 self._hdr_labels[5].configure(text="추세 단계", anchor="center")
-        # Pending Listing: 데이터 로드 후 재빌드
+        # Pending Listing: START 후에만 조회 (권장안 A) — '로드 중'으로 먼저 바꾼 뒤 아래 재빌드 (P2: 옛 목록 노출 방지)
         if mode == "Pending Listing":
-            self.after(0, self._load_pending_then_rebuild)
+            self._start_pending_load()
 
         # 2열 탭·3열 종합분석 연동 — MiddlePanel._on_sort_mode_changed
         self._on_sort_mode_changed(mode)
@@ -885,21 +889,42 @@ class _Col1Mixin:
 
     # ── PENDING_TRADING 전용 메서드 ──────────────────────────────
 
-    def _load_pending_then_rebuild(self) -> None:
-        """Pending Listing 모드 진입 시: 백그라운드 조회 → 메인 스레드에서 캐시 교체·재빌드 → 1분 타이머.
+    _PENDING_REFETCH_TICKS = 5   # P3: 1분 타이머 5회(5분)마다 목록·markPrice 재조회
+
+    def _start_pending_load(self) -> None:
+        """Pending Listing 진입·START 시 시작점 — START 전(IDLE)에는 조회·타이머 없음 (권장안 A).
+        '로드 중'으로 캐시를 비운 뒤 조회 시작 + 1분 타이머 예약 (호출부가 이어서 재빌드)."""
+        if getattr(self, "_app_state", "IDLE") == "IDLE":
+            self._cancel_pending_refresh()
+            return
+        self._load_pending_then_rebuild(clear=True)
+        self._schedule_pending_refresh()
+
+    def _load_pending_then_rebuild(self, clear: bool = True) -> None:
+        """백그라운드 조회 → 메인 스레드에서 캐시 교체·재빌드.
+        clear=True: 진입 조회 — 캐시를 비우고 '로드 중' 표시 / False: 5분 재조회 — 기존 목록 유지 (깜빡임 없음).
+        조회마다 번호를 붙여 가장 최근 조회 결과만 반영 (P5: 늦게 끝난 옛 조회가 새 결과를 덮어쓰던 문제).
         조회 스레드는 캐시를 직접 건드리지 않는다 (행 빌드 중 목록 변경 경합 방지)."""
         import threading
-        self._pending_cache  = []
-        self._pending_status = "loading"
+        self._pending_seq = getattr(self, "_pending_seq", 0) + 1
+        seq = self._pending_seq
+        if clear:
+            self._pending_cache  = []
+            self._pending_status = "loading"
         def _load():
             raw = _ctx._data_mgr.fetch_pending_listings() if _ctx._data_mgr is not None else None
             entries = _PendingListingDetector.parse(raw) if raw is not None else None
-            self._post(self._apply_pending_data, entries)   # 작업 스레드는 Tk 미호출 (MiddlePanel._post)
+            self._post(self._apply_pending_data, entries, seq, not clear)   # 작업 스레드는 Tk 미호출 (MiddlePanel._post)
         threading.Thread(target=_load, daemon=True).start()
-        self._schedule_pending_refresh()
 
-    def _apply_pending_data(self, entries: "list | None") -> None:
-        """메인 스레드: 조회 결과로 캐시 교체 (None = 조회 실패) 후 Pending 모드면 재빌드."""
+    def _apply_pending_data(self, entries: "list | None", seq: int, keep_on_fail: bool = False) -> None:
+        """메인 스레드: 조회 결과로 캐시 교체 (None = 조회 실패) 후 Pending 모드면 재빌드.
+        seq: 최근 조회 번호가 아니면 무시 (P5). keep_on_fail: 5분 재조회 실패 시 기존 목록 유지."""
+        if seq != getattr(self, "_pending_seq", 0):
+            return
+        if entries is None and keep_on_fail and self._pending_status == "ok":
+            logging.warning("Pending Listing 재조회 실패 — 기존 목록 유지")
+            return
         self._pending_cache  = entries or []
         self._pending_status = "failed" if entries is None else "ok"
         if self._sort_mode == "Pending Listing":
@@ -913,19 +938,29 @@ class _Col1Mixin:
         """남은 시간 텍스트·색상 — PendingListingDetector 위임."""
         return _PendingListingDetector.format_remaining(onboard_ms)
 
-    def _schedule_pending_refresh(self) -> None:
-        """Pending 모드 진입 시 60초 타이머 예약 (즉시 rebuild 없음) — 이전 예약 취소로 재진입 시 누적 방지."""
+    def _cancel_pending_refresh(self) -> None:
+        """예약된 Pending 1분 타이머 취소 (STOP·START 전 진입)."""
         after_id = getattr(self, "_pending_after_id", None)
         if after_id is not None:
             self.after_cancel(after_id)
+        self._pending_after_id = None
+
+    def _schedule_pending_refresh(self) -> None:
+        """Pending 모드 진입 시 60초 타이머 예약 (즉시 rebuild 없음) — 이전 예약 취소로 재진입 시 누적 방지."""
+        self._cancel_pending_refresh()
+        self._pending_ticks = 0
         self._pending_after_id = self.after(60_000, self._do_pending_time_refresh)
 
     def _do_pending_time_refresh(self) -> None:
-        """60초마다 남은시간 갱신 — Pending 모드일 때만 실행."""
+        """60초마다 남은시간 갱신, 5분마다 목록·markPrice 재조회 (P3) — Pending 모드·START 후에만."""
         self._pending_after_id = None
-        if self._sort_mode != "Pending Listing":
+        if self._sort_mode != "Pending Listing" or getattr(self, "_app_state", "IDLE") == "IDLE":
             return
-        self._rebuild_ranking_rows()
+        self._pending_ticks = getattr(self, "_pending_ticks", 0) + 1
+        if self._pending_ticks % self._PENDING_REFETCH_TICKS == 0:
+            self._load_pending_then_rebuild(clear=False)   # 결과 도착 시 재빌드
+        else:
+            self._rebuild_ranking_rows()
         self._pending_after_id = self.after(60_000, self._do_pending_time_refresh)
 
     def _build_pending_rows(self) -> None:
@@ -995,7 +1030,8 @@ class _Col1Mixin:
             dt_f.pack(side="left", padx=1, fill="y")
             dt_f.pack_propagate(False)
             if onboard_ms:
-                dt_obj = _dt.datetime.fromtimestamp(onboard_ms / 1000)
+                # P9: KST 고정 (헤더 시계와 같은 기준 — PC 시간대와 무관)
+                dt_obj = _dt.datetime.fromtimestamp(onboard_ms / 1000, ZoneInfo(KST_TIMEZONE))
                 dt_txt = dt_obj.strftime("%m/%d %H:%M")
             else:
                 dt_txt = "—"

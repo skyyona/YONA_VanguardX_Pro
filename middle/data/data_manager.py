@@ -584,7 +584,7 @@ class MiddleDataManager:
                 if s.get("symbol", "").endswith("USDT")
                 and s.get("status") == "PENDING_TRADING"
             ]
-            pending.sort(key=lambda s: s.get("onboardDate", 0))
+            pending.sort(key=lambda s: s.get("onboardDate") or float("inf"))   # P1: 예정일 미상은 맨 뒤
             for s in pending:
                 result.append((s, self._client.fetch_mark_price(s["symbol"])))
         except Exception as e:

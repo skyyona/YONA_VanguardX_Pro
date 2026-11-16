@@ -543,7 +543,6 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         # IDLE: START 전 클릭 무효 / ANALYSIS: [Clear] 클릭 전까지 완전 무효
         if self._app_state != "RANKING":
             return
-        self._sel_var.set(symbol)
 
         # ── Fix④: 이전 선택+신규 선택 2개 행만 스타일 변경 (100행 전체 제거) ──
         prev_idx = self._sel_idx
@@ -563,8 +562,10 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
                 self._recolor(frame, row_bg, self._special.get(update_idx, set()))
 
         # ── Pending Listing: 하이라이트만, 데이터 갱신·ANALYSIS 전환 없음 ──
+        #   선택 종목으로도 남기지 않음 (P8: 다른 모드 전환 시 2열이 데이터 없는 상장 예정 종목을 표시하던 문제)
         if self._sort_mode == "Pending Listing":
             return
+        self._sel_var.set(symbol)
 
         # ── 실데이터 갱신 요청 (비동기 — 완료 시 _on_data_ready → _do_refresh_detail) ──
         if _data_mgr is not None:
@@ -645,6 +646,9 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         global _data_mgr
         if _data_mgr is not None and not _data_mgr._running:
             _data_mgr.start_auto_refresh()
+        # Pending Listing 선택 상태로 START → 그때 새로 조회 (권장안 A — START 전에는 조회하지 않음)
+        if self._sort_mode == "Pending Listing":
+            self._start_pending_load()
         # 1열 초기 빌드 (빈 목록 → ticker 로드 후 자동 갱신)
         self._rebuild_ranking_rows()
 
@@ -655,6 +659,7 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         # 타이머 중지
         self._stop_chart_timer()
         self._stop_analysis_timer()
+        self._cancel_pending_refresh()   # Pending 1분 타이머 (권장안 A — START 후에만 동작)
         # [Clear] 버튼 숨김
         if self._clear_btn:
             self._clear_btn.pack_forget()

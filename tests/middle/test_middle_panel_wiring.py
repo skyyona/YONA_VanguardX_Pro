@@ -115,6 +115,7 @@ def _panel(**attrs) -> MiddlePanel:
     p._refresh_header = lambda: p.calls.append(("header",))
     p._set_header_message = lambda msg: p.calls.append(("msg", msg))
     p._update_cum_labels = lambda: p.calls.append(("cum",))
+    p._start_pending_load = lambda: p.calls.append(("pending_load",))   # Pending 조회 시작 (스레드 없이 기록만)
     for k, v in attrs.items():
         setattr(p, k, v)
     return p
@@ -135,7 +136,8 @@ def test_select_sort_cross_column_sequence(mode, state):
     # 3열 판정 다시 그리기는 분석 중(종목 선택 상태)일 때만 (2026-11-12 B-2)
     expected = [("tab", tab)] + ([("verdict",)] if state == "ANALYSIS" else []) + [("rebuild",)]
     if mode == "Pending Listing":
-        expected.insert(0, ("after", 0, "_load_pending_then_rebuild"))
+        # P2: '로드 중'으로 먼저 바꾼 뒤(조회 시작) 재빌드 — 기존 after(0) 예약은 옛 목록을 먼저 그렸음
+        expected.insert(0, ("pending_load",))
     assert p.calls == expected
     assert popup.destroyed
     assert p._sort_mode == mode
