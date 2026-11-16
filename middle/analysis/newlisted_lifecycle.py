@@ -10,14 +10,12 @@ from dataclasses import dataclass
 from middle.widget.constants import (
     POSITIVE as _POSITIVE, NEGATIVE as _NEGATIVE, ORANGE as _ORANGE,
     YELLOW as _YELLOW, ACCENT_BLUE as _ACCENT_BLUE, DIM_TEXT as _DIM,
-    LIGHT_GREEN as _LGR,
 )
-_LIGHT_GREEN = _LGR
 
 
 @dataclass
 class LifecycleResult:
-    stage:    str   # "pre_pump" | "pre_pump_late" | "pump_active" | "top_formed" | "distribution" | "stable" | "unknown"
+    stage:    str   # "pre_pump" | "pre_pump_late" | "pump_active" | "top_formed" | "distribution" | "unknown"
     label:    str   # "🔥 펌프 미발생" 등
     color:    str
     strategy: str   # 매매 전략 가이드
@@ -30,14 +28,14 @@ class NewlistedLifecycle:
     공개 API 기반 추정:
       - days: onboardDate 기반 경과일
       - vss: 거래량 급등 여부 (펌프 신호)
-      - oi_change: OI 모멘텀 (자금 유입 여부)
+      - oi_change_1h: 1시간 OI 모멘텀 (자금 유입 여부 — 2026-11-16 10분 → 1시간, 점수 함수와 같은 값)
       - price_change_pct: 상장 대비 가격 변화 (mockup의 list_pct 대체)
       - is_high_from_open: ATH 형성 추정 (가격이 많이 올랐는지)
     """
 
     # [W-E] 신규 상장 판정 상한 (일)
-    #       newlisted_scorer.get_sorted(`0 < r[1] <= 30`) ·
-    #       data_manager(`if 0 < days <= 30`) 와 동일 기준.
+    #       newlisted_scorer.get_sorted(`0 <= r[1] <= 30`) ·
+    #       data_manager(_NEWLY_MAX_DAYS) 와 동일 기준. 생애주기는 상장 1일 이상부터 (0일 = 24시간 미만은 1열에서 별도 표시)
     MAX_DAYS = 30
 
     @classmethod
@@ -109,16 +107,6 @@ class NewlistedLifecycle:
                 days=days,
             )
 
-        # ⑤ 안정화: 90일 이상 + 거래량 정상화
-        if days >= 90 and 0.6 <= vss <= 1.4:
-            return LifecycleResult(
-                stage="stable",
-                label="✅ 안정화 진입",
-                color=_LIGHT_GREEN,
-                strategy="일반 코인 분석 기준 적용 가능",
-                days=days,
-            )
-
         # ⑥ 관망
         return LifecycleResult(
             stage="unknown",
@@ -138,7 +126,7 @@ def lifecycle_summary(days: int, ind: dict) -> tuple | None:
     res = NewlistedLifecycle.analyze(
         days             = days,
         vss              = ind.get("vss",              1.0),
-        oi_change_pct    = ind.get("oi_change",        0.0),
+        oi_change_pct    = ind.get("oi_change_1h",     0.0),
         price_change_pct = ind.get("price_change_pct", 0.0),
         high_24h_pct     = ind.get("high_24h_pct",     0.0),
     )

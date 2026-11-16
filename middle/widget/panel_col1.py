@@ -552,16 +552,13 @@ class _Col1Mixin:
 
             # ── Newly Listed col4/col5 사전 계산 ─────────────
             if _is_newlisted:
-                # Col4: Listing Age 텍스트 + 색상
-                if   days <=  7: _age_txt, _age_col = f"D+{days}  Ultra", NEW_FG
-                elif days <= 30: _age_txt, _age_col = f"D+{days}  New",   YELLOW
-                elif days <= 90: _age_txt, _age_col = f"D+{days}  Recent", DIM_TEXT
-                else:            _age_txt, _age_col = f"D+{days}  Mature", "#555555"
-                # Col5: 자격 미달 시 경고, 충족 시 라이프사이클 단축 레이블
+                # Col4: Listing Age 텍스트 + 색상 (목록 = 상장 0~30일 — Recent·Mature 구간은 도달 불가라 삭제, N8)
+                _age_txt, _age_col = (f"D+{days}  Ultra", NEW_FG) if days <= 7 else (f"D+{days}  New", YELLOW)
+                # Col5: 라이프사이클 단축 레이블 — 목록은 자격 충족 종목만 (NewlistedScorer.get_sorted, N3)
                 self._nl_rows[symbol] = _row_data   # 3열 Newly 점수·순위 공유 (표시 순서)
-                _res_nl = self._calc_newlist_score(symbol, _row_data)
-                if not _res_nl["qualified"]:
-                    _opp_txt, _opp_col = "⚠ 자격 미달 (VSS/OI 부족)", DIM_TEXT
+                if days == 0:
+                    # 상장 24시간 미만 (N4) — 라이프사이클은 상장 1일 이상 기준
+                    _opp_txt, _opp_col = "🆕 상장 24시간 이내", NEW_FG
                 else:
                     _lc_result = lifecycle_summary(days, get_ind(symbol))
                     if _lc_result:

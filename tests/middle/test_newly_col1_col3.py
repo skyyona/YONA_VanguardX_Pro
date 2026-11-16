@@ -20,14 +20,14 @@ def _row(sym, days, chg):
 
 
 _NL_ROWS = [
-    _row("N1USDT", 20, 12.0),    # VSS 2.5(+2)·OI 6%(+1)·속도 12%(+2)·FR 0(+0) = 5 × 1.3 = 6.5
-    _row("N2USDT", 5, -25.0),    # 4 + 3 + 3 + 2 = 12 × 2.0 = 24.0
-    _row("N3USDT", 10, 1.0),     # VSS 1.0·OI 1% → 자격 미달 (정렬 맨 뒤)
+    _row("N1USDT", 20, 12.0),    # VSS 2.5(+2)·OI 1h 6%(+1)·속도 +12%(+2)·FR 0(+0) = 5 × 1.3 = 6.5
+    _row("N2USDT", 5, -25.0),    # 4 + 3 + 속도 0(하락 — 롱 방향만 가점, 2026-11-16) + 2 = 9 × 2.0 = 18.0
+    _row("N3USDT", 10, 1.0),     # VSS 1.0·OI 1h 1% → 자격 미달 → 목록 제외 (2026-11-16 N3)
 ]
 _IND = {
-    "N1USDT": {"vss": 2.5, "oi_change": 6.0, "funding_rate": 0.01},
-    "N2USDT": {"vss": 4.2, "oi_change": 21.0, "funding_rate": 0.12},
-    "N3USDT": {"vss": 1.0, "oi_change": 1.0, "funding_rate": 0.0},
+    "N1USDT": {"vss": 2.5, "oi_change_1h": 6.0, "funding_rate": 0.01},
+    "N2USDT": {"vss": 4.2, "oi_change_1h": 21.0, "funding_rate": 0.12},
+    "N3USDT": {"vss": 1.0, "oi_change_1h": 1.0, "funding_rate": 0.0},
 }
 
 
@@ -48,6 +48,7 @@ class _DM:
 
     get_player = MiddleDataManager.get_player   # Player 판정 단일 정의 (get_ind 기반)
     _ind_fresh = lambda self, sym: True          # 대역 지표 = 갱신 대상 값 (MiddleDataManager._ind_fresh)
+    bars_ready = lambda self, sym: sym in _IND   # 대역 지표가 있는 종목 = 봉 지표 실제 값
     _forecaster = Forecaster(None)   # 가격 예고 판정식 없음 → 3열 '판정식 없음' 표시
 
     def get_forecast(self, sym):
@@ -89,7 +90,7 @@ def _verdict_texts(p, sym):
 
 
 def test_col1_shares_displayed_rows_in_order(panel):
-    assert list(panel._nl_rows) == ["N2USDT", "N1USDT", "N3USDT"]
+    assert list(panel._nl_rows) == ["N2USDT", "N1USDT"]          # 자격 미달 N3 제외 (2026-11-16 N3)
     assert [s for _, s in panel._row_frames] == list(panel._nl_rows)
     assert panel._nl_rows["N1USDT"] == _NL_ROWS[0]
 
@@ -99,13 +100,13 @@ def test_col3_score_and_rank_match_col1_row(panel):
     assert (res["total"], res["age_weight"], res["weighted"]) == (5, 1.3, 6.5)
     texts = _verdict_texts(panel, "N1USDT")
     assert "전체 2위 · 총 5/12점 × 연령가중 1.3 = 6.5점" in texts
-    assert "Price Velocity 12.00%(+2)  Funding Extreme 0.010%(+0)" in texts
-    assert "전체 1위 · 총 12/12점 × 연령가중 2.0 = 24.0점" in _verdict_texts(panel, "N2USDT")
+    assert "Price Velocity 24h +12.00%(+2)  Funding Extreme 0.010%(+0)" in texts
+    assert "전체 1위 · 총 9/12점 × 연령가중 2.0 = 18.0점" in _verdict_texts(panel, "N2USDT")
 
 
 def test_col3_not_in_col1_list(panel):
     texts = _verdict_texts(panel, "OUTUSDT")
-    assert "⚠ Newly Listed 대상 아님 (1열 목록 밖 — 상장 30일 초과·미상 또는 상위 30위 밖)" in texts
+    assert "⚠ Newly Listed 대상 아님 (1열 목록 밖 — 상장 30일 초과·미상·주식/ETF·자격 미달 또는 상위 30위 밖)" in texts
     assert not any("선정 근거" in t for t in texts)
 
 

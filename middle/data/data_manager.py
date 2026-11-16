@@ -75,7 +75,7 @@ _DERIV_FRESH_SEC = 180.0
 _STAGE3_FIELDS = (
     "atr", "atr_pct", "atr_pct_5m", "vss", "bpr", "price_change_pct",
     "pattern", "align", "e5", "e10", "e20", "e50",
-    "volume_ratio", "swing_bull", "swing_bear", "vwap", "_data_ready", "_atr_ready",
+    "volume_ratio", "swing_bull", "swing_bear", "vwap", "_data_ready", "_atr_ready", "high_24h_pct",
     "tf1", "tf3", "tf5", "tf15", "tf1h", "tf4h", "tf1d",
 )
 _ATR_MIN_BARS = 15   # 1h ATR%(14) 계산 최소 마감 봉 수 — 미만이면 AtrPercent 0.0 (V4: '데이터 부족' 표시)
@@ -156,6 +156,18 @@ def _build_onboard_map(exchange_info: dict) -> dict[str, int]:
         if symbol and onboard:
             result[symbol] = int(onboard)
     return result
+
+
+_NEWLY_MAX_DAYS = 30   # 신규 상장 판정 상한 (일) — Newly Listed 목록·갱신 대상 공용
+# 주식·ETF (exchangeInfo underlyingType) — Newly Listed 목록·추가 갱신 대상에서 제외 (2026-11-16 사용자 결정 ③)
+#   원자재(COMMODITY)·FX·상장 전(PREMARKET)·지수(INDEX)는 주식·ETF가 아니므로 포함
+_EQUITY_TYPES = frozenset({"EQUITY", "HK_EQUITY", "KR_EQUITY", "CN_EQUITY"})
+
+
+def _build_equity_set(exchange_info: dict) -> set[str]:
+    """exchangeInfo 응답에서 주식·ETF 심볼 집합 (underlyingType ∈ _EQUITY_TYPES)."""
+    return {s.get("symbol", "") for s in exchange_info.get("symbols", [])
+            if s.get("underlyingType") in _EQUITY_TYPES and s.get("symbol")}
 
 
 def _has_newer(cur: dict, bars: dict) -> bool:
@@ -258,6 +270,8 @@ class MiddleDataManager:
         self._ranking_rows:    list                       = []
         self._sort_mode:       str                        = "24h Ticker"   # 1열 Sort by — M4 준비 G7.5 적용 여부 기준
         self._onboard_map:     dict[str, int]             = {}
+        self._equity_syms:     set[str]                   = set()   # 주식·ETF 심볼 (exchangeInfo, onboard와 함께 갱신)
+        self._newly_syms:      set[str]                   = set()   # 추가 갱신 대상 신규 상장(30일 이내·주식 제외) — STAGE 실행마다 갱신
         self._cross_ts_cache:  dict[str, dict[str, float]] = {}  # sym→{tf_key→교차 unix ts}
         self._spread_hist:     dict[str, deque]           = {}   # symbol → 최근 스프레드(%) 표본
         self._deriv_cache:     dict[str, tuple]           = {}   # symbol → (fr, oi, ls, oi_1h, 조회 시각) 마지막 REST 값 — WS 봉 마감 재계산용
@@ -462,7 +476,8 @@ class MiddleDataManager:
         (2026-11-12 — 급등 때 100위 안에 들었다 빠진 종목이 옛 '롱 대기'·추세 단계를 계속 표시하던 문제).
         엔진 입력(get_ind)은 바꾸지 않는다."""
         return (self._vol_rank.get(symbol, 999) <= _STAGE2_TOPN
-                or symbol in (self._engine_sym, self._last_detail_sym))
+                or symbol in (self._engine_sym, self._last_detail_sym)
+                or symbol in self._newly_syms)        # 신규 상장 추가 갱신 대상 (2026-11-16 Newly ①)
 
     def engine_atr_band(self, mode: str = "Volatility") -> tuple[float, float]:
         """같은 이름 엔진 모드의 G4 ATR% 허용 범위 (하한, 상한) — M4Entry G4와 같은 식:
@@ -885,7 +900,7 @@ class MiddleDataManager:
         """STAGE2: 상위 N개 심볼 L/S·FR·OI 병렬 갱신 (5스레드, ~15초).
         Sharp Rise·Decline 별점·필터 정확도 및 장 단계 실데이터화.
         """
-        tickers = list(self._sorted_tickers[:n])
+        tickers = self._refresh_targets(n)
         self._refresh_funding_window()
 
         def _one(ticker: "SymbolTicker") -> None:
@@ -932,7 +947,7 @@ class MiddleDataManager:
         TF정렬·ATR%·EMA·StochRSI·4TF별점·장 단계 실데이터화.
         갱신 TF: 1m·3m·5m·15m·1h·4h·1d (단기·일일 추세 — middle.analysis.trend)
         """
-        tickers = list(self._sorted_tickers[:n])
+        tickers = self._refresh_targets(n)
         self._stage3_stale = False
 
         def _one(ticker: "SymbolTicker") -> None:
@@ -1005,6 +1020,9 @@ class MiddleDataManager:
                 ind["vss"]              = round(vss, 4)
                 ind["bpr"]              = round(bpr, 4)
                 ind["price_change_pct"] = round(ticker.price_change_pct, 4)
+                # 24h 고점 대비 현재가 % — 상세 갱신과 같은 식 (N7: 기존엔 상세 갱신에서만 기록 → 1열 '고점 형성 의심' 불가)
+                ind["high_24h_pct"] = (round((ticker.high_24h - ticker.last_price) / ticker.last_price * 100, 2)
+                                       if ticker.last_price > 0 else 0.0)
                 ind["pattern"] = pat
 
                 if ema:
@@ -1225,25 +1243,43 @@ class MiddleDataManager:
         """
         with self._lock:
             tickers_snap = list(self._tickers)
-            onboard_snap = dict(self._onboard_map)
         use_macro = self._m4_use_macro()
-        result = []
-        for t in tickers_snap:
-            ob = onboard_snap.get(t.symbol, 0)
-            if not ob:
-                continue
-            days = _days_since_listing(ob)
-            if 0 < days <= 30:
-                result.append(self._make_row(t, use_macro))
-        return result
+        return [self._make_row(t, use_macro) for t in self._newly_tickers(tickers_snap)]
+
+    def _newly_tickers(self, tickers: list[SymbolTicker]) -> list[SymbolTicker]:
+        """상장 0~30일(24시간 미만 포함 — Newly N4)·주식/ETF 제외(사용자 결정 ③) 종목. onboardDate 미상은 제외."""
+        with self._lock:
+            onboard = dict(self._onboard_map)
+            equity  = set(self._equity_syms)
+        out = []
+        for t in tickers:
+            ob = onboard.get(t.symbol, 0)
+            if ob and t.symbol not in equity and 0 <= _days_since_listing(ob) <= _NEWLY_MAX_DAYS:
+                out.append(t)
+        return out
+
+    def _refresh_targets(self, n: int) -> list[SymbolTicker]:
+        """STAGE2·STAGE3 갱신 대상 = 거래량 상위 n + 신규 상장(30일 이내·주식 제외) — 신규 상장은 대부분 거래량 상위 100 밖이라
+        지표를 한 번도 받지 못해 Newly Listed 목록이 기본값 '자격 미달'로만 채워지던 문제 (2026-11-16 Newly ①).
+        추가 대상은 _newly_syms로 기록 → _ind_fresh(채점·표시 갱신 대상 판정)에 포함."""
+        with self._lock:
+            ranked = list(self._sorted_tickers)
+        top = ranked[:n]
+        top_set = {t.symbol for t in top}
+        extra = [t for t in self._newly_tickers(ranked[n:]) if t.symbol not in top_set]
+        with self._lock:
+            self._newly_syms = {t.symbol for t in extra}
+        return top + extra
 
     def _fetch_onboard_map(self) -> None:
         try:
             ei = self._client.fetch_exchange_info()
             if ei:
                 m = _build_onboard_map(ei)
+                eq = _build_equity_set(ei)
                 with self._lock:
                     self._onboard_map = m
+                    self._equity_syms = eq
         except Exception:
             pass
 

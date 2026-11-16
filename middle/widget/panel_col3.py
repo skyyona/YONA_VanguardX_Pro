@@ -202,8 +202,8 @@ class _Col3Mixin:
             tk.Label(wb, text=_invalid,
                      bg=_warn_bg, fg=_warn_col,
                      font=("Segoe UI", 7), anchor="w").pack(fill="x", padx=8)
-            # ── 라이프사이클 감지 결과 ──────────────────────────
-            _lc_res = lifecycle_summary(_days, ind)
+            # ── 라이프사이클 감지 결과 — 봉 지표 실제 값일 때만 (N7: 기본값으로 '펌프 미발생' 표시 방지) ──
+            _lc_res = lifecycle_summary(_days, ind) if bars_ready(sym) else None
             if _lc_res:
                 _, _lc_lbl, _lc_col, _ = _lc_res
                 _pchg = ind.get("price_change_pct", 0.0)
@@ -428,7 +428,7 @@ class _Col3Mixin:
                      font=("Segoe UI", 7, "bold")).pack(side="right")
         if self._sort_mode == "Newly Listed":
             _s_oi_nl = self._calc_newlist_score(sym)["scores"]["oi"]
-            tk.Label(oi_row, text=f"🎯 OI Momentum (+{_s_oi_nl}점)",
+            tk.Label(oi_row, text=f"🎯 OI 1h Momentum (+{_s_oi_nl}점)",
                      bg=DARK_PANEL, fg=ACCENT_BLUE if _s_oi_nl > 0 else DIM_TEXT,
                      font=("Segoe UI", 7, "bold")).pack(side="right")
         _oi_grade = OpenInterestPanel.analyze(oi).grade
@@ -808,13 +808,18 @@ class _Col3Mixin:
             ctx_f.pack(fill="x", padx=10, pady=(2, 1))
             if res is None:
                 tk.Label(ctx_f,
-                         text="⚠ Newly Listed 대상 아님 (1열 목록 밖 — 상장 30일 초과·미상 또는 상위 30위 밖)",
+                         text="⚠ Newly Listed 대상 아님 (1열 목록 밖 — 상장 30일 초과·미상·주식/ETF·자격 미달 또는 상위 30위 밖)",
+                         bg=DARK_PANEL, fg=ORANGE,
+                         font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
+            elif not res["ready"]:
+                # N6: 봉 지표 미준비(갱신 대상 밖·데이터 준비 중) — 기본값을 측정값처럼 표시하지 않음
+                tk.Label(ctx_f, text="⚠ Newly Listed 채점 보류 (갱신 대상 밖·데이터 준비 중) — 참고용 분석",
                          bg=DARK_PANEL, fg=ORANGE,
                          font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
             elif not res["qualified"]:
                 tk.Label(ctx_f,
                          text=(f"⚠ Newly Listed 자격 미달 "
-                               f"(VSS {res['vss']:.2f}<1.2 & OI {res['oi']:.1f}%<3%) — 참고용 분석"),
+                               f"(VSS {res['vss']:.2f}<1.2 & OI 1h {res['oi']:+.1f}%<3%) — 참고용 분석"),
                          bg=DARK_PANEL, fg=ORANGE,
                          font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
             else:
@@ -827,8 +832,8 @@ class _Col3Mixin:
                 sc = res["scores"]
                 detail_lines = [
                     (f"Volume Surge VSS {res['vss']:.2f}(+{sc['surge']})  "
-                     f"OI Momentum {res['oi']:.1f}%(+{sc['oi']})"),
-                    (f"Price Velocity {res['chg']:.2f}%(+{sc['velocity']})  "
+                     f"OI 1h Momentum {res['oi']:+.1f}%(+{sc['oi']})"),
+                    (f"Price Velocity 24h {res['chg']:+.2f}%(+{sc['velocity']})  "
                      f"Funding Extreme {res['fr']:.3f}%(+{sc['funding']})"),
                 ]
                 for dtxt in detail_lines:
@@ -851,7 +856,7 @@ class _Col3Mixin:
 
         # ── Newly Listed 전용 분석 블록 ───────────────────────────
         _nl_days = get_listing_days(sym)   # 1열 행·Newly Listed와 같은 정의 (거래량 상위 200 밖 포함)
-        if _nl_days > 0:
+        if _nl_days > 0 and bars_ready(sym):   # N7: 갱신 대상 밖 기본값으로 생애주기 판정하지 않음
             _lc_res = lifecycle_summary(_nl_days, ind)
             if _lc_res:
                 _lc_stage, _lc_lbl, _lc_col, _lc_strat = _lc_res

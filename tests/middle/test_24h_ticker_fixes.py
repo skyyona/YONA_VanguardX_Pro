@@ -295,6 +295,9 @@ class _VerdictDM:
     def get_listing_days(self, sym):
         return 100
 
+    def bars_ready(self, sym):     # 3열 생애주기 배너 조건 (봉 지표 실제 값) — 대역 지표는 실제 값으로 취급
+        return True
+
     def get_ranking_rows(self):
         return self.rows
 
