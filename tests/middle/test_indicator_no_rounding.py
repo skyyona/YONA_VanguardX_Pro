@@ -90,7 +90,7 @@ def test_detail_refresh_stores_unrounded_engine_inputs():
     dm._ohlcv_svc = _Klines()
     dm._fr_svc = types.SimpleNamespace(fetch=lambda symbol: FundingRateData(symbol, 0.000054321, 0))
     dm._ls_svc = types.SimpleNamespace(fetch=lambda symbol, period="5m": LongShortData(symbol, 61.37, 38.63, 1.5887, 0))
-    dm._oi_svc = types.SimpleNamespace(fetch_change_pct=lambda symbol, period="5m", lookback=2: 0.0)
+    dm._oi_svc = types.SimpleNamespace(fetch_changes=lambda symbol, period="5m": (0.0, 0.0))
     dm._refresh_detail("BTCUSDT")
     ind = dm._ind_cache["BTCUSDT"]
     b1h, b1m, b5m = _bars("1h", 199), _bars("1m", 199), _bars("5m", 199)

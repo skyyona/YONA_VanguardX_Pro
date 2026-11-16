@@ -47,6 +47,13 @@ def get_ind(symbol: str) -> dict:
     return {}
 
 
+def ind_ready(symbol: str) -> bool:
+    """채점용 지표가 실제 값인지 — data_manager.ind_ready 단일 정의. 매니저 없으면 False."""
+    if _data_mgr is not None:
+        return _data_mgr.ind_ready(symbol)
+    return False
+
+
 def get_forecast(symbol: str) -> dict | None:
     """가격 예고 기록 — data_manager.get_forecast 단일 정의. 매니저 없거나 계산 전이면 None."""
     if _data_mgr is not None:

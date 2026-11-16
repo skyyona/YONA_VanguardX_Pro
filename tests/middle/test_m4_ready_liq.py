@@ -142,8 +142,8 @@ class _LS:
 
 
 class _OI:
-    def fetch_change_pct(self, sym):
-        return 1.5
+    def fetch_changes(self, sym):
+        return 1.5, 0.0
 
 
 class _Client:   # STAGE2 정산 시각 조회 대역 — 빈 응답 = 펀딩비 매 주기 조회(기존 동작)

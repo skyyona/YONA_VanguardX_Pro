@@ -53,7 +53,7 @@ def test_blocked_gate_stops_stage_and_forecast_requests(monkeypatch):
     calls = []
     dm._ohlcv_svc = types.SimpleNamespace(fetch=lambda s, tf, limit=None: calls.append(("k", s)) or [])
     dm._ls_svc = types.SimpleNamespace(fetch=lambda s: calls.append(("ls", s)))
-    dm._oi_svc = types.SimpleNamespace(fetch_change_pct=lambda s: calls.append(("oi", s)),
+    dm._oi_svc = types.SimpleNamespace(fetch_changes=lambda s: calls.append(("oi", s)),
                                        fetch_series=lambda s, p="5m", limit=290: calls.append(("ois", s)) or {})
     dm._client = types.SimpleNamespace(fetch_all_premium_index=lambda: [], fetch_funding_info=lambda: [])
     dm._sorted_tickers = [_tkr("AUSDT"), _tkr("BUSDT")]

@@ -516,7 +516,7 @@ class _Col1Mixin:
             _is_volatility = self._sort_mode == "Volatility"
             _is_4tf        = self._sort_mode == "4TF Optimization"
             if _is_squeeze:
-                # 정렬 기준(_get_sorted_ranking)과 동일한 16점 만점 점수를 사용
+                # 정렬 기준(_get_sorted_ranking)과 동일한 점수(Sharp rise 13점·Sharp decline 16점 만점)를 사용
                 # (Player 가산점 포함) — 별점이 정렬 순위·종합분석과 같은 척도를 갖도록 통일
                 if self._sort_mode == "Sharp rise":
                     _res = self._calc_rise_score(symbol, self._player_tags_map)
@@ -527,26 +527,23 @@ class _Col1Mixin:
                     # 자격 미달 — 별점 산정 대상이 아님을 명시
                     _stars, _star_col = "—", DIM_TEXT
                     if self._sort_mode == "Sharp rise":
-                        _sq_txt = f"⚠ 자격 미달 (SR {_res['sr']:.0f}%<40% & FR 미달)"
+                        _sq_txt = f"⚠ 자격 미달 (SR {_res['sr']:.0f}%<50% & FR 미달)"
                     else:
                         _sq_txt = f"⚠ 자격 미달 (롱쏠림 {_res['lr']:.0f}%<50%)"
                     _sq_col = DIM_TEXT
                 else:
-                    # 별점 (16점 만점)
+                    # 별점 — 16점 만점 기준 14·11·8·5 와 같은 비율 (13점 만점: 총점/13 ≥ 기준/16 인 최소 정수 12·9·7·5)
                     _total = _res["total"]
-                    if   _total >= 14: _stars, _star_col = "★★★★★", POSITIVE
-                    elif _total >= 11: _stars, _star_col = "★★★★☆", "#8ad7b5"
-                    elif _total >=  8: _stars, _star_col = "★★★☆☆", YELLOW
-                    elif _total >=  5: _stars, _star_col = "★★☆☆☆", ORANGE
-                    else:              _stars, _star_col = "★☆☆☆☆", DIM_TEXT
+                    _t5, _t4, _t3, _t2 = (12, 9, 7, 5) if self._sort_mode == "Sharp rise" else (14, 11, 8, 5)
+                    if   _total >= _t5: _stars, _star_col = "★★★★★", POSITIVE
+                    elif _total >= _t4: _stars, _star_col = "★★★★☆", "#8ad7b5"
+                    elif _total >= _t3: _stars, _star_col = "★★★☆☆", YELLOW
+                    elif _total >= _t2: _stars, _star_col = "★★☆☆☆", ORANGE
+                    else:               _stars, _star_col = "★☆☆☆☆", DIM_TEXT
                     # 내용 텍스트
                     if self._sort_mode == "Sharp rise":
-                        if _res["liq_s"] < 1.5:
-                            _sq_txt = f"숏 {_res['sr']:.0f}%  청산+{_res['liq_s']:.1f}% 근접!"
-                            _sq_col = NEGATIVE
-                        else:
-                            _sq_txt = f"숏 {_res['sr']:.0f}%  FR{_res['fr']:+.3f}%"
-                            _sq_col = "#8ad7b5" if _res['fr'] < -0.03 else DIM_TEXT
+                        _sq_txt = f"숏 {_res['sr']:.0f}%  FR{_res['fr']:+.3f}%"
+                        _sq_col = "#8ad7b5" if _res['fr'] < -0.03 else DIM_TEXT
                     else:
                         if _res["liq_l"] < 1.0:
                             _sq_txt = f"롱 {_res['lr']:.0f}%  청산-{_res['liq_l']:.1f}% 근접!"

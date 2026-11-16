@@ -69,7 +69,7 @@ _FORECAST_KEEP_MS    = 1_800_000   # 조회 실패·일시 부족 시 직전 정
 # ── 단계별 필드 소유권 ────────────────────────────────────────
 # 각 갱신 단계는 자기가 담당하는 필드만 캐시에 병합한다.
 # 통째 교체 방식은 네트워크 대기 중 다른 단계가 쓴 결과를 되돌린다.
-_STAGE2_FIELDS = ("long_ratio", "funding_rate", "oi_change", "_stage2_ready")
+_STAGE2_FIELDS = ("long_ratio", "funding_rate", "oi_change", "oi_change_1h", "_stage2_ready")
 _STAGE3_FIELDS = (
     "atr", "atr_pct", "atr_pct_5m", "vss", "bpr", "price_change_pct",
     "pattern", "align", "e5", "e10", "e20", "e50",
@@ -255,7 +255,7 @@ class MiddleDataManager:
         self._onboard_map:     dict[str, int]             = {}
         self._cross_ts_cache:  dict[str, dict[str, float]] = {}  # sym→{tf_key→교차 unix ts}
         self._spread_hist:     dict[str, deque]           = {}   # symbol → 최근 스프레드(%) 표본
-        self._deriv_cache:     dict[str, tuple]           = {}   # symbol → (fr, oi, ls) 마지막 REST 값 — WS 봉 마감 재계산용
+        self._deriv_cache:     dict[str, tuple]           = {}   # symbol → (fr, oi, ls, oi_1h) 마지막 REST 값 — WS 봉 마감 재계산용
         # 정산 펀딩비 재사용 — 값은 정산 시각에만 바뀌므로 다음 정산 전 재조회 생략 (fundingRate 500회/5분/IP 한도)
         self._fr_cache:        dict[str, FundingRateData] = {}   # symbol → 마지막으로 받은 정산 펀딩비
         self._fr_window:       dict[str, tuple[int, int]] = {}   # symbol → (마지막 정산 시각, 다음 정산 시각) ms
@@ -459,6 +459,17 @@ class MiddleDataManager:
         return (self._vol_rank.get(symbol, 999) <= _STAGE2_TOPN
                 or symbol in (self._engine_sym, self._last_detail_sym))
 
+    def ind_ready(self, symbol: str) -> bool:
+        """채점용 지표가 실제 값인지 — 지금 갱신되는 종목(_ind_fresh)이고 봉 지표가 들어왔으며
+        롱숏·FR·OI가 STAGE2(거래량 상위 100) 또는 상세 갱신(엔진·선택 종목)으로 반영된 경우.
+        그 밖(갱신 대상 밖에 남은 옛 값·시작 직후 기본값)은 False (2026-11-16 Sharp rise A)."""
+        if not self._ind_fresh(symbol):
+            return False
+        ind = self._ind_cache.get(symbol)
+        if not ind or not ind.get("_data_ready"):
+            return False
+        return bool(ind.get("_stage2_ready")) or symbol in (self._engine_sym, self._last_detail_sym)
+
     def get_row(self, symbol: str) -> tuple | None:
         """종목 하나의 1열 행(11-tuple) — 1열 목록과 같은 _make_row·현재 Sort by의 use_macro. 시세 없으면 None.
         3열이 거래량 상위 200(get_ranking_rows) 밖 종목(24h Ticker·Newly Listed 목록)도 1열과 같은 값을 쓰도록."""
@@ -490,7 +501,8 @@ class MiddleDataManager:
         """Player 감지 — 태그가 감지된 심볼만. symbols: 대상 종목(1열에 표시할 목록), None이면 랭킹 풀(거래량 상위 200).
         {symbol: {"tags": [(tag_text, tag_color, strength_pct), ...] 강도순 상위 4,
                   "direction": "long" | "short" | "mixed",   # 상승 태그만 / 하락 태그만 / 둘 다
-                  "has_rise": bool, "has_decline": bool}}"""
+                  "has_rise": bool, "has_decline": bool,
+                  "keys": [tag_key, ...] 절단 전 전체 (강도순)}}"""
         result: dict[str, dict] = {}
         syms = symbols if symbols is not None else [row[0] for row in self.get_ranking_rows()]
         for sym in syms:
@@ -504,7 +516,8 @@ class MiddleDataManager:
             direction = "mixed" if has_rise and has_decline else ("long" if has_rise else "short")
             result[sym] = {"tags": [(t.tag_text, t.tag_color, t.strength_pct) for t in det.tags],
                            "direction": direction,
-                           "has_rise": has_rise, "has_decline": has_decline}
+                           "has_rise": has_rise, "has_decline": has_decline,
+                           "keys": list(det.keys)}
         return result
 
     def fetch_exchange_info(self) -> dict | None:
@@ -853,13 +866,14 @@ class MiddleDataManager:
             try:
                 ls = self._ls_svc.fetch(sym)
                 fr = self._get_funding(sym)
-                oi = self._oi_svc.fetch_change_pct(sym)
+                oi, oi_1h = self._oi_svc.fetch_changes(sym)
                 ind = dict(existing) if existing else self._simple_ind(ticker)
                 if ls:
                     ind["long_ratio"]   = ls.long_account_pct
                 if fr:
                     ind["funding_rate"] = fr.funding_rate * 100.0
                 ind["oi_change"] = oi
+                ind["oi_change_1h"] = oi_1h   # Sharp rise OI 항목 (1시간, 부호 유지)
                 ind["_stage2_ready"] = True   # 청산 근접도 계산 조건 (_apply_liq)
                 with self._lock:
                     # 네트워크 대기 중 다른 단계가 갱신한 필드를 되돌리지 않도록
@@ -1206,11 +1220,11 @@ class MiddleDataManager:
 
             # 파생 데이터
             fr  = self._get_funding(symbol)
-            oi  = self._oi_svc.fetch_change_pct(symbol)
+            oi, oi_1h = self._oi_svc.fetch_changes(symbol)
             ls  = self._ls_svc.fetch(symbol)
 
             with self._lock:
-                self._deriv_cache[symbol] = (fr, oi, ls)
+                self._deriv_cache[symbol] = (fr, oi, ls, oi_1h)
                 # 단조 가드 — WS로 이미 반영된 더 최신 봉을 REST 응답(마감 직후 이전 봉까지)으로 되돌리지 않음
                 cached = self._ohlcv_cache.get(symbol, {})
                 for tf in _DETAIL_TFS:
@@ -1223,10 +1237,11 @@ class MiddleDataManager:
                 self._last_refresh_error_time = time.time()
             logging.warning("middle detail %s: %s", symbol, e)
             return
-        self._compute_detail(symbol, bars, fr, oi, ls)
+        self._compute_detail(symbol, bars, fr, oi, ls, oi_1h)
 
-    def _compute_detail(self, symbol: str, bars: dict, fr, oi, ls) -> None:
-        """봉·파생 데이터로 상세 지표 계산 후 캐시 반영 — REST 갱신·WS 봉 마감 접합 공용."""
+    def _compute_detail(self, symbol: str, bars: dict, fr, oi, ls, oi_1h: float = 0.0) -> None:
+        """봉·파생 데이터로 상세 지표 계산 후 캐시 반영 — REST 갱신·WS 봉 마감 접합 공용.
+        oi: 10분 OI 변화율 · oi_1h: 1시간 OI 변화율 (Sharp rise OI 항목)."""
         try:
             # 지표 계산 (1h 기준)
             b1h  = bars.get("1h", [])
@@ -1281,7 +1296,7 @@ class MiddleDataManager:
                 symbol=symbol, tkr=tkr, bars=bars, stoch=stoch,
                 stoch_series=stoch_series,
                 rsi=rsi, bpr=bpr, vss=vss, atr=atr, atr_5m=atr_5m, ema=ema,
-                vwap_r=vwap_r, pat=pat, fr_pct=fr_pct, oi_chg=oi_chg,
+                vwap_r=vwap_r, pat=pat, fr_pct=fr_pct, oi_chg=oi_chg, oi_1h=oi_1h,
                 long_pct=long_pct, liq=liq, lev=lev.leverage,
                 player_keys=list(det.keys), eb=eb,
             )
@@ -1333,7 +1348,7 @@ class MiddleDataManager:
         self, symbol, tkr, bars, stoch,
         stoch_series,
         rsi, bpr, vss, atr, atr_5m, ema, vwap_r, pat,
-        fr_pct, oi_chg, long_pct, liq, lev,
+        fr_pct, oi_chg, oi_1h, long_pct, liq, lev,
         player_keys, eb,
     ) -> dict:
         price = tkr.last_price if tkr else 1.0
@@ -1367,6 +1382,7 @@ class MiddleDataManager:
             "funding_rate": fr_pct,
             # OI 변화 %
             "oi_change": round(oi_chg, 2),
+            "oi_change_1h": oi_1h,   # 1시간 OI 변화 % (Sharp rise OI 항목)
             # 롱숏 비율
             "long_ratio": round(long_pct, 2),
             # 청산 근접도 (추정)
@@ -1428,7 +1444,7 @@ class MiddleDataManager:
             "e5": tkr.last_price, "e10": tkr.last_price, "e20": tkr.last_price,
             "e50": tkr.last_price,
             "align": "혼조", "vwap": "VWAP 근접", "pattern": "분석 중 …",
-            "funding_rate": 0.0, "oi_change": 0.0, "long_ratio": 50.0,
+            "funding_rate": 0.0, "oi_change": 0.0, "oi_change_1h": 0.0, "long_ratio": 50.0,
             "price_change_pct": round(tkr.price_change_pct, 4),
             "liq_long_pct": -2.0, "liq_short_pct": 2.0, "rec_leverage": 10,
             "base": tkr.last_price, "trend": 0.0,
@@ -1452,7 +1468,7 @@ class MiddleDataManager:
             "rsi": 50.0, "bpr": 0.5, "vss": 1.0, "atr": 2.0, "atr_pct": 2.0, "atr_pct_5m": 0.0,
             "e5": 100.0, "e10": 99.0, "e20": 98.0, "e50": 97.0,
             "align": "혼조", "vwap": "VWAP 근접", "pattern": "분석 중 …",
-            "funding_rate": 0.0, "oi_change": 0.0, "long_ratio": 50.0,
+            "funding_rate": 0.0, "oi_change": 0.0, "oi_change_1h": 0.0, "long_ratio": 50.0,
             "liq_long_pct": -2.0, "liq_short_pct": 2.0, "rec_leverage": 10,
             "base": 100.0, "trend": 0.0,
             "volume": {"rank": 999, "usd_b": 0.0},

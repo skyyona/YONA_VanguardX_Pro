@@ -23,6 +23,7 @@ from middle.col3_analysis_panels.comprehensive_analysis.technical_verdict import
 from middle.col3_analysis_panels.comprehensive_analysis.derivative_verdict import DerivativeVerdictPanel
 from middle.analysis.newlisted_lifecycle import lifecycle_summary
 from middle.analysis.tag_detector import TagDetector
+from middle.col1_ranking.ranking.sharp_rise_scorer import SharpRiseScorer
 from middle.analysis.trend import trend_text
 
 
@@ -600,13 +601,18 @@ class _Col3Mixin:
                 tk.Frame(self._verdict_f, bg="#2A2A2A", height=1).pack(
                     fill="x", padx=10, pady=(2, 2))
 
-        # ── Sort by="Sharp rise" 선정 근거 (6요소 점수 breakdown + 전체 순위) ──
+        # ── Sort by="Sharp rise" 선정 근거 (5요소 점수 breakdown + 전체 순위) ──
         elif self._sort_mode == "Sharp rise":
             res = self._calc_rise_score(sym)
             ctx_f = tk.Frame(self._verdict_f, bg=DARK_PANEL)
             ctx_f.pack(fill="x", padx=10, pady=(2, 1))
-            if not res["qualified"]:
-                tk.Label(ctx_f, text=f"⚠ Sharp rise 자격 미달 (SR {res['sr']:.0f}%<40% & FR 미달) — 참고용 분석",
+            if not res["ready"]:
+                # 갱신 대상 밖·데이터 준비 전 — 옛 값·기본값이라 채점하지 않음 (2026-11-16)
+                tk.Label(ctx_f, text="⚠ Sharp rise 채점 보류 (갱신 대상 밖·데이터 준비 중) — 참고용 분석",
+                         bg=DARK_PANEL, fg=ORANGE,
+                         font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
+            elif not res["qualified"]:
+                tk.Label(ctx_f, text=f"⚠ Sharp rise 자격 미달 (SR {res['sr']:.0f}%<50% & FR 미달) — 참고용 분석",
                          bg=DARK_PANEL, fg=ORANGE,
                          font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
             else:
@@ -614,15 +620,16 @@ class _Col3Mixin:
                 _rank = next((i + 1 for i, r in enumerate(_sorted) if r[0] == sym), None)
                 tk.Label(ctx_f, text="🎯 Sharp rise 선정 근거 ", bg=DARK_PANEL, fg=ACCENT_BLUE,
                          font=("Segoe UI", 8, "bold"), anchor="w").pack(side="left")
-                tk.Label(ctx_f, text=f"전체 {_rank}위 · 총 {res['total']}/{res['max']}점",
+                # 자격은 있으나 목록에 없음(4점 미만·20위 밖·블랙리스트) → 'None위' 대신 목록 밖 표시 (2026-11-16)
+                _rank_txt = f"전체 {_rank}위" if _rank is not None else "목록 밖 (4점 미만·20위 밖)"
+                tk.Label(ctx_f, text=f"{_rank_txt} · 총 {res['total']}/{res['max']}점",
                          bg=DARK_PANEL, fg=DARK_TEXT,
                          font=("Consolas", 8, "bold"), anchor="w").pack(side="left")
                 sc = res["scores"]
                 detail_lines = [
                     (f"숏쏠림 {res['sr']:.0f}%(+{sc['sr']})  "
-                     f"FR {res['fr']:+.3f}%(+{sc['fr']})  "
-                     f"숏청산 {res['liq_s']:.1f}%(+{sc['liq']})"),
-                    (f"OI {res['oi']:+.1f}%(+{sc['oi']})  "
+                     f"FR {res['fr']:+.3f}%(+{sc['fr']})"),
+                    (f"OI(1h) {res['oi']:+.1f}%(+{sc['oi']})  "
                      f"VSS {res['vss']:.2f}(+{sc['vss']})  "
                      f"Player{'✅' if res['has_rise_tag'] else '—'}(+{sc['player']})"),
                 ]
@@ -1004,9 +1011,10 @@ class _Col3Mixin:
         # ── Sort by="Sharp rise"/"Sharp decline" 모드: Player 가산점(+2점, 절단 전 전체 태그 기준) 요약 + 태그 우선 배치 ──
         _is_rise_mode    = self._sort_mode == "Sharp rise"
         _is_decline_mode = self._sort_mode == "Sharp decline"
-        _bonus_keys = TagDetector.RISE_KEYS if _is_rise_mode else TagDetector.DECLINE_KEYS
+        #   Sharp rise 가산 태그 = SharpRiseScorer.PLAYER_KEYS ('FR-' 제외 — 점수와 같은 집합)
+        _bonus_keys = SharpRiseScorer.PLAYER_KEYS if _is_rise_mode else TagDetector.DECLINE_KEYS
         if _is_rise_mode or _is_decline_mode:
-            _has_bonus_tag = bool(_det and (_det.has_rise_tag if _is_rise_mode else _det.has_decline_tag))
+            _has_bonus_tag = bool(_det and _bonus_keys.intersection(_det.keys))
             _bonus_col = POSITIVE if _has_bonus_tag else DIM_TEXT
             _bonus_txt = "✅ +2/2점" if _has_bonus_tag else "— 0/2점"
             sum_f = tk.Frame(self._energy_f, bg=DARK_PANEL)

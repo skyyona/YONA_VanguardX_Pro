@@ -58,7 +58,7 @@ def _make_dm() -> tuple[MiddleDataManager, _Klines]:
     dm._ohlcv_svc = kl
     dm._fr_svc = types.SimpleNamespace(fetch=lambda symbol: None)
     dm._ls_svc = types.SimpleNamespace(fetch=lambda symbol, period="5m": None)
-    dm._oi_svc = types.SimpleNamespace(fetch_change_pct=lambda symbol, period="5m", lookback=2: 0.0)
+    dm._oi_svc = types.SimpleNamespace(fetch_changes=lambda symbol, period="5m": (0.0, 0.0))
     return dm, kl
 
 

@@ -192,7 +192,7 @@ def test_stage_and_forecast_requests_deferred_before_fetch(monkeypatch):
     dm._ohlcv_svc = types.SimpleNamespace(fetch=lambda s, tf, limit=None: order.append("k") or [])
     dm._ls_svc = types.SimpleNamespace(fetch=lambda s: order.append("ls"))
     dm._fr_svc = types.SimpleNamespace(fetch=lambda s: None)
-    dm._oi_svc = types.SimpleNamespace(fetch_change_pct=lambda s: None)
+    dm._oi_svc = types.SimpleNamespace(fetch_changes=lambda s: (0.0, 0.0))
     dm._client = types.SimpleNamespace(fetch_all_premium_index=lambda: [], fetch_funding_info=lambda: [])
     dm._sorted_tickers = [SymbolTicker("AUSDT", 100.0, 1.0, 1.0, 1e6, 101.0, 99.0)]
     dm._refresh_topn_klines(1)

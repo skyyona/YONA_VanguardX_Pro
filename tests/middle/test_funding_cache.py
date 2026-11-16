@@ -122,8 +122,8 @@ class _LS:
 
 
 class _OI:
-    def fetch_change_pct(self, sym):
-        return 0.0
+    def fetch_changes(self, sym):
+        return 0.0, 0.0
 
 
 def test_stage2_uses_saved_value_between_settlements(monkeypatch):

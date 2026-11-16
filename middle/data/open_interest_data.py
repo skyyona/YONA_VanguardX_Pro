@@ -9,6 +9,23 @@ from middle.api.binance_client import MiddleBinanceClient
 from middle.models import OpenInterestData
 
 
+_CHANGE_1H_POINTS = 13   # 5m 이력 13개 = 1시간(12구간)
+
+
+def _change_pct(hist: list[dict]) -> float:
+    """이력 처음→끝 OI 변화율 (%). 2개 미만·형식 오류·처음 값 0 이하 → 0.0."""
+    if len(hist) < 2:
+        return 0.0
+    try:
+        newest = float(hist[-1].get("sumOpenInterest", 0))
+        oldest = float(hist[0].get("sumOpenInterest", 0))
+        if oldest <= 0:
+            return 0.0
+        return (newest - oldest) / oldest * 100.0
+    except (KeyError, ValueError, IndexError):
+        return 0.0
+
+
 class OpenInterestFetcher:
     def __init__(self, client: MiddleBinanceClient) -> None:
         self._client = client
@@ -38,19 +55,11 @@ class OpenInterestFetcher:
                 continue
         return out
 
-    def fetch_change_pct(self, symbol: str, period: str = "5m", lookback: int = 2) -> float:
-        """OI 변화율 (%) 반환.
-        lookback: 몇 기간 전 대비 현재 OI 변화율을 계산할지
-        """
-        hist = self._client.fetch_open_interest_hist(symbol, period, max(lookback + 1, 3))
-        if len(hist) < 2:
-            return 0.0
-        try:
-            newest = float(hist[-1].get("sumOpenInterest", 0))
-            oldest = float(hist[0].get("sumOpenInterest", 0))
-            if oldest <= 0:
-                return 0.0
-            return (newest - oldest) / oldest * 100.0
-        except (KeyError, ValueError, IndexError):
-            return 0.0
+    def fetch_changes(self, symbol: str, period: str = "5m") -> tuple[float, float]:
+        """(10분 OI 변화율 %, 1시간 OI 변화율 %) — 5m 이력 13개 요청 1회 (기존 3개 → 13개, 요청 수 같음, 2026-11-16).
+        10분 값: 마지막 3개 처음→끝 (기존 oi_change 정의 그대로 — Player 태그·Sharp decline·4TF·Newly·3열 공용).
+        1시간 값: 13개(12구간) 처음→끝 — Sharp rise OI 항목 전용. 13개 미만(신규 상장 등)이면 0.0."""
+        hist = self._client.fetch_open_interest_hist(symbol, period, _CHANGE_1H_POINTS)
+        chg_1h = _change_pct(hist) if len(hist) >= _CHANGE_1H_POINTS else 0.0
+        return _change_pct(hist[-3:]), chg_1h
 
