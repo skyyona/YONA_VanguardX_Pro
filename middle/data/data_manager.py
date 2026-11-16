@@ -248,6 +248,9 @@ class MiddleDataManager:
 
         # ── 상태 ───────────────────────────────────────────────
         self._last_tkr_refresh: float = 0.0
+        # REST 전체 시세 1회 이상 성공 여부 — 성공 전엔 WS 수신 중에도 REST 재시도 (WS는 바뀐 종목만 보내므로
+        # 시작 시 REST 실패 후 WS만으로는 일부 종목 목록이 됨 — 2026-11-16)
+        self._tickers_full_loaded: bool = False
         # Fix②: 실데이터 준비 완료 시 화면 재갱신 콜백 (middle_panel이 등록)
         self._on_detail_ready_cb:  "callable | None" = None   # 심볼 상세 갱신 콜백
         self._on_ranking_ready_cb: "callable | None" = None   # ticker 갱신 완료 콜백
@@ -308,6 +311,7 @@ class MiddleDataManager:
             self._forecast_checked.clear()
             self._forecast_slot = -1
             self._stage3_done = False
+            self._tickers_full_loaded = False
 
     def request_selected(self, symbol: str) -> None:
         """선택 심볼 상세 데이터 비동기 갱신 요청."""
@@ -554,8 +558,10 @@ class MiddleDataManager:
             # WebSocket 연결(is_connected=True)만으로는 충분하지 않음:
             # 한국 IP에서 연결은 되나 데이터 Push가 없는 상황 존재
             # → 실제 데이터를 받은 경우(has_received_data=True)만 REST 스킵
+            #   전체 REST 시세가 한 번도 성공하지 못했으면 WS 수신 중에도 재시도 (_tickers_full_loaded)
             if _elapsed % _TICKER_INTERVAL_SEC == 0 and rate_gate.remaining() <= 0:   # 차단 중 REST 생략
-                if self._ws_ticker is None or not self._ws_ticker.has_received_data:
+                if (self._ws_ticker is None or not self._ws_ticker.has_received_data
+                        or not self._tickers_full_loaded):
                     self._refresh_tickers()
 
             # ── STAGE2: 60초마다 경량 갱신 (L/S·FR·OI) ───────
@@ -1038,6 +1044,13 @@ class MiddleDataManager:
     def _refresh_tickers(self) -> None:
         try:
             tickers = self._tkr_svc.fetch_all()
+            if not tickers:
+                # 조회 실패(네트워크·5xx·429 → 빈 응답): 직전 시세 유지 — 덮어쓰면 1열 목록이 비고, WS 복구 뒤에도
+                # 바뀐 종목만 다시 채워져 일부 종목 순위가 됨 (2026-11-16)
+                with self._lock:
+                    kept = len(self._tickers)
+                logging.warning("middle _refresh_tickers: REST 시세 빈 응답 — 직전 시세 유지 (%d종목)", kept)
+                return
             # 거래량 내림차순 정렬 — 다른 Sort by 모드의 스코어링 풀로 사용
             sorted_vol = sorted(tickers, key=lambda t: t.volume_usdt, reverse=True)
             vol_rank = {t.symbol: i + 1 for i, t in enumerate(sorted_vol)}
@@ -1047,6 +1060,7 @@ class MiddleDataManager:
                 self._tkr_map         = {t.symbol: t for t in tickers}
                 self._vol_rank        = vol_rank
                 self._last_tkr_refresh = time.time()
+                self._tickers_full_loaded = True
             self._rebuild_ranking_rows()
             # 5초 ticker 갱신 완료 콜백 → middle_panel 경량 랭킹 업데이트
             cb = self._on_ranking_ready_cb
