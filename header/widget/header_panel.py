@@ -5,6 +5,7 @@ header/widget/header_panel.py
 from __future__ import annotations
 
 import threading
+import time
 import tkinter as tk
 from collections.abc import Callable
 
@@ -12,7 +13,7 @@ from core.config import (
     DARK_BG, DARK_PANEL, DARK_TEXT, DIM_TEXT,
     POSITIVE, NEGATIVE, ORANGE, NEUTRAL,
     INITIAL_BUTTON, FORCED_BUTTON, START_BUTTON, STOP_BUTTON,
-    HEADER_UPDATE_INTERVAL_SEC,
+    HEADER_UPDATE_INTERVAL_SEC, HEADER_BALANCE_INTERVAL_SEC,
 )
 from header.api.binance_client import HeaderBinanceClient
 from header.initial_investment.spot_balance import SpotBalance
@@ -61,6 +62,7 @@ class HeaderPanel:
         self._status    = AppStatus()
         self._timer     = UpdateTimer(HEADER_UPDATE_INTERVAL_SEC, self._tick)
         self._last_wallet_status = WalletQueryStatus.OK
+        self._bal_ts = float("-inf")   # 마지막 선물 잔고 조회 시각 (monotonic)
 
         # ── GUI 빌드 (상/하 패딩 최소화 → 중단/하단 공간 확보) ──
         self._frame = tk.Frame(root, bg=DARK_PANEL, pady=1)
@@ -79,7 +81,7 @@ class HeaderPanel:
 
     def start(self) -> None:
         self._status.set_running()
-        threading.Thread(target=self._tick, daemon=True).start()
+        threading.Thread(target=self._tick, kwargs={"force": True}, daemon=True).start()
 
     def stop(self) -> None:
         self._status.set_idle()
@@ -119,7 +121,7 @@ class HeaderPanel:
 
     def on_transfer_done(self) -> None:
         """이체 완료 후 헤더 UI 갱신."""
-        threading.Thread(target=self._tick, daemon=True).start()
+        threading.Thread(target=self._tick, kwargs={"force": True}, daemon=True).start()
 
     def get_state(self) -> HeaderState:
         return self._last_state
@@ -172,9 +174,14 @@ class HeaderPanel:
         self._lbl_vol.configure(text=f"  {state.session.volume_label}", fg=vol_col)
 
     # ── 내부 ────────────────────────────────────────────────
-    def _tick(self) -> None:
+    def _tick(self, force: bool = False) -> None:
+        """1초마다 시계·세션 표시 갱신. 선물 잔고는 HEADER_BALANCE_INTERVAL_SEC마다 조회
+        (START·이체 완료 직후는 즉시 — force). 바이낸스 IP 사용량 분당 약 250 → 약 50 (2026-11-16)."""
         current = self._status.get()
-        if current in (HeaderStatus.RUNNING, HeaderStatus.ERROR):
+        now = time.monotonic()
+        if current in (HeaderStatus.RUNNING, HeaderStatus.ERROR) and (
+                force or now - self._bal_ts >= HEADER_BALANCE_INTERVAL_SEC):
+            self._bal_ts = now
             result = self._client.fetch_futures_total_balance_with_status()
             self._last_wallet_status = result.status
             if result.status == WalletQueryStatus.OK:

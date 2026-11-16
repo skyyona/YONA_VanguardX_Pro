@@ -12,7 +12,7 @@ core/rate_gate.py
   - 응답 429/418 → Retry-After(초)까지 차단 (헤더 없으면 429 60초 · 418 300초). 원래 HTTPError는 그대로 다시 발생.
   - 차단 해제 시각을 data/rate_gate.json에 저장 → 앱 재시작·다른 프로세스(오프라인 스크립트)도 이어받음.
   - 차단 중 클라이언트들이 남기는 같은 경고는 로그에서 제외 (장치가 차단 시작·연장 때 한 번 남김).
-  - 정상 응답의 IP 사용량(X-MBX-USED-WEIGHT-1M) 기록.
+  - 정상 응답의 IP 사용량(X-MBX-USED-WEIGHT-1M) 기록 → defer_if_over_soft_cap()이 중단 주기 요청을 다음 분으로 미룸.
 불러오기만으로는 연결되지 않는다 — 실행 진입점(main.py·스크립트)에서 install() 1회 (테스트가 urlopen을 대역으로 바꿔 씀).
 """
 from __future__ import annotations
@@ -30,6 +30,7 @@ _HOSTS = ("fapi.binance.com", "api.binance.com")
 _DEFAULT_SEC = {429: 60, 418: 300}
 _FILE_RECHECK_SEC = 5.0             # 다른 프로세스가 남긴 차단 기록 재확인 간격
 MARK = "Rate Limited (공통 차단)"    # RateGateBlocked 문구 표지 — 로그 제외 필터가 사용
+SOFT_CAP = 1_900                    # 이번 분 IP 사용량이 이 값 이상이면 중단 주기 요청을 다음 분으로 미룸 (한도 2,400)
 
 
 class RateGateBlocked(Exception):
@@ -144,6 +145,19 @@ def install(state_path: Path = STATE_PATH) -> RateGate:
 def remaining() -> float:
     """설치된 차단 장치의 남은 차단 초 (설치 전이면 0)."""
     return _gate.remaining() if _gate is not None else 0.0
+
+
+def defer_if_over_soft_cap(sleep=time.sleep, clock=time.time) -> float:
+    """중단 주기 작업(STAGE2·STAGE3·예고)용 — 이번 달력 분의 마지막 IP 사용량이 SOFT_CAP 이상이면
+    다음 분(사용량 초기화, 2026-11-15 실측 매분 0초) 1초까지 기다린다. 기다린 초 반환.
+    헤더·엔진·선택 종목 상세 갱신은 호출하지 않음 (미루지 않음)."""
+    lw = _gate.last_weight if _gate is not None else None
+    now = clock()
+    if lw is None or lw[0] < SOFT_CAP or int(lw[1] // 60) != int(now // 60):
+        return 0.0
+    wait = 60.0 - now % 60 + 1.0
+    sleep(wait)
+    return wait
 
 
 def wait_if_blocked(log=print, sleep=time.sleep) -> float:

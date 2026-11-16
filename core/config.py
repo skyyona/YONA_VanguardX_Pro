@@ -7,6 +7,7 @@ APP_TITLE = "YONA VanguardX Pro"
 
 # ── 갱신 주기 ──────────────────────────────────────────────────
 HEADER_UPDATE_INTERVAL_SEC = 1
+HEADER_BALANCE_INTERVAL_SEC = 5   # 헤더 선물 잔고 조회(/fapi/v2/account, 가중치 5) 주기 — 시계·세션 표시는 1초 유지 (2026-11-16)
 MIDDLE_REFRESH_INTERVAL_MS = 3000
 
 # ── 타임존 ─────────────────────────────────────────────────────

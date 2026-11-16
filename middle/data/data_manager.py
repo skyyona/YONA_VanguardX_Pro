@@ -29,6 +29,12 @@ _STAGE2_INTERVAL = 60    # 경량 갱신: L/S·FR·OI (초) — Rate Limit 예�
 _STAGE2_TOPN     = 100
 _G2_RSI_BARS     = 14 + 5   # M4 준비 G2: 15m 마감 봉 19개 RSI(14) — trading_engine·backtest_runner G2와 동일
 _STAGE3_INTERVAL = 60    # klines 갱신: 4TF OHLCV+지표 (초)
+# STAGE3 봉 마감 맞춤·새 봉만 받기 (2026-11-16) — 바이낸스 IP 사용량 1분 약 1,200 → 마감된 시간 단위만·새 봉만
+_STAGE3_DELAY_MS    = 8_000    # 매분 0초 + 8초 실행 (마감 봉 조회 가능 실측 약 7초)
+_STAGE3_RETRY_UNTIL = 50_000   # 새 봉 미게시 시 같은 분 안 재시도 한도 (분 시작 후 50초)
+_KLINES_INCR_LIMIT  = 3        # 새 봉만 받을 때 요청 봉 수 (마감 2개 + 진행 1개, 가중치 1)
+_TF_MS: dict[str, int] = {"1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000,
+                          "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000}
 _LOOP_BASE       = 5     # 루프 기본 단위 (초) — TICKER_INTERVAL과 동기화
 _SPREAD_INTERVAL = 60    # 호가 스프레드 표본 주기 (초) — bookTicker 전체 1회 가중치 5
 _SPREAD_SAMPLES  = 10    # 심볼별 보관 표본 수 → 최근 10분 중앙값 (배정 단계 스프레드 필터)
@@ -156,6 +162,27 @@ def _has_newer(cur: dict, bars: dict) -> bool:
     return False
 
 
+def _latest_close_ms(tf: str, now_ms: int) -> int:
+    """now_ms 기준 마지막 마감 봉의 마감 시각(+1ms = 진행 중 봉 open_time). 바이낸스 봉 경계 = UTC epoch 배수."""
+    step = _TF_MS[tf]
+    return now_ms // step * step
+
+
+def _splice_bars(cur: list, new: list, need: int) -> list | None:
+    """저장 마감 봉 cur 뒤에 new의 새 마감 봉을 이어붙여 최근 need개 유지 (전체 조회와 같은 목록).
+    새 봉 없음 → cur 그대로. 이어지지 않음(빠진 봉) → None (호출부가 전체 조회)."""
+    last = cur[-1].close_time
+    fresh = [b for b in new if b.close_time > last]
+    if not fresh:
+        return cur
+    prev = last
+    for b in fresh:
+        if b.open_time != prev + 1:
+            return None
+        prev = b.close_time
+    return (cur + fresh)[-need:]
+
+
 def _apply_liq(ind: dict) -> None:
     """갱신 대상 행 청산 근접도 — 상세 경로(_compute_detail)와 같은 함수·입력(1h ATR%·FR%·롱 비율).
     STAGE2(FR·롱 비율)와 STAGE3(1h ATR%)가 모두 반영된 뒤에만 계산 — 그 전에는 기본값(±2.0) 유지."""
@@ -241,6 +268,8 @@ class MiddleDataManager:
         # 주기 작업 겹침 방지·시작 직후 요청 몰림 분산 (2026-11-15)
         self._jobs_running: set[str] = set()      # 실행 중 주기 작업 이름 (STAGE2·STAGE3·예고)
         self._stage3_done = False                  # 시작 후 STAGE3 첫 갱신 완료 — 그 전엔 예고 판정 안 함
+        self._stage3_minute = -1                   # 마지막 STAGE3 실행 분 (분 0초 + _STAGE3_DELAY_MS 기준)
+        self._stage3_stale = False                 # 마지막 STAGE3에서 새 마감 봉 미게시 TF 있음 → 같은 분 안 재시도
         self._ohlcv_fail: dict[tuple[str, str], float] = {}   # (symbol, tf) → get_ohlcv 빈 결과 시각
         self._forecast:        dict[str, dict]            = {}   # symbol → get_forecast() 기록
         self._forecast_slot:   int                        = -1   # 마지막 실행 15분 구간 (-1 = 시작 첫 확인)
@@ -311,6 +340,8 @@ class MiddleDataManager:
             self._forecast_checked.clear()
             self._forecast_slot = -1
             self._stage3_done = False
+            self._stage3_minute = -1
+            self._stage3_stale = False
             self._tickers_full_loaded = False
 
     def request_selected(self, symbol: str) -> None:
@@ -535,13 +566,14 @@ class MiddleDataManager:
 
         Ticker: 5초마다  — 전체 24h 변동률 갱신 → 랭킹 순위 반영
         STAGE2: 60초마다 — L/S·FR·OI 경량 갱신 → Sharp 별점·필터 정확도
-        STAGE3: 60초마다 — 4TF klines 갱신 → TF정렬·ATR%·EMA·4TF별점
+        STAGE3: 매분 봉 마감 + 8초 — 7TF klines 갱신(마감된 TF만 새 봉 조회) → TF정렬·ATR%·EMA·4TF별점
         STAGE1: 클릭 즉시 — request_selected() 에서 처리
         """
         # ── 초기 실행 ─────────────────────────────────────────
         self._refresh_tickers()
         self._fetch_onboard_map()
         self._start_job("stage2", self._refresh_topn_scores, _STAGE2_TOPN)
+        self._stage3_minute = (int(time.time() * 1000) - _STAGE3_DELAY_MS) // 60_000
         self._start_job("stage3", self._refresh_topn_klines, 100)
         threading.Thread(target=self._refresh_spreads, daemon=True).start()
 
@@ -568,9 +600,17 @@ class MiddleDataManager:
             if _elapsed % _STAGE2_INTERVAL == 0:
                 self._start_job("stage2", self._refresh_topn_scores, _STAGE2_TOPN)
 
-            # ── STAGE3: 60초마다 klines 갱신 ─────────────────
-            if _elapsed % _STAGE3_INTERVAL == 0:
+            # ── STAGE3: 매분 봉 마감 + 8초 klines 갱신 (마감된 TF만 새 봉 조회) ──
+            #   새 봉 미게시 TF가 있으면 같은 분 50초까지 5초마다 재시도 (최신 종목은 조회·계산 생략)
+            _now_ms = int(time.time() * 1000)
+            _minute = (_now_ms - _STAGE3_DELAY_MS) // 60_000
+            if _minute != self._stage3_minute:
+                self._stage3_minute = _minute
                 self._start_job("stage3", self._refresh_topn_klines, 100)
+            elif self._stage3_stale and _now_ms % 60_000 < _STAGE3_RETRY_UNTIL:
+                self._start_job("stage3", self._refresh_topn_klines, 100)
+
+            if _elapsed % _STAGE3_INTERVAL == 0:
                 # WS klines 미수신 시 선택 심볼 지표 고착 방지 (엔진 정지 상태 대응)
                 if self._ws_klines is None or not self._ws_klines.has_received_data:
                     with self._lock:
@@ -663,6 +703,7 @@ class MiddleDataManager:
                 pass
 
     def _forecast_one_safe(self, symbol: str, in_list: bool) -> dict | None:
+        rate_gate.defer_if_over_soft_cap()   # 이번 분 IP 사용량 1,900 이상 → 다음 분까지 대기 (2026-11-16)
         if rate_gate.remaining() > 0:   # 차단 중 — 조회하지 않음 (직전 판정 유지)
             return None
         try:
@@ -804,6 +845,7 @@ class MiddleDataManager:
         self._refresh_funding_window()
 
         def _one(ticker: "SymbolTicker") -> None:
+            rate_gate.defer_if_over_soft_cap()   # 이번 분 IP 사용량 1,900 이상 → 다음 분까지 대기 (2026-11-16)
             if rate_gate.remaining() > 0:   # 차단 중 — 남은 종목 조회 생략 (기존 값 유지)
                 return
             sym      = ticker.symbol
@@ -842,8 +884,10 @@ class MiddleDataManager:
         갱신 TF: 1m·3m·5m·15m·1h·4h·1d (단기·일일 추세 — middle.analysis.trend)
         """
         tickers = list(self._sorted_tickers[:n])
+        self._stage3_stale = False
 
         def _one(ticker: "SymbolTicker") -> None:
+            rate_gate.defer_if_over_soft_cap()   # 이번 분 IP 사용량 1,900 이상 → 다음 분까지 대기 (2026-11-16)
             if rate_gate.remaining() > 0:   # 차단 중 — 남은 종목 조회 생략 (기존 값 유지)
                 return
             sym      = ticker.symbol
@@ -851,14 +895,36 @@ class MiddleDataManager:
                 return   # 엔진 종목은 상세 갱신·WS 봉 마감 경로만 사용 (STAGE3 갱신 시점 경합 차단)
             existing = self._ind_cache.get(sym, {})
             try:
-                # ── klines 수집 ──────────────────────────────
+                # ── klines 수집 (2026-11-16) ─────────────────
+                #   새 마감 봉이 없는 TF는 저장 봉 재사용, 있으면 새 봉만(3개) 받아 이어붙임 — 마감 봉은 바뀌지 않으므로
+                #   전체 조회와 같은 목록. 저장 봉 없음·봉 수 다름·이어지지 않음 → 전체 조회.
+                now_ms = int(time.time() * 1000)
+                with self._lock:
+                    cached = dict(self._ohlcv_cache.get(sym, {}))
                 bars: dict = {}
+                fetched = False
                 for tf in _KLINES_TFS:
-                    b = self._ohlcv_svc.fetch(sym, tf, _KLINES_LIMITS[tf])
+                    need = _KLINES_LIMITS[tf] - 1          # 마지막(진행 중) 봉 제외 마감 봉 수
+                    due  = _latest_close_ms(tf, now_ms)
+                    cur  = cached.get(tf)
+                    b = None
+                    if cur and len(cur) == need:
+                        if cur[-1].close_time + 1 >= due:
+                            b = cur                        # 새 마감 봉 없음 — 조회 생략
+                        else:
+                            fetched = True
+                            b = _splice_bars(cur, self._ohlcv_svc.fetch(sym, tf, _KLINES_INCR_LIMIT), need)
+                    if b is None:
+                        fetched = True
+                        b = self._ohlcv_svc.fetch(sym, tf, _KLINES_LIMITS[tf]) or cur
                     if b:
                         bars[tf] = b
+                        if b[-1].close_time + 1 < due:
+                            self._stage3_stale = True      # 새 봉 미게시(또는 조회 실패) — 같은 분 안 재시도
                 if not bars:
                     return
+                if not fetched and existing.get("_data_ready"):
+                    return                                 # 재시도 실행에서 이미 최신인 종목 — 계산 생략
 
                 b1h = bars.get("1h", [])
                 b5m = bars.get("5m", [])
