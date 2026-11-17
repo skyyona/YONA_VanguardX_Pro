@@ -5,6 +5,7 @@ tests/middle/test_newly_fixes.py
  ③ TradFi 계약(주식·ETF·원자재·FX·상장 전 주식) 목록·추가 갱신 대상 제외 (상장 전 코인은 포함, 2026-11-17)
  N4 상장 24시간 미만(0일) 포함 · N1·N2 실제 봉 지표만 채점 · N3 자격 미달 제외 · N5 OI 1시간
  ② 롱 방향만 가점(가격 상승·OI 증가) · N6 3열 채점 보류 · N7 생애주기 1h OI·STAGE3 고점 대비 % · N8 도달 불가 코드 삭제
+ N-1 (2026-11-17) 자격·생애주기 = FR 수신 시각 기준(fr_ready) — 롱숏 미수신은 무관, STAGE2가 멈춘 옛 FR·OI는 제외
 """
 import inspect
 import time
@@ -109,7 +110,7 @@ def _row(dm, sym, days, chg):
 
 def _put(dm, sym, **kw):
     ind = dict(dm._simple_ind(dm._tkr_map[sym]), vss=2.5, oi_change_1h=6.0, oi_change=0.0, funding_rate=0.01,
-               _data_ready=True)
+               _data_ready=True, _fr_ts=time.time())   # FR 수신 시각 — Newly 자격 조건(fr_ready, N-1)
     ind.update(kw)
     dm._ind_cache[sym] = ind
 
@@ -188,8 +189,8 @@ def test_col3_withheld_message_and_lifecycle_gate():
     import middle.widget.panel_col3 as pc3
     src = inspect.getsource(pc3)
     assert "⚠ Newly Listed 채점 보류 (갱신 대상 밖·데이터 준비 중)" in src
-    assert "if _nl_days > 0 and bars_ready(sym):" in src
-    assert "_lc_res = lifecycle_summary(_days, ind) if bars_ready(sym) else None" in src
+    assert "if _nl_days > 0 and fr_ready(sym):" in src                              # N-1: bars_ready → fr_ready
+    assert "_lc_res = lifecycle_summary(_days, ind) if fr_ready(sym) else None" in src
 
 
 # ── N7·N8 라이프사이클 ───────────────────────────────────────────────
@@ -239,3 +240,21 @@ def test_newly_rows_exclude_commodity_fx_preipo_keep_crypto_premarket(dm):
         dm._onboard_map.setdefault(t.symbol, now - 400 * _DAY)
     rows = {r[0] for r in dm.get_newlisted_rows()}
     assert rows == {"PREDICTUSDT", "BTCDOMUSDT", "BTCUSDT"}  # 수정 전: XAU·EUR·ANTHROPIC 포함 (주식만 제외)
+
+
+# ── N-1 (2026-11-17): Newly 자격 = FR 수신 시각 기준(fr_ready) — 롱숏 미수신은 무관, STAGE2가 멈춘 옛 FR·OI는 제외 ──
+def test_n1_fr_ready_gate(dm):
+    rows = []
+    stale = time.time() - dm_mod._DERIV_FRESH_SEC - 60
+    for sym, fr_ts, ls_ts in (("S1USDT", time.time(), 0.0),       # FR 최신 · 롱숏 수신 기록 없음
+                              ("S2USDT", stale, stale),            # FR·롱숏 오래됨 (STAGE2 멈춤 — 차단 등)
+                              ("S3USDT", time.time(), time.time())):
+        _listed(dm, sym, 5)
+        _put(dm, sym, vss=1.0, oi_change_1h=6.0, _fr_ts=fr_ts, _ls_ts=ls_ts)   # 자격은 OI 6% 하나로만
+        rows.append(dm.get_row(sym))
+    assert [dm.fr_ready(s) for s in ("S1USDT", "S2USDT", "S3USDT")] == [True, False, True]
+    assert dm.ind_ready("S1USDT") is False                   # 롱숏 미수신 — ind_ready 기준이었다면 잘못 제외됐을 종목
+    assert all(dm.bars_ready(s) for s in ("S1USDT", "S2USDT", "S3USDT"))   # 수정 전 기준(bars_ready)은 셋 다 통과
+    q = {r[0]: NewlistedScorer.calc_score(r[0], r)["qualified"] for r in rows}
+    assert q == {"S1USDT": True, "S2USDT": False, "S3USDT": True}
+    assert {r[0] for r in NewlistedScorer.get_sorted(rows)} == {"S1USDT", "S3USDT"}   # 옛 FR·OI 종목 S2 제외

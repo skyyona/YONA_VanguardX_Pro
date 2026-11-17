@@ -75,6 +75,13 @@ def ind_ready(symbol: str) -> bool:
     return False
 
 
+def fr_ready(symbol: str) -> bool:
+    """Newly Listed 채점·생애주기용 지표가 실제 값인지 — data_manager.fr_ready 단일 정의. 매니저 없으면 False."""
+    if _data_mgr is not None:
+        return _data_mgr.fr_ready(symbol)
+    return False
+
+
 def get_forecast(symbol: str) -> dict | None:
     """가격 예고 기록 — data_manager.get_forecast 단일 정의. 매니저 없거나 계산 전이면 None."""
     if _data_mgr is not None:

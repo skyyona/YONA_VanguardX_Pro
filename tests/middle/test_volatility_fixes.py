@@ -274,6 +274,7 @@ def _col1_texts(dm, root):
     p._inner, p._verdict_f = tk.Frame(root), tk.Frame(root)
     p._row_frames, p._special, p._cum_labels, p._change_labels, p._phase_labels = [], {}, {}, {}, {}
     p._m4_labels, p._nl_rows = {}, {}
+    p._rank_labels = {}                           # 순위 번호 Label (24h Ticker 재배치, T-2a)
     p._player_tags_map, p._gold_sym = {}, ""
     p._time_fixed, p._time_fix_prices = False, {}
     p._sel_var = tk.StringVar(root, "")

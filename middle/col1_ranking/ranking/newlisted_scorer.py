@@ -1,7 +1,7 @@
 """
 middle/col1_ranking/ranking/newlisted_scorer.py
 Newly Listed Sort by — 신규 상장 심볼 활동성 선정
-자격 조건: 최소 VSS≥1.2 또는 1시간 OI 증가≥3% (활동성 있는 신규 상장만) + 봉 지표 실제 값(bars_ready)
+자격 조건: 최소 VSS≥1.2 또는 1시간 OI 증가≥3% (활동성 있는 신규 상장만) + 봉 지표·FR·OI 실제 값(fr_ready)
 4개 항목 + 연령 가중치:
   Volume Surge(0~4) + OI Momentum(0~3) + Price Velocity(0~3) + FR 숏 쏠림(0~2)
   × 연령 가중치 (7일↓=2.0, 14일↓=1.6, 30일↓=1.3)
@@ -10,12 +10,14 @@ Newly Listed Sort by — 신규 상장 심볼 활동성 선정
   자격 미달 행 목록 제외(N3), 상장 24시간 미만 포함(N4), OI = 1시간 OI(부호 유지, N5),
   롱 방향만 가점(사용자 결정 ② — 엔진 Newly Listed 모드 롱 전용): 가격 속도 = 24h 상승분만, OI = 증가분만
 2026-11-17: FR도 롱 방향 — FR 음수(숏이 비용 지불·숏 쏠림 = 롱 유리)만 가점, 양수(롱 과밀·롱 비용)는 0점
+2026-11-17 N-1: 가드 bars_ready → fr_ready — 채점 입력 OI·FR은 STAGE2 값이라 봉 지표만 확인하면 STAGE2가 멈춘 동안
+  옛 OI로 자격·옛 FR로 가점을 받던 문제. FR 수신 시각(180초)만 확인 — 롱숏 비율은 미사용이라 요구하지 않음
 
 상장 경과일(행 r[1])은 data_manager가 exchangeInfo onboardDate로 계산해 전달
 """
 from __future__ import annotations
 
-from middle.widget.shared_context import bars_ready, get_ind
+from middle.widget.shared_context import fr_ready, get_ind
 
 
 class NewlistedScorer:
@@ -26,7 +28,7 @@ class NewlistedScorer:
     def calc_score(sym: str, row: list | None = None) -> dict:
         days = row[1] if row else 0
         ind  = get_ind(sym)
-        ready = bars_ready(sym)                     # False → 자격 미달 (갱신 대상 밖 기본값·옛 값으로 채점하지 않음)
+        ready = fr_ready(sym)                       # False → 자격 미달 (갱신 대상 밖 기본값·옛 FR·OI로 채점하지 않음, N-1)
         vss  = ind.get("vss", 1.0)
         oi   = ind.get("oi_change_1h", 0.0)         # 1시간 OI 변화 % (부호 유지 — 증가만 가점)
         fr   = ind.get("funding_rate", 0.0)         # FR % (부호 유지 — 음수만 가점, 2026-11-17)

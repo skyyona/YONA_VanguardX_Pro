@@ -9,8 +9,8 @@ import tkinter.ttk as ttk
 from middle.widget.constants import *
 
 # ── shared_context에서 헬퍼 함수 import (단일 정의, 중복 없음) ──
-from middle.widget.shared_context import (bars_ready, get_ind, _live_ranking, get_ticker_info, get_player, get_listing_days,
-                                         get_forecast, forecast_enabled, get_row)
+from middle.widget.shared_context import (bars_ready, fr_ready, get_ind, _live_ranking, get_ticker_info, get_player,
+                                         get_listing_days, get_forecast, forecast_enabled, get_row)
 import middle.widget.shared_context as _ctx
 from middle.col3_analysis_panels.derivative_analysis.open_interest import OpenInterestPanel
 from middle.col3_analysis_panels.derivative_analysis.funding_rate import FundingRatePanel
@@ -202,8 +202,9 @@ class _Col3Mixin:
             tk.Label(wb, text=_invalid,
                      bg=_warn_bg, fg=_warn_col,
                      font=("Segoe UI", 7), anchor="w").pack(fill="x", padx=8)
-            # ── 라이프사이클 감지 결과 — 봉 지표 실제 값일 때만 (N7: 기본값으로 '펌프 미발생' 표시 방지) ──
-            _lc_res = lifecycle_summary(_days, ind) if bars_ready(sym) else None
+            # ── 라이프사이클 감지 결과 — 봉 지표·FR·OI 실제 값일 때만 (N7: 기본값으로 '펌프 미발생' 표시 방지,
+            #    N-1: 1시간 OI 입력 — STAGE2가 멈춘 동안 옛 OI로 판정하지 않음, Newly 채점과 같은 fr_ready) ──
+            _lc_res = lifecycle_summary(_days, ind) if fr_ready(sym) else None
             if _lc_res:
                 _, _lc_lbl, _lc_col, _ = _lc_res
                 _pchg = ind.get("price_change_pct", 0.0)
@@ -856,7 +857,7 @@ class _Col3Mixin:
 
         # ── Newly Listed 전용 분석 블록 ───────────────────────────
         _nl_days = get_listing_days(sym)   # 1열 행·Newly Listed와 같은 정의 (거래량 상위 200 밖 포함)
-        if _nl_days > 0 and bars_ready(sym):   # N7: 갱신 대상 밖 기본값으로 생애주기 판정하지 않음
+        if _nl_days > 0 and fr_ready(sym):     # N7·N-1: 갱신 대상 밖 기본값·옛 OI로 생애주기 판정하지 않음 (Newly 채점과 같은 기준)
             _lc_res = lifecycle_summary(_nl_days, ind)
             if _lc_res:
                 _lc_stage, _lc_lbl, _lc_col, _lc_strat = _lc_res

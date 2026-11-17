@@ -49,6 +49,7 @@ class _DM:
     get_player = MiddleDataManager.get_player   # Player 판정 단일 정의 (get_ind 기반)
     _ind_fresh = lambda self, sym: True          # 대역 지표 = 갱신 대상 값 (MiddleDataManager._ind_fresh)
     bars_ready = lambda self, sym: sym in _IND   # 대역 지표가 있는 종목 = 봉 지표 실제 값
+    fr_ready   = lambda self, sym: sym in _IND   # 대역 지표에 FR 포함 — Newly 자격·3열 생애주기 조건 (N-1)
     _forecaster = Forecaster(None)   # 가격 예고 판정식 없음 → 3열 '판정식 없음' 표시
 
     def get_forecast(self, sym):
@@ -75,6 +76,7 @@ def panel(monkeypatch):
     p._inner, p._verdict_f = tk.Frame(root), tk.Frame(root)
     p._row_frames, p._special, p._cum_labels, p._change_labels, p._phase_labels = [], {}, {}, {}, {}
     p._player_tags_map, p._gold_sym, p._nl_rows = {}, "", {}
+    p._rank_labels = {}                       # 순위 번호 Label (24h Ticker 재배치, T-2a)
     p._time_fixed, p._time_fix_prices = False, {}
     p._sel_var = tk.StringVar(root, "")
     p._build_ranking_rows()
@@ -114,3 +116,10 @@ def test_col3_lifecycle_block_outside_top200(panel):
     """거래량 상위 200 밖 신규 상장 종목도 1열과 같은 상장 경과일로 생애주기 블록 표시."""
     texts = _verdict_texts(panel, "N2USDT")
     assert "★ Newly Listed 분석" in texts and " D+5 " in texts
+
+
+def test_col3_lifecycle_needs_fr_ready(panel, monkeypatch):
+    """N-1: 3열 생애주기는 1시간 OI 입력 — FR 수신 시각이 오래된 종목(fr_ready 아님)은 생애주기 블록을 표시하지 않음."""
+    monkeypatch.setattr(_DM, "fr_ready", lambda self, sym: False)
+    texts = _verdict_texts(panel, "N2USDT")
+    assert "★ Newly Listed 분석" not in texts

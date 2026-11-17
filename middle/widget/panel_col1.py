@@ -3,7 +3,9 @@ middle/widget/panel_col1.py
 1열 Real-Time Ranking 믹스인 (Blacklist 탭은 panel_col1_blacklist.py)
 """
 from __future__ import annotations
+import bisect
 import logging
+import time
 import tkinter as tk
 import tkinter.ttk as ttk
 import webbrowser
@@ -367,6 +369,7 @@ class _Col1Mixin:
         self._change_labels.clear()
         self._phase_labels.clear()
         self._m4_labels.clear()
+        self._rank_labels.clear()
         self._nl_rows.clear()
 
         # ③ pack_forget (0.17ms) — 즉시 화면에서 제거
@@ -411,6 +414,72 @@ class _Col1Mixin:
             except Exception:
                 pass
 
+    # ─── 24h Ticker 행 재배치 (행 재생성 없음) — T-2a ─────────
+    _RESORT_SEC = 5.0   # 재배치 최소 간격(초) — 사용자 결정(권장 5초, 2026-11-17)
+    _resort_ts  = 0.0   # 마지막 재배치 시각 (클래스 기본값 — 인스턴스에서 덮어씀)
+
+    @staticmethod
+    def _lis_keep(seq: list[int]) -> set[int]:
+        """seq(현재 위치 번호를 새 순서로 나열)의 최장 증가 부분열 인덱스 — 이 행들은 그대로 두고 나머지만 옮긴다."""
+        tails: list[int] = []
+        tails_i: list[int] = []
+        prev = [-1] * len(seq)
+        for i, v in enumerate(seq):
+            k = bisect.bisect_left(tails, v)
+            if k == len(tails):
+                tails.append(v)
+                tails_i.append(i)
+            else:
+                tails[k], tails_i[k] = v, i
+            prev[i] = tails_i[k - 1] if k > 0 else -1
+        keep, i = set(), (tails_i[-1] if tails_i else -1)
+        while i != -1:
+            keep.add(i)
+            i = prev[i]
+        return keep
+
+    def _reorder_ranking_rows(self) -> None:
+        """24h Ticker 행을 다시 만들지 않고 현재 24h 변동률 순위대로 재배치 (T-2a, 2026-11-17).
+        정렬 지표(24h 변동률)는 WebSocket ~1초로 바뀌는데 재정렬은 분당 1회 재생성뿐이라
+        표시된 Change%와 행 순서가 최대 1분 어긋나던 문제. 다른 모드는 정렬 지표가 분당 갱신이라 호출하지 않는다.
+        Time Fix 중에는 순위를 고정하므로 하지 않는다. 순위에서 빠진 종목은 버리지 않고 뒤에 유지(재생성 때 정리).
+        비용 절감(실측 — 전체 떼기·전체 재색칠 107ms → 16.7ms): 순서가 이미 맞는 최대 행 집합은 그대로 두고 나머지만
+        pack(after=앞 행)으로 옮기며, 배경(줄무늬·Gold·Player)이 실제로 바뀐 행만 재색칠, 바뀐 순위 번호만 갱신."""
+        if self._sort_mode != "24h Ticker" or self._time_fixed or not self._row_frames:
+            return
+        cur = [sym for _, sym in self._row_frames]
+        if "" in cur:
+            return                          # 안내 행 — 재배치 대상 아님
+        frame_of = {sym: f for f, sym in self._row_frames}
+        kept = [s for s in (r[0] for r in self._get_sorted_ranking()) if s in frame_of]
+        kept_set = set(kept)
+        final = kept + [s for s in cur if s not in kept_set]
+        if final == cur:
+            return                          # 순서 변화 없음
+        pos = {s: i for i, s in enumerate(cur)}
+        special_of = {s: self._special.get(i, set()) for i, s in enumerate(cur)}
+        keep = self._lis_keep([pos[s] for s in final])
+        for i, s in enumerate(final):
+            if i in keep:
+                continue
+            if i == 0:
+                top = self._inner.pack_slaves()[0]
+                if top is not frame_of[s]:
+                    frame_of[s].pack(fill="x", before=top)
+            else:
+                frame_of[s].pack(fill="x", after=frame_of[final[i - 1]])
+        self._row_frames = [(frame_of[s], s) for s in final]
+        self._special    = {i: special_of[s] for i, s in enumerate(final)}
+        for i, s in enumerate(final):
+            rank = i + 1
+            rk = self._rank_labels.get(s)
+            if rk is not None and rk.cget("text") != str(rank):
+                rk.configure(text=str(rank), fg=YELLOW if rank <= 3 else (ACCENT_BLUE if rank <= 10 else DIM_TEXT))
+            f, bg = frame_of[s], self._row_bg(s, i)
+            if f.cget("bg") != bg:
+                f.configure(bg=bg)
+                self._recolor(f, bg, self._special[i])
+
     # ─── 랭킹 행 생성 ─────────────────────────────────────────
     def _build_ranking_rows(self, data: list | None = None) -> None:
         """랭킹 행 전체 생성. data: _rebuild_ranking_rows가 확정한 표시 목록 (None이면 여기서 계산)."""
@@ -451,8 +520,10 @@ class _Col1Mixin:
             rk_f.pack(side="left", padx=(8, 1), fill="y")
             rk_f.pack_propagate(False)
             rk_col = YELLOW if rank <= 3 else (ACCENT_BLUE if rank <= 10 else DIM_TEXT)
-            tk.Label(rk_f, text=str(rank), bg=row_bg, fg=rk_col,
-                     font=("Segoe UI", 9, "bold"), anchor="center").pack(fill="both", expand=True)
+            rk_lbl = tk.Label(rk_f, text=str(rank), bg=row_bg, fg=rk_col,
+                              font=("Segoe UI", 9, "bold"), anchor="center")
+            rk_lbl.pack(fill="both", expand=True)
+            self._rank_labels[symbol] = rk_lbl   # 재배치 시 바뀐 순위 번호·색만 갱신 (T-2a)
 
             # ── Col 1 : Coin Symbol (152px, left) ──────────
             _, px2, _ = self._COLS[1]
@@ -1183,8 +1254,8 @@ class _Col1Mixin:
 
         Time Fix 활성 중: Change%·장단계 고정 유지 (덮어쓰지 않음), M4 준비만 갱신
         Time Fix 비활성: Change% + M4 준비 + 장단계 모두 갱신
-        순위(코인 위치)는 절대 변경하지 않음 → 사용자가 안정적으로 클릭 가능.
-        순위 재정렬은 STAGE3(봉·지표) 갱신 완료 시 _on_klines_ready_col1()에서 별도 실행.
+        순위(코인 위치)는 24h Ticker만 _RESORT_SEC마다 재배치(_reorder_ranking_rows, T-2a — Time Fix 중 제외),
+        그 밖 모드는 STAGE3(봉·지표) 갱신 완료 시 _on_klines_ready_col1()의 재생성에서만 재정렬.
         """
         try:
             new_by_sym = {row[0]: row for row in self._get_sorted_ranking()}
@@ -1249,5 +1320,14 @@ class _Col1Mixin:
                         ph_lbl.configure(text=new_phase, fg=new_ph_col, bg=ph_bg)
                     except Exception:
                         pass
+        except Exception:
+            pass
+
+        # 24h Ticker 행 재배치 — 별도 try: 실패해도 위의 값 갱신을 막지 않는다 (T-2a)
+        try:
+            _now = time.time()
+            if _now - self._resort_ts >= self._RESORT_SEC:
+                self._resort_ts = _now
+                self._reorder_ranking_rows()
         except Exception:
             pass

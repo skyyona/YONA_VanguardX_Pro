@@ -160,6 +160,7 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         self._change_labels : dict[str, tk.Label]  = {}   # sym → Change% Label (5초 소프트 갱신용)
         self._phase_labels  : dict[str, tuple]     = {}   # sym → (ph_f Frame, ph_lbl Label)
         self._m4_labels     : dict[str, tk.Label]  = {}   # sym → M4 준비 Label (24h Ticker 등 기본 Col4)
+        self._rank_labels   : dict[str, tk.Label]  = {}   # sym → 순위 번호 Label (24h Ticker 재배치 시 번호·색 갱신, T-2a)
         self._top_bar_f  : tk.Frame | None = None
         self._bl_built   : bool = False          # Blacklist 탭 Lazy Build 플래그
         # Blacklist 탭 체크박스 상태 (☐/☑ 토글)
@@ -543,6 +544,9 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         # IDLE: START 전 클릭 무효 / ANALYSIS: [Clear] 클릭 전까지 완전 무효
         if self._app_state != "RANKING":
             return
+
+        # 24h Ticker 재배치(T-2a)로 클릭 바인딩의 빌드 시점 인덱스가 어긋날 수 있어 심볼로 현재 위치를 다시 찾는다
+        sel_idx = next((i for i, (_, s) in enumerate(self._row_frames) if s == symbol), sel_idx)
 
         # ── Fix④: 이전 선택+신규 선택 2개 행만 스타일 변경 (100행 전체 제거) ──
         prev_idx = self._sel_idx

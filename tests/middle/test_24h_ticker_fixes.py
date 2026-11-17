@@ -196,7 +196,8 @@ def test_rebuild_highlights_only_selected_symbol_in_analysis(monkeypatch, root):
     monkeypatch.setattr(_ctx, "_data_mgr", None)
     p = MiddlePanel.__new__(MiddlePanel)
     p._inner = tk.Frame(root)
-    for k in ("_special", "_cum_labels", "_cum_shown", "_change_labels", "_phase_labels", "_m4_labels", "_nl_rows"):
+    for k in ("_special", "_cum_labels", "_cum_shown", "_change_labels", "_phase_labels", "_m4_labels",
+              "_rank_labels", "_nl_rows"):
         setattr(p, k, {})
     p._row_frames, p._sort_mode = [], "24h Ticker"
     data = [_row("AUSDT"), _row("BUSDT")]
@@ -298,6 +299,9 @@ class _VerdictDM:
         return 100
 
     def bars_ready(self, sym):     # 3열 생애주기 배너 조건 (봉 지표 실제 값) — 대역 지표는 실제 값으로 취급
+        return True
+
+    def fr_ready(self, sym):       # 3열 생애주기 조건 (봉 지표·FR·OI 실제 값, N-1) — 대역 지표는 실제 값으로 취급
         return True
 
     def get_ranking_rows(self):

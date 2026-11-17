@@ -519,6 +519,19 @@ class MiddleDataManager:
         return (now - ind.get("_ls_ts", 0.0) <= _DERIV_FRESH_SEC
                 and now - ind.get("_fr_ts", 0.0) <= _DERIV_FRESH_SEC)
 
+    def fr_ready(self, symbol: str) -> bool:
+        """Newly Listed 채점·생애주기용 지표가 실제 값인지 — 지금 갱신되는 종목(_ind_fresh)이고 봉 지표가 들어왔으며
+        FR을 실제로 받은 지 _DERIV_FRESH_SEC 이내 (2026-11-17 N-1).
+        롱숏 비율은 요구하지 않는다 (Newly 미사용 — ind_ready는 롱숏 수신까지 요구).
+        OI(oi_change_1h)는 STAGE2·상세 갱신이 FR과 같은 회차에 함께 기록하므로 FR 수신 시각이 최신이면 OI도 그 회차 값
+        (OI 조회 실패 회차는 0.0 — 가점·자격 없음). STAGE2가 멈추면(차단 등) FR 수신 시각이 오래되어 False."""
+        if not self._ind_fresh(symbol):
+            return False
+        ind = self._ind_cache.get(symbol)
+        if not ind or not ind.get("_data_ready"):
+            return False
+        return time.time() - ind.get("_fr_ts", 0.0) <= _DERIV_FRESH_SEC
+
     def get_row(self, symbol: str) -> tuple | None:
         """종목 하나의 1열 행(11-tuple) — 1열 목록과 같은 _make_row·현재 Sort by의 use_macro. 시세 없으면 None.
         3열이 거래량 상위 200(get_ranking_rows) 밖 종목(24h Ticker·Newly Listed 목록)도 1열과 같은 값을 쓰도록."""

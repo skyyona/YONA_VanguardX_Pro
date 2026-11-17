@@ -6,6 +6,7 @@ tests/middle/test_24h_ticker_crosscheck.py
  T-2b 순위에서 빠졌지만 화면에 남은 종목도 Change% 갱신, Time Fix 중에는 고정 유지 (W3)
  W5   get_rows — get_row 와 같은 행, 설정(_strategy.json)은 1회만 읽음
  T-2c Time Fix 중 장단계도 고정 — Change%(고정)와 같은 24h 변동률 기반 장단계가 같은 행에서 모순되지 않음
+ T-2a 24h Ticker 행 재배치 — 재생성 없이 현재 순위대로, 바뀐 배경·번호만 갱신 · Time Fix·다른 모드 제외 · 값 갱신과 분리
 네트워크 조회 없음 · 설정 읽기는 대역(사용자 _strategy.json 미사용).
 """
 import time
@@ -19,7 +20,7 @@ from bottom_engine.models import StrategyParams
 from middle.col1_ranking.ranking.gold_ranking import GoldRanking
 from middle.data.data_manager import MiddleDataManager
 from middle.models import SymbolTicker
-from middle.widget.constants import DARK_ROW_EVN, DARK_ROW_ODD
+from middle.widget.constants import ACCENT_BLUE, DARK_ROW_EVN, DARK_ROW_ODD, DARK_SEL, DIM_TEXT, GOLD_ROW_BG, YELLOW
 from middle.widget.middle_panel import MiddlePanel
 
 
@@ -161,3 +162,102 @@ def test_w5_soft_update_settings_reads_do_not_grow_with_out_of_ranking_rows(monk
         counts.append(reads["count"])
         assert all(p._change_labels[s].cget("text") != "+10.00%" for s in out)   # 이탈 종목도 갱신됨
     assert counts[0] == counts[1]
+
+
+# ── T-2a (24h Ticker 행 재배치) ──────────────────────────────
+def _rows_panel(root, syms, ranked, gold=""):
+    """실제 Tk 행(순위 번호 칸 + 심볼 라벨) — 빌드와 같은 구조·배경. ranked = 현재 24h 순위(_get_sorted_ranking)."""
+    p = MiddlePanel.__new__(MiddlePanel)
+    tk.Frame.__init__(p, root)
+    p._inner = tk.Frame(root)
+    p._sort_mode, p._time_fixed, p._player_tags_map, p._gold_sym = "24h Ticker", False, {}, gold
+    p._row_frames, p._special, p._rank_labels = [], {}, {}
+    for i, s in enumerate(syms):
+        bg = p._row_bg(s, i)
+        row = tk.Frame(p._inner, bg=bg)
+        row.pack(fill="x")
+        rk_f = tk.Frame(row, bg=bg)
+        rk_f.pack(side="left")
+        p._rank_labels[s] = tk.Label(rk_f, text=str(i + 1), bg=bg,
+                                     fg=YELLOW if i < 3 else (ACCENT_BLUE if i < 10 else DIM_TEXT))   # 빌드와 같은 번호 색
+        p._rank_labels[s].pack()
+        tk.Label(row, text=s, bg=bg).pack(side="left")
+        p._row_frames.append((row, s))
+        p._special[i] = set()
+    p._get_sorted_ranking = lambda: [(s,) for s in ranked]
+    return p
+
+
+def _check_layout(p, expect):
+    frames = {s: f for f, s in p._row_frames}
+    assert [s for _, s in p._row_frames] == expect
+    assert p._inner.pack_slaves() == [frames[s] for s in expect]                       # 화면 순서
+    for i, s in enumerate(expect):
+        rk = p._rank_labels[s]
+        assert rk.cget("text") == str(i + 1)
+        assert rk.cget("fg") == (YELLOW if i < 3 else (ACCENT_BLUE if i < 10 else DIM_TEXT))
+        bg = p._row_bg(s, i)
+        assert frames[s].cget("bg") == bg and rk.cget("bg") == bg                     # 줄무늬·하위 위젯 배경
+
+
+def test_t2a_reorder_rows_numbers_stripes(root):
+    syms = [f"S{i}USDT" for i in range(12)]
+    ranked = ["S7USDT"] + [s for s in syms if s not in ("S7USDT", "S4USDT")]          # S7 급등 1위 · S4 순위 이탈
+    p = _rows_panel(root, syms, ranked, gold="S2USDT")
+    p._reorder_ranking_rows()
+    _check_layout(p, ranked + ["S4USDT"])                                              # 이탈 종목은 뒤에 유지
+    gi = [sym for _, sym in p._row_frames].index("S2USDT")
+    assert gi == 3 and p._row_frames[gi][0].cget("bg") == GOLD_ROW_BG                  # Gold 배경은 종목을 따라감 (3→4번째)
+
+
+def test_t2a_reorder_random_orders_exact(root):
+    import random
+    rnd = random.Random(7)
+    syms = [f"S{i}USDT" for i in range(40)]
+    p = _rows_panel(root, syms, syms)
+    for _ in range(30):
+        ranked = syms[:]
+        rnd.shuffle(ranked)
+        ranked = ranked[:rnd.randint(30, 40)]
+        p._get_sorted_ranking = lambda r=ranked: [(s,) for s in r]
+        cur = [s for _, s in p._row_frames]
+        p._reorder_ranking_rows()
+        _check_layout(p, ranked + [s for s in cur if s not in set(ranked)])
+
+
+def test_t2a_no_reorder_in_other_modes_or_time_fix(root):
+    syms = [f"S{i}USDT" for i in range(5)]
+    for attr, val in (("_sort_mode", "Volatility"), ("_time_fixed", True)):
+        p = _rows_panel(root, syms, list(reversed(syms)))
+        setattr(p, attr, val)
+        p._reorder_ranking_rows()
+        assert [s for _, s in p._row_frames] == syms and [p._rank_labels[s].cget("text") for s in syms] == list("12345")
+
+
+def test_t2a_reorder_failure_keeps_value_update_and_interval(monkeypatch, root, reads):
+    _dm(monkeypatch, 150)
+    p = _panel(root, ["S5USDT"])
+    calls = []
+
+    def _boom():
+        calls.append(1)
+        raise RuntimeError("재배치 실패")
+    p._reorder_ranking_rows, p._resort_ts = _boom, 0.0
+    m = _ctx._data_mgr
+    m._tkr_map["S5USDT"] = SymbolTicker("S5USDT", 100.0, 0.0, -40.0, 1e9 - 5, 101.0, 99.0)   # 급락 → 상위 100 밖
+    m._tickers = list(m._tkr_map.values())
+    p._do_soft_ranking_update()
+    assert p._change_labels["S5USDT"].cget("text").strip() == "-40.00%"              # 재배치 실패와 무관하게 값 갱신
+    p._do_soft_ranking_update()                                                        # 5초 안 — 재배치 다시 안 함
+    assert len(calls) == 1
+
+
+def test_t2a_select_after_reorder_highlights_clicked_symbol(root):
+    syms = [f"S{i}USDT" for i in range(6)]
+    p = _rows_panel(root, syms, ["S5USDT"] + syms[:5])
+    p._reorder_ranking_rows()                                  # S5 → 1위 (빌드 때 인덱스 5)
+    p._app_state, p._sel_idx, p._sort_mode = "RANKING", -1, "Pending Listing"   # Pending: 강조만 하고 종료
+    p._on_select("S5USDT", 5)                                  # 클릭 바인딩은 빌드 시점 인덱스 5를 넘김
+    assert p._sel_idx == 0
+    assert p._row_frames[0][0].cget("bg") == DARK_SEL and p._row_frames[0][1] == "S5USDT"
+    assert p._row_frames[5][0].cget("bg") != DARK_SEL
