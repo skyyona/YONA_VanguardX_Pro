@@ -745,13 +745,13 @@ class _Col1Mixin:
     def _release_time_fix_for_rebuild(self) -> None:
         """목록을 다시 만드는 사용자 동작(Sort by 변경·블랙리스트 등록/해제·Clear) 전 Time Fix 자동 해제.
         재생성은 고정 순위·고정 Change%를 깨고 새 종목 Cumulative가 회색 +0.00%로 남으므로
-        고정 상태로 두지 않는다 (2026-11-12). 타이머 칸에 '자동 해제' 표시. 재생성은 호출부가 한다."""
+        고정 상태로 두지 않는다 (2026-11-12). 타이머 칸에 'Time Fix Off' 표시 (2026-11-17 '자동 해제'에서 변경 — 버튼 이름과 같은 영문). 재생성은 호출부가 한다."""
         if not self._time_fixed:
             return
         self._time_fixed = False
         self._clear_time_fix()
         if self._timer_lbl:
-            self._timer_lbl.configure(text="자동 해제", fg=YELLOW)
+            self._timer_lbl.configure(text="Time Fix Off", fg=YELLOW)
 
     def _tick_timer(self) -> None:
         if not self._timer_running:

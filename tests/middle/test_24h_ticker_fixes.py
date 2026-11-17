@@ -222,11 +222,11 @@ def _tf_panel(root, fixed=True):
 
 
 def test_time_fix_auto_released_before_user_rebuild(root):
-    """B-4: 목록 재생성 사용자 동작 전 Time Fix 자동 해제 + '자동 해제' 표시. 고정 아니면 아무것도 안 함."""
+    """B-4: 목록 재생성 사용자 동작 전 Time Fix 자동 해제 + 'Time Fix Off' 표시. 고정 아니면 아무것도 안 함."""
     p = _tf_panel(root)
     p._release_time_fix_for_rebuild()
     assert p._time_fixed is False and p._timer_running is False and p._time_fix_prices == {}
-    assert p._timer_lbl.cget("text") == "자동 해제" and p._timefix_btn.cget("text") == "⏱  Time Fix"
+    assert p._timer_lbl.cget("text") == "Time Fix Off" and p._timefix_btn.cget("text") == "⏱  Time Fix"
     q = _tf_panel(root, fixed=False)
     q._release_time_fix_for_rebuild()
     assert q._timer_lbl.cget("text") == "00:00:12"
