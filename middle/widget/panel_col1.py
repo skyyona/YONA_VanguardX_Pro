@@ -1076,7 +1076,7 @@ class _Col1Mixin:
         """랭킹 행 배경색 단일 정의 — Gold 1위 > Player 숏·혼합·롱 > 홀짝 줄무늬.
         행 생성·선택 해제 복원(_restore_row_highlight·_on_select)이 함께 사용."""
         p_entry = self._player_tags_map.get(symbol)
-        return (GOLD_ROW_BG         if symbol == self._gold_sym                          else
+        return (GOLD_ROW_BG         if symbol and symbol == self._gold_sym              else
                 PLAYER_SHORT_ROW_BG if p_entry and p_entry.get("direction") == "short"   else
                 PLAYER_MIX_ROW_BG   if p_entry and p_entry.get("direction") == "mixed"   else
                 PLAYER_ROW_BG       if p_entry                                           else
@@ -1187,18 +1187,24 @@ class _Col1Mixin:
         순위 재정렬은 STAGE3(봉·지표) 갱신 완료 시 _on_klines_ready_col1()에서 별도 실행.
         """
         try:
-            new_data = self._get_sorted_ranking()
-            cur_sym_set = {sym for _, sym in self._row_frames}
+            new_by_sym = {row[0]: row for row in self._get_sorted_ranking()}
+            # 순위에서 이탈한 종목 — 재정렬(분당 1회) 전까지 화면에 남는다.
+            # 옛 값을 그대로 두면 실제와 다른 Change%가 표시되므로 현재 시세로 갱신한다.
+            # 일괄 조회 — 종목마다 _strategy.json 을 읽지 않도록 (get_rows 가 1회만 읽음)
+            missing = [sym for _, sym in self._row_frames if sym and sym not in new_by_sym]
+            if missing:
+                new_by_sym.update(_ctx.get_rows(missing))
 
-            for row_data in new_data:
-                sym         = row_data[0]
+            for _, sym in self._row_frames:
+                if not sym:
+                    continue        # 안내 행(Pending 로드 중 등) — 갱신 대상 아님
+                row_data = new_by_sym.get(sym)
+                if row_data is None:
+                    continue        # 시세 없음(상장 폐지 등)
                 new_chg     = row_data[4]   # Change% 텍스트
                 new_chg_col = row_data[5]   # Change% 색상
                 new_phase   = row_data[8]   # 장단계 텍스트
                 new_ph_col  = row_data[9]   # 장단계 색상
-
-                if sym not in cur_sym_set:
-                    continue
 
                 # ── Bug1 Fix: Time Fix 비활성 시에만 Change% 업데이트 ───────
                 # Time Fix 활성 중: Change%는 클릭 시점 값으로 고정 유지

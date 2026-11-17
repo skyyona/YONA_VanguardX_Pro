@@ -8,12 +8,14 @@ middle/col1_ranking/ranking/gold_ranking.py
   4TF ▼  →  숏 기회 = tf × 0.40 + SharpDecline(qualified) × 0.35 + ATR × 0.25
   4TF 중립 →  중립  = max(Rise, Decline)(qualified) × 0.35 + ATR × 0.25
   최종 = max(롱 기회, 숏 기회, 중립)   (0.0 ~ 1.0)
-후보 = 1열 표시 목록(symbols) 중 블랙리스트·봉 지표 미준비(bars_ready 아님) 제외
+후보 = 1열 표시 목록(symbols) 중 블랙리스트·채점용 지표 미준비(ind_ready 아님) 제외
   (2026-11-16 G — 갱신 대상 밖 옛 값·기본값 ATR·4TF가 종합 점수에 들어가던 문제)
+  (2026-11-17 T-1a — bars_ready 로는 롱숏·FR 미수신 종목이 통과해 4TF·Squeeze 가
+   0 으로 강제된 채 ATR 단독 채점이 되던 문제. 점수 3항목이 모두 ind_ready 를 요구함)
 """
 from __future__ import annotations
 
-from middle.widget.shared_context import bars_ready, get_ind, _live_ranking, is_blacklisted
+from middle.widget.shared_context import ind_ready, get_ind, _live_ranking, is_blacklisted
 from middle.col1_ranking.ranking.fourtf_scorer import FourTFScorer
 from middle.col1_ranking.ranking.sharp_rise_scorer import SharpRiseScorer
 from middle.col1_ranking.ranking.sharp_decline_scorer import SharpDeclineScorer
@@ -69,8 +71,8 @@ class GoldRanking:
         best_sym, best_score = "", -1.0
         try:
             for sym in (symbols if symbols is not None else [row[0] for row in _live_ranking()]):
-                if is_blacklisted(sym) or not bars_ready(sym):
-                    continue   # 봉 지표 미준비(갱신 대상 밖 옛 값·기본값) — 종합 점수 신뢰 불가
+                if is_blacklisted(sym) or not ind_ready(sym):
+                    continue   # 채점용 지표 미준비 — 4TF·Squeeze 가 0 으로 강제되어 ATR 단독 채점이 됨
                 try:
                     s = GoldRanking.calc(sym, player_map)
                     if s > best_score:

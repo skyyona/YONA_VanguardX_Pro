@@ -12,6 +12,7 @@ tests/middle/test_volatility_fixes.py
  표시 변경: '변동성 등급' → 엔진 Volatility 모드 G4 ATR% 허용 범위 (엔진과 같은 식, 설정 읽기만)
 """
 import inspect
+import time
 import types
 
 import pytest
@@ -35,7 +36,9 @@ def dm(monkeypatch):
 
 
 def _put(dm, sym, atr, data=True, **kw):
-    ind = dict(dm._simple_ind(dm._tkr_map[sym]), atr=atr, atr_pct=atr, _data_ready=data, _atr_ready=True)
+    _ts = time.time()                                      # 롱숏·FR 수신 시각 — Gold 후보 조건(ind_ready)
+    ind = dict(dm._simple_ind(dm._tkr_map[sym]), atr=atr, atr_pct=atr, _data_ready=data, _atr_ready=True,
+               _ls_ts=_ts, _fr_ts=_ts)
     ind.update(kw)
     dm._ind_cache[sym] = ind
 

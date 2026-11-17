@@ -4,6 +4,7 @@ tests/middle/test_col_dedupe.py
 3열 Player 표시(태그 문구·방향 단일 출처, 복수 플레이어 메시지 공용 키, 파생 판정 줄 = 에너지 패널 태그).
 """
 import threading
+import time
 import tkinter as tk
 
 import pytest
@@ -45,7 +46,9 @@ class _BL:
 
 def _dm(monkeypatch, ind: dict) -> MiddleDataManager:
     m = MiddleDataManager.__new__(MiddleDataManager)
-    m._ind_cache = {s: dict(v, _data_ready=True) for s, v in ind.items()}   # 봉 지표 반영 — Gold 후보 조건(bars_ready)
+    _ts = time.time()
+    m._ind_cache = {s: dict(v, _data_ready=True, _ls_ts=_ts, _fr_ts=_ts)
+                    for s, v in ind.items()}   # 봉 지표·롱숏·FR 반영 — Gold 후보 조건(ind_ready)
     m._tkr_map, m._onboard_map = {}, {}
     m._ranking_rows = [_row(s) for s in ind]
     m._vol_rank = {s: i + 1 for i, s in enumerate(ind)}   # 갱신 대상(거래량 상위 100) — 지표 사용 (_ind_fresh)

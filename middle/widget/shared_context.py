@@ -116,6 +116,13 @@ def get_row(symbol: str) -> tuple | None:
     return None
 
 
+def get_rows(symbols: list[str]) -> dict[str, tuple]:
+    """여러 종목의 1열 행 — data_manager.get_rows 단일 정의 (설정 파일 1회 읽기). 매니저 없으면 빈 dict."""
+    if _data_mgr is not None:
+        return _data_mgr.get_rows(symbols)
+    return {}
+
+
 def request_detail(symbol: str) -> None:
     """선택 심볼 상세 데이터 즉시 갱신 요청 — 하단 엔진 폴링용."""
     if _data_mgr is not None:

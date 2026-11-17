@@ -525,6 +525,17 @@ class MiddleDataManager:
         tkr = self._tkr_map.get(symbol)
         return self._make_row(tkr, self._m4_use_macro()) if tkr is not None else None
 
+    def get_rows(self, symbols: list[str]) -> dict[str, tuple]:
+        """여러 종목의 1열 행 — get_row 와 같은 값이지만 use_macro(_strategy.json)를 1회만 읽는다.
+        1초 소프트 갱신이 순위 이탈 종목을 갱신할 때 종목마다 설정 파일을 읽지 않도록."""
+        use_macro = self._m4_use_macro()
+        rows = {}
+        for sym in symbols:
+            tkr = self._tkr_map.get(sym)
+            if tkr is not None:
+                rows[sym] = self._make_row(tkr, use_macro)
+        return rows
+
     def get_player(self, symbol: str) -> TagDetectionResult | None:
         """Player Detection 단일 정의 — 캐시 지표(STAGE2·STAGE3·상세 갱신) 7개 입력.
         has_rise_tag·has_decline_tag는 절단 전 전체 태그 기준, tags는 강도순 상위 4개(표시용).
