@@ -1181,8 +1181,8 @@ class _Col1Mixin:
     def _do_soft_ranking_update(self) -> None:
         """메인 스레드에서 실행: 시세 갱신마다 Change%·M4 준비·장단계만 업데이트.
 
-        Time Fix 활성 중: Change% 고정 유지 (덮어쓰지 않음), 장단계만 갱신
-        Time Fix 비활성: Change% + 장단계 모두 갱신
+        Time Fix 활성 중: Change%·장단계 고정 유지 (덮어쓰지 않음), M4 준비만 갱신
+        Time Fix 비활성: Change% + M4 준비 + 장단계 모두 갱신
         순위(코인 위치)는 절대 변경하지 않음 → 사용자가 안정적으로 클릭 가능.
         순위 재정렬은 STAGE3(봉·지표) 갱신 완료 시 _on_klines_ready_col1()에서 별도 실행.
         """
@@ -1231,11 +1231,13 @@ class _Col1Mixin:
                 #   Volatility        → _grade_txt    4TF Optim    → _4tf_txt
                 #   그 외 + Player 태그 있음 → 태그 텍스트
                 #   그 외 + Player 태그 없음 → 장단계   ← 이 경우만 갱신 대상
-                if (self._sort_mode in ("Sharp rise", "Sharp decline",
-                                        "Newly Listed", "Volatility",
-                                        "4TF Optimization")
+                if (self._time_fixed
+                        or self._sort_mode in ("Sharp rise", "Sharp decline",
+                                               "Newly Listed", "Volatility",
+                                               "4TF Optimization")
                         or sym in self._player_tags_map):
-                    continue
+                    continue        # Time Fix 중: 장단계도 고정 — 갱신 대상 밖 종목은 장단계가 Change%와
+                                    # 같은 24h 변동률에서 나오므로 한쪽만 갱신하면 같은 행에서 서로 모순된다 (2026-11-17 T-2c)
                 ph_pair = self._phase_labels.get(sym)
                 if ph_pair:
                     ph_f, ph_lbl = ph_pair

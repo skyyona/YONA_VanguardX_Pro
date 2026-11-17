@@ -5,6 +5,7 @@ tests/middle/test_24h_ticker_crosscheck.py
  T-1b 빈 심볼('') 행은 Gold 배경이 아님 (W2)
  T-2b 순위에서 빠졌지만 화면에 남은 종목도 Change% 갱신, Time Fix 중에는 고정 유지 (W3)
  W5   get_rows — get_row 와 같은 행, 설정(_strategy.json)은 1회만 읽음
+ T-2c Time Fix 중 장단계도 고정 — Change%(고정)와 같은 24h 변동률 기반 장단계가 같은 행에서 모순되지 않음
 네트워크 조회 없음 · 설정 읽기는 대역(사용자 _strategy.json 미사용).
 """
 import time
@@ -111,6 +112,31 @@ def test_t2b_soft_update_refreshes_symbol_out_of_ranking(monkeypatch, root, read
     p._change_labels["S5USDT"].configure(text="+10.00%")
     p._do_soft_ranking_update()
     assert p._change_labels["S5USDT"].cget("text").strip() == "+10.00%"
+
+
+def test_t2c_time_fix_keeps_phase_fixed(monkeypatch, root, reads):
+    """Time Fix 중: 순위 안(S0)·순위 밖(S250, 갱신 대상 밖) 종목 모두 장단계 고정, M4 준비는 갱신 · 해제 후 장단계 갱신."""
+    m = _dm(monkeypatch, 300)
+    syms = ["S0USDT", "S250USDT"]
+    p = _panel(root, syms)
+    phase = {s: (tk.Frame(root), tk.Label(root, text="옛 장단계")) for s in syms}
+    p._phase_labels = phase
+    p._m4_labels = {s: tk.Label(root, text="옛 M4") for s in syms}
+    m._tkr_map["S250USDT"] = SymbolTicker("S250USDT", 100.0, 0.0, -40.0, 1e9 - 250, 101.0, 99.0)  # −40% — 순위 밖 (급락 진행)
+    m._tickers = list(m._tkr_map.values())
+    ranked = {r[0] for r in p._get_sorted_ranking()}
+    assert "S0USDT" in ranked and "S250USDT" not in ranked                   # S0 +10% = 순위 안
+    p._time_fixed = True
+    p._do_soft_ranking_update()
+    for s in syms:
+        assert phase[s][1].cget("text") == "옛 장단계"                        # 장단계 고정
+        assert p._change_labels[s].cget("text") == "+10.00%"                 # Change% 고정
+        assert p._m4_labels[s].cget("text") != "옛 M4"                        # M4 준비는 Time Fix 중에도 갱신
+    p._time_fixed = False
+    p._do_soft_ranking_update()
+    assert phase["S0USDT"][1].cget("text") == "▲! 급등 진행"                  # 해제 후 갱신 (+10%)
+    assert phase["S250USDT"][1].cget("text") == "▼! 급락 진행"                # 해제 후 갱신 (−40%)
+    assert p._change_labels["S250USDT"].cget("text").strip() == "-40.00%"
 
 
 def test_w5_get_rows_equals_get_row_and_reads_settings_once(monkeypatch, reads):
