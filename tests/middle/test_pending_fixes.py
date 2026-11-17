@@ -239,3 +239,40 @@ def test_p9_listing_time_shown_in_kst(root, monkeypatch):
     walk(p._inner)
     assert "11/20 18:00" in texts and "예정일 경과" in texts and "상장됨" not in texts
     assert datetime.datetime.fromtimestamp(ob / 1000, ZoneInfo("Asia/Seoul")).strftime("%m/%d %H:%M") == "11/20 18:00"
+
+
+# ── 2026-11-17 주식·ETF·블랙리스트 제외 ───────────────────────────────────
+def test_pending_excludes_equity_without_markprice_request():
+    from middle.data.data_manager import MiddleDataManager
+    dm = MiddleDataManager()
+    asked = []
+    dm._client = types.SimpleNamespace(
+        fetch_exchange_info=lambda: {"symbols": [
+            {"symbol": "AMGNUSDT", "status": "PENDING_TRADING", "onboardDate": 1, "underlyingType": "EQUITY"},
+            {"symbol": "HKXUSDT", "status": "PENDING_TRADING", "onboardDate": 2, "underlyingType": "HK_EQUITY"},
+            {"symbol": "XAGUSDT", "status": "PENDING_TRADING", "onboardDate": 3, "underlyingType": "COMMODITY"},
+            {"symbol": "NEWUSDT", "status": "PENDING_TRADING", "onboardDate": 4, "underlyingType": "COIN"}]},
+        fetch_mark_price=lambda s: asked.append(s))
+    assert [s["symbol"] for s, _ in dm.fetch_pending_listings()] == ["XAGUSDT", "NEWUSDT"]   # 수정 전: 주식 포함
+    assert asked == ["XAGUSDT", "NEWUSDT"]                  # 주식 markPrice 요청 없음
+
+
+def test_pending_rows_exclude_blacklisted(root, monkeypatch):
+    import tkinter as tk
+    p = _panel(root, monkeypatch, _DM([]))
+    monkeypatch.setattr(_ctx, "_bl_mgr", types.SimpleNamespace(is_blacklisted=lambda s: s == "BADUSDT",
+                                                                get_all=lambda: ["BADUSDT"]))
+    p._inner = tk.Frame(root)
+    p._row_frames, p._special = [], {}
+    p._on_select = lambda s, i: None
+    p._bind_row_children = lambda *a, **k: None
+    p._pending_cache = P.parse([({"symbol": "BADUSDT", "onboardDate": 1}, None), ({"symbol": "OKUSDT", "onboardDate": 2}, None)])
+    p._build_pending_rows()
+    assert [s for _, s in p._row_frames] == ["OKUSDT"]     # 수정 전: 블랙리스트 미적용
+    p._row_frames = []
+    for w in p._inner.winfo_children():
+        w.destroy()
+    p._pending_cache = P.parse([({"symbol": "BADUSDT", "onboardDate": 1}, None)])
+    p._build_pending_rows()                                 # 전부 블랙리스트 → '없음' 안내
+    texts = [w.cget("text") for f in p._inner.winfo_children() for w in f.winfo_children()]
+    assert "  현재 상장 예정 심볼(PENDING_TRADING)이 없습니다." in texts

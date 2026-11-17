@@ -12,7 +12,9 @@ _INFO = {"symbols": [
     {"symbol": "AAAUSDT", "status": "PENDING_TRADING", "baseAsset": "AAA", "onboardDate": 300,
      "underlyingType": "COIN", "underlyingSubType": ["DeFi"]},
     {"symbol": "BBBUSDT", "status": "PENDING_TRADING", "baseAsset": "BBB", "onboardDate": 100,
-     "underlyingType": "EQUITY", "underlyingSubType": ["TradFi"]},
+     "underlyingType": "COMMODITY", "underlyingSubType": ["TradFi"]},
+    {"symbol": "STKUSDT", "status": "PENDING_TRADING", "baseAsset": "STK", "onboardDate": 200,
+     "underlyingType": "EQUITY", "underlyingSubType": ["TradFi"]},   # 주식·ETF — 제외 (2026-11-17)
     {"symbol": "CCCUSDT", "status": "TRADING", "onboardDate": 50},
     {"symbol": "DDDUSDC", "status": "PENDING_TRADING", "onboardDate": 10},
     {"symbol": "EEEUSDT", "status": "SETTLING"},
@@ -48,10 +50,11 @@ def test_pending_entries_sorted_with_mark_prices():
     client = _Client(_INFO, {"AAAUSDT": {"markPrice": "1.5"}})
     entries = PendingListingDetector.parse(_dm(client).fetch_pending_listings())
     assert entries == [
-        PendingEntry("BBBUSDT", "BBB", 100, "EQUITY", ["TradFi"], 0.0),   # markPrice 조회 실패 → 0.0
+        PendingEntry("BBBUSDT", "BBB", 100, "COMMODITY", ["TradFi"], 0.0),   # markPrice 조회 실패 → 0.0
         PendingEntry("AAAUSDT", "AAA", 300, "COIN", ["DeFi"], 1.5),
     ]
-    assert client.calls == ["exchangeInfo", "BBBUSDT", "AAAUSDT"]   # 1회 + 심볼당 1회, 상장 시각 순
+    # 1회 + 심볼당 1회, 상장 시각 순 — 주식·ETF(STKUSDT)는 목록·markPrice 요청 모두 제외
+    assert client.calls == ["exchangeInfo", "BBBUSDT", "AAAUSDT"]
 
 
 def test_pending_exchange_info_failure_is_none():

@@ -386,7 +386,7 @@ class _Col3Mixin:
                  font=("Segoe UI", 7)).pack(side="right")
         if self._sort_mode == "Newly Listed":
             _s_fr_nl = self._calc_newlist_score(sym)["scores"]["funding"]
-            tk.Label(fr_row, text=f"🎯 Funding Extreme (+{_s_fr_nl}점)",
+            tk.Label(fr_row, text=f"🎯 FR 숏 쏠림 (+{_s_fr_nl}점)",
                      bg=DARK_PANEL, fg=ACCENT_BLUE if _s_fr_nl > 0 else DIM_TEXT,
                      font=("Segoe UI", 7, "bold")).pack(side="right", padx=(0, 8))
         _fr_grade = fra.grade
@@ -834,7 +834,7 @@ class _Col3Mixin:
                     (f"Volume Surge VSS {res['vss']:.2f}(+{sc['surge']})  "
                      f"OI 1h Momentum {res['oi']:+.1f}%(+{sc['oi']})"),
                     (f"Price Velocity 24h {res['chg']:+.2f}%(+{sc['velocity']})  "
-                     f"Funding Extreme {res['fr']:.3f}%(+{sc['funding']})"),
+                     f"FR 숏 쏠림 {res['fr']:+.3f}%(+{sc['funding']})"),
                 ]
                 for dtxt in detail_lines:
                     drow = tk.Frame(self._verdict_f, bg=DARK_PANEL)

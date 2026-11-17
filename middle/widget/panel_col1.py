@@ -964,9 +964,12 @@ class _Col1Mixin:
         self._pending_after_id = self.after(60_000, self._do_pending_time_refresh)
 
     def _build_pending_rows(self) -> None:
-        """PENDING_TRADING 전용 행 생성 — 방안 C 레이아웃."""
+        """PENDING_TRADING 전용 행 생성 — 방안 C 레이아웃.
+        블랙리스트 종목 제외 (2026-11-17 — 다른 Sort by 모드와 같은 제외 기준, 등록·해제 시 재생성으로 즉시 반영)."""
         import datetime as _dt
-        if not self._pending_cache:
+        _bl = _ctx._bl_mgr
+        entries = [e for e in self._pending_cache if not (_bl is not None and _bl.is_blacklisted(e.symbol))]
+        if not entries:
             row = tk.Frame(self._inner, bg=DARK_ROW_ODD, pady=9)
             row.pack(fill="x")
             _status = getattr(self, "_pending_status", "loading")
@@ -986,7 +989,7 @@ class _Col1Mixin:
         _, px3, _ = self._COLS[3]
         _, px4, _ = self._COLS[4]
 
-        for idx, entry in enumerate(self._pending_cache):
+        for idx, entry in enumerate(entries):
             row_bg = DARK_ROW_ODD if idx % 2 == 0 else DARK_ROW_EVN
             sym        = entry.symbol
             onboard_ms = entry.onboard_date

@@ -2,7 +2,7 @@
 tests/middle/test_newly_fixes.py
 1열 Sort by 'Newly Listed' 결함 수정·사용자 결정 (2026-11-16) — 네트워크 없이 대역.
  ① 신규 상장(30일 이내·주식 제외)을 STAGE2·STAGE3 갱신 대상에 추가 → 실제 지표로 채점
- ③ 주식·ETF(underlyingType EQUITY 계열) 목록·추가 갱신 대상 제외 (원자재·FX·상장 전은 포함)
+ ③ TradFi 계약(주식·ETF·원자재·FX·상장 전 주식) 목록·추가 갱신 대상 제외 (상장 전 코인은 포함, 2026-11-17)
  N4 상장 24시간 미만(0일) 포함 · N1·N2 실제 봉 지표만 채점 · N3 자격 미달 제외 · N5 OI 1시간
  ② 롱 방향만 가점(가격 상승·OI 증가) · N6 3열 채점 보류 · N7 생애주기 1h OI·STAGE3 고점 대비 % · N8 도달 불가 코드 삭제
 """
@@ -38,24 +38,29 @@ def _listed(dm, sym, days, hours=0):
     dm._onboard_map[sym] = int(time.time() * 1000) - days * _DAY - hours * 3_600_000
 
 
-# ── ③ 주식·ETF 판정 (exchangeInfo underlyingType) ───────────────────────────
-def test_equity_set_from_exchange_info():
-    ei = {"symbols": [
-        {"symbol": "AMGNUSDT", "underlyingType": "EQUITY"}, {"symbol": "EWYUSDT", "underlyingType": "EQUITY"},
-        {"symbol": "HKXUSDT", "underlyingType": "HK_EQUITY"}, {"symbol": "KRXUSDT", "underlyingType": "KR_EQUITY"},
-        {"symbol": "CNXUSDT", "underlyingType": "CN_EQUITY"}, {"symbol": "XAUUSDT", "underlyingType": "COMMODITY"},
-        {"symbol": "BTCUSDT", "underlyingType": "COIN"}, {"symbol": "ANTHROPICUSDT", "underlyingType": "PREMARKET"},
-        {"symbol": "EURUSDT", "underlyingType": "FX"}]}
-    assert dm_mod._build_equity_set(ei) == {"AMGNUSDT", "EWYUSDT", "HKXUSDT", "KRXUSDT", "CNXUSDT"}
+# ── ③ TradFi 계약 판정 (exchangeInfo contractType — 2026-11-17 주식·ETF → TradFi 전체) ────────
+_EI = {"symbols": [   # 실측 exchangeInfo 형식 (2026-11-17)
+    {"symbol": "AMGNUSDT", "contractType": "TRADIFI_PERPETUAL", "underlyingType": "EQUITY"},
+    {"symbol": "HKXUSDT", "contractType": "TRADIFI_PERPETUAL", "underlyingType": "HK_EQUITY"},
+    {"symbol": "XAUUSDT", "contractType": "TRADIFI_PERPETUAL", "underlyingType": "COMMODITY"},      # 원자재
+    {"symbol": "EURUSDT", "contractType": "TRADIFI_PERPETUAL", "underlyingType": "FX"},             # FX
+    {"symbol": "ANTHROPICUSDT", "contractType": "TRADIFI_PERPETUAL", "underlyingType": "PREMARKET"},  # 상장 전 주식
+    {"symbol": "PREDICTUSDT", "contractType": "PERPETUAL", "underlyingType": "PREMARKET"},          # 상장 전 코인 — 포함
+    {"symbol": "BTCDOMUSDT", "contractType": "PERPETUAL", "underlyingType": "INDEX"},
+    {"symbol": "BTCUSDT", "contractType": "PERPETUAL", "underlyingType": "COIN"}]}
 
 
-def test_fetch_onboard_map_also_sets_equity(dm):
+def test_tradfi_set_from_exchange_info():
+    assert dm_mod._build_tradfi_set(_EI) == {"AMGNUSDT", "HKXUSDT", "XAUUSDT", "EURUSDT", "ANTHROPICUSDT"}
+
+
+def test_fetch_onboard_map_also_sets_tradfi(dm):
     now = int(time.time() * 1000)
     dm._client = types.SimpleNamespace(fetch_exchange_info=lambda: {"symbols": [
-        {"symbol": "AMGNUSDT", "onboardDate": now, "underlyingType": "EQUITY"},
-        {"symbol": "NEWUSDT", "onboardDate": now, "underlyingType": "COIN"}]})
+        dict(s, onboardDate=now) for s in _EI["symbols"]]})
     dm._fetch_onboard_map()
-    assert dm._equity_syms == {"AMGNUSDT"} and set(dm._onboard_map) == {"AMGNUSDT", "NEWUSDT"}
+    assert dm._tradfi_syms == {"AMGNUSDT", "HKXUSDT", "XAUUSDT", "EURUSDT", "ANTHROPICUSDT"}
+    assert len(dm._onboard_map) == len(_EI["symbols"])
 
 
 # ── ③·N4 Newly 목록 대상 ──────────────────────────────────────────────
@@ -65,7 +70,7 @@ def test_newly_rows_exclude_equity_include_day0(dm):
     _listed(dm, "S252USDT", 0, hours=5)                    # 상장 5시간 — 수정 전 제외
     _listed(dm, "S253USDT", 30)
     _listed(dm, "S254USDT", 31)
-    dm._equity_syms = {"S251USDT"}
+    dm._tradfi_syms = {"S251USDT"}
     rows = {r[0] for r in dm.get_newlisted_rows()}
     assert rows == {"S250USDT", "S252USDT", "S253USDT"}
 
@@ -75,7 +80,7 @@ def test_refresh_targets_add_newly_outside_top100(dm):
     _listed(dm, "S250USDT", 3)
     _listed(dm, "S251USDT", 3)
     _listed(dm, "S5USDT", 3)                               # 이미 상위 100 — 중복 없음
-    dm._equity_syms = {"S251USDT"}
+    dm._tradfi_syms = {"S251USDT"}
     t = [x.symbol for x in dm._refresh_targets(100)]
     assert len(t) == 101 and t[-1] == "S250USDT" and t.count("S5USDT") == 1 and "S251USDT" not in t
     assert dm._newly_syms == {"S250USDT"}
@@ -114,7 +119,7 @@ def test_n1_default_and_stale_not_scored(dm):
     r_old = _row(dm, "S260USDT", 5, 12.0)                  # 옛 캐시 (갱신 대상 밖)
     dm._ind_cache["S260USDT"] = dict(dm._simple_ind(dm._tkr_map["S260USDT"]), vss=4.5, oi_change_1h=12.0,
                                      funding_rate=0.12, _data_ready=True)
-    dm._equity_syms = {"S260USDT"}                         # 주식 → 추가 갱신 대상 아님 → 옛 값
+    dm._tradfi_syms = {"S260USDT"}                         # TradFi → 추가 갱신 대상 아님 → 옛 값
     dm._refresh_targets(100)
     assert NewlistedScorer.calc_score("S250USDT", r_def)["ready"] is False
     res = NewlistedScorer.calc_score("S260USDT", r_old)
@@ -207,3 +212,30 @@ def _bars_ok(tf, n):
     from middle.models import OHLCVBar
     s = {"1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000}[tf]
     return [OHLCVBar(i * s, 1.0, 1.05, 0.95, 1.0, 100.0, 100.0, i * s + s - 1) for i in range(n)]
+
+
+# ── 2026-11-17 FR 롱 방향 — 음수(숏 쏠림)만 가점 ─────────────────────────
+@pytest.mark.parametrize("fr, pts", [(0.15, 0), (0.10, 0), (0.05, 0), (0.0, 0), (-0.04, 0), (-0.05, 1),
+                                     (-0.09, 1), (-0.10, 2), (-0.5, 2)])
+def test_fr_long_direction_negative_only(dm, fr, pts):
+    r = _row(dm, "S250USDT", 5, 0.0)
+    dm._refresh_targets(100)
+    _put(dm, "S250USDT", funding_rate=fr)
+    res = NewlistedScorer.calc_score("S250USDT", r)
+    assert res["scores"]["funding"] == pts and res["fr"] == fr   # 수정 전: |FR| — +0.10(롱 과밀)도 2점
+
+
+def test_newly_rows_exclude_commodity_fx_preipo_keep_crypto_premarket(dm):
+    now = int(time.time() * 1000)
+    syms = [s["symbol"] for s in _EI["symbols"]]
+    from middle.models import SymbolTicker
+    for s in syms:
+        t = SymbolTicker(s, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0)
+        dm._tickers.append(t); dm._tkr_map[s] = t
+    dm._client = types.SimpleNamespace(fetch_exchange_info=lambda: {"symbols": [
+        dict(s, onboardDate=now - 5 * _DAY) for s in _EI["symbols"]]})
+    dm._fetch_onboard_map()
+    for t in dm._tickers:                                   # 기존 대역 종목은 상장 400일 유지
+        dm._onboard_map.setdefault(t.symbol, now - 400 * _DAY)
+    rows = {r[0] for r in dm.get_newlisted_rows()}
+    assert rows == {"PREDICTUSDT", "BTCDOMUSDT", "BTCUSDT"}  # 수정 전: XAU·EUR·ANTHROPIC 포함 (주식만 제외)

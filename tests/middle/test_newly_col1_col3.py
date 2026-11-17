@@ -21,12 +21,12 @@ def _row(sym, days, chg):
 
 _NL_ROWS = [
     _row("N1USDT", 20, 12.0),    # VSS 2.5(+2)·OI 1h 6%(+1)·속도 +12%(+2)·FR 0(+0) = 5 × 1.3 = 6.5
-    _row("N2USDT", 5, -25.0),    # 4 + 3 + 속도 0(하락 — 롱 방향만 가점, 2026-11-16) + 2 = 9 × 2.0 = 18.0
+    _row("N2USDT", 5, -25.0),    # 4 + 3 + 속도 0(하락 — 롱 방향만) + FR −0.12(숏 쏠림 2, 2026-11-17 음수만) = 9 × 2.0 = 18.0
     _row("N3USDT", 10, 1.0),     # VSS 1.0·OI 1h 1% → 자격 미달 → 목록 제외 (2026-11-16 N3)
 ]
 _IND = {
     "N1USDT": {"vss": 2.5, "oi_change_1h": 6.0, "funding_rate": 0.01},
-    "N2USDT": {"vss": 4.2, "oi_change_1h": 21.0, "funding_rate": 0.12},
+    "N2USDT": {"vss": 4.2, "oi_change_1h": 21.0, "funding_rate": -0.12},
     "N3USDT": {"vss": 1.0, "oi_change_1h": 1.0, "funding_rate": 0.0},
 }
 
@@ -100,7 +100,7 @@ def test_col3_score_and_rank_match_col1_row(panel):
     assert (res["total"], res["age_weight"], res["weighted"]) == (5, 1.3, 6.5)
     texts = _verdict_texts(panel, "N1USDT")
     assert "전체 2위 · 총 5/12점 × 연령가중 1.3 = 6.5점" in texts
-    assert "Price Velocity 24h +12.00%(+2)  Funding Extreme 0.010%(+0)" in texts
+    assert "Price Velocity 24h +12.00%(+2)  FR 숏 쏠림 +0.010%(+0)" in texts
     assert "전체 1위 · 총 9/12점 × 연령가중 2.0 = 18.0점" in _verdict_texts(panel, "N2USDT")
 
 

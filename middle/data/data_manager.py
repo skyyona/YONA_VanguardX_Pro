@@ -159,15 +159,18 @@ def _build_onboard_map(exchange_info: dict) -> dict[str, int]:
 
 
 _NEWLY_MAX_DAYS = 30   # 신규 상장 판정 상한 (일) — Newly Listed 목록·갱신 대상 공용
-# 주식·ETF (exchangeInfo underlyingType) — Newly Listed 목록·추가 갱신 대상에서 제외 (2026-11-16 사용자 결정 ③)
-#   원자재(COMMODITY)·FX·상장 전(PREMARKET)·지수(INDEX)는 주식·ETF가 아니므로 포함
+# 주식·ETF (exchangeInfo underlyingType) — Pending Listing 제외·유형 배지 기준
 _EQUITY_TYPES = frozenset({"EQUITY", "HK_EQUITY", "KR_EQUITY", "CN_EQUITY"})
+# TradFi 계약 (exchangeInfo contractType) — 주식·ETF·원자재·FX·상장 전 주식(Pre-IPO) 전부.
+#   Newly Listed 목록·추가 갱신 대상에서 제외 (2026-11-16 결정 ③ 주식·ETF → 2026-11-17 TradFi 전체로 확대).
+#   상장 전 코인(PREMARKET·contractType PERPETUAL, 예: PREDICT)은 일반 코인 선물이라 포함 (사용자 선택 11-17)
+_TRADFI_CONTRACT = "TRADIFI_PERPETUAL"
 
 
-def _build_equity_set(exchange_info: dict) -> set[str]:
-    """exchangeInfo 응답에서 주식·ETF 심볼 집합 (underlyingType ∈ _EQUITY_TYPES)."""
+def _build_tradfi_set(exchange_info: dict) -> set[str]:
+    """exchangeInfo 응답에서 TradFi 계약 심볼 집합 (contractType == TRADIFI_PERPETUAL)."""
     return {s.get("symbol", "") for s in exchange_info.get("symbols", [])
-            if s.get("underlyingType") in _EQUITY_TYPES and s.get("symbol")}
+            if s.get("contractType") == _TRADFI_CONTRACT and s.get("symbol")}
 
 
 def _has_newer(cur: dict, bars: dict) -> bool:
@@ -270,8 +273,8 @@ class MiddleDataManager:
         self._ranking_rows:    list                       = []
         self._sort_mode:       str                        = "24h Ticker"   # 1열 Sort by — M4 준비 G7.5 적용 여부 기준
         self._onboard_map:     dict[str, int]             = {}
-        self._equity_syms:     set[str]                   = set()   # 주식·ETF 심볼 (exchangeInfo, onboard와 함께 갱신)
-        self._newly_syms:      set[str]                   = set()   # 추가 갱신 대상 신규 상장(30일 이내·주식 제외) — STAGE 실행마다 갱신
+        self._tradfi_syms:     set[str]                   = set()   # TradFi 계약 심볼 (exchangeInfo, onboard와 함께 갱신)
+        self._newly_syms:      set[str]                   = set()   # 추가 갱신 대상 신규 상장(30일 이내·TradFi 제외) — STAGE 실행마다 갱신
         self._cross_ts_cache:  dict[str, dict[str, float]] = {}  # sym→{tf_key→교차 unix ts}
         self._spread_hist:     dict[str, deque]           = {}   # symbol → 최근 스프레드(%) 표본
         self._deriv_cache:     dict[str, tuple]           = {}   # symbol → (fr, oi, ls, oi_1h, 조회 시각) 마지막 REST 값 — WS 봉 마감 재계산용
@@ -571,7 +574,7 @@ class MiddleDataManager:
         return self._client.fetch_exchange_info()
 
     def fetch_pending_listings(self) -> list[tuple[dict, dict | None]] | None:
-        """PENDING_TRADING 상장 예정 USDT 심볼 원본 조회 (동기) — exchangeInfo 1회 + 심볼당 markPrice 1회.
+        """PENDING_TRADING 상장 예정 USDT 심볼 원본 조회 (동기) — exchangeInfo 1회 + 심볼당 markPrice 1회. 주식·ETF 제외.
         반환: [(exchangeInfo 심볼 dict, premiumIndex 응답 또는 None), ...] onboardDate 오름차순.
         exchangeInfo 조회 실패·예외 → None (조회 실패를 '상장 예정 없음'과 구분)."""
         result: list[tuple[dict, dict | None]] = []
@@ -583,6 +586,7 @@ class MiddleDataManager:
                 s for s in info.get("symbols", [])
                 if s.get("symbol", "").endswith("USDT")
                 and s.get("status") == "PENDING_TRADING"
+                and s.get("underlyingType") not in _EQUITY_TYPES   # 주식·ETF 제외 (2026-11-17) — markPrice 요청도 생략
             ]
             pending.sort(key=lambda s: s.get("onboardDate") or float("inf"))   # P1: 예정일 미상은 맨 뒤
             for s in pending:
@@ -1247,19 +1251,20 @@ class MiddleDataManager:
         return [self._make_row(t, use_macro) for t in self._newly_tickers(tickers_snap)]
 
     def _newly_tickers(self, tickers: list[SymbolTicker]) -> list[SymbolTicker]:
-        """상장 0~30일(24시간 미만 포함 — Newly N4)·주식/ETF 제외(사용자 결정 ③) 종목. onboardDate 미상은 제외."""
+        """상장 0~30일(24시간 미만 포함 — Newly N4)·TradFi 계약 제외(주식·ETF·원자재·FX·Pre-IPO) 종목.
+        onboardDate 미상은 제외."""
         with self._lock:
             onboard = dict(self._onboard_map)
-            equity  = set(self._equity_syms)
+            tradfi  = set(self._tradfi_syms)
         out = []
         for t in tickers:
             ob = onboard.get(t.symbol, 0)
-            if ob and t.symbol not in equity and 0 <= _days_since_listing(ob) <= _NEWLY_MAX_DAYS:
+            if ob and t.symbol not in tradfi and 0 <= _days_since_listing(ob) <= _NEWLY_MAX_DAYS:
                 out.append(t)
         return out
 
     def _refresh_targets(self, n: int) -> list[SymbolTicker]:
-        """STAGE2·STAGE3 갱신 대상 = 거래량 상위 n + 신규 상장(30일 이내·주식 제외) — 신규 상장은 대부분 거래량 상위 100 밖이라
+        """STAGE2·STAGE3 갱신 대상 = 거래량 상위 n + 신규 상장(30일 이내·TradFi 제외) — 신규 상장은 대부분 거래량 상위 100 밖이라
         지표를 한 번도 받지 못해 Newly Listed 목록이 기본값 '자격 미달'로만 채워지던 문제 (2026-11-16 Newly ①).
         추가 대상은 _newly_syms로 기록 → _ind_fresh(채점·표시 갱신 대상 판정)에 포함."""
         with self._lock:
@@ -1276,10 +1281,10 @@ class MiddleDataManager:
             ei = self._client.fetch_exchange_info()
             if ei:
                 m = _build_onboard_map(ei)
-                eq = _build_equity_set(ei)
+                tf = _build_tradfi_set(ei)
                 with self._lock:
                     self._onboard_map = m
-                    self._equity_syms = eq
+                    self._tradfi_syms = tf
         except Exception:
             pass
 

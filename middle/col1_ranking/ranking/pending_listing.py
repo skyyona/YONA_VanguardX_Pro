@@ -15,7 +15,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 
-from middle.data.data_manager import _EQUITY_TYPES   # 주식·ETF underlyingType (Newly Listed 제외 기준과 같은 정의)
+from middle.data.data_manager import _EQUITY_TYPES   # 주식·ETF underlyingType (Pending 제외 기준과 같은 정의)
 
 
 @dataclass
