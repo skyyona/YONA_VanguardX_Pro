@@ -175,7 +175,10 @@ class _Col1BlacklistMixin:
         if len(vals) <= sym_col:
             return
         sym = vals[sym_col]
-        if not sym or sym == "데이터 로드 중...":
+        # 안내 행 제외 — 데이터 행은 순번 칸(vals[0])이 항상 str(idx+1), 안내 행("Settling 조회 중..."·
+        # "Settling 조회 실패 …"·"감지된 심볼 없음")은 빈 문자열 (B-1, 2026-11-18 — 기존 가드는 옛 문구
+        # "데이터 로드 중..."만 비교해 안내 문구가 체크·등록되던 문제). Settling·Blacklist 두 트리 공용 판정.
+        if not sym or not vals[0]:
             return
         if sym in checked:
             checked.discard(sym)
@@ -311,35 +314,22 @@ class _Col1BlacklistMixin:
             count_lbl.configure(text=f"Blacklist  ({n}개)" if n else "Blacklist")
 
     def _add_to_blacklist(self) -> None:
-        """Settling Update에서 ☑ 체크된 심볼 일괄 Blacklist 추가.
-        체크 없으면 현재 포커스 행 단일 추가.
+        """Settling Update에서 ☑ 체크된 심볼만 일괄 Blacklist 추가 — 체크가 없으면 아무것도 하지 않는다.
+        (UI-2, 2026-11-18 — 체크 없을 때 포커스 행을 대신 추가하던 동작 삭제: 체크 칸 클릭도 포커스를 남겨
+        ☑ 후 ☐로 해제한 행이 그대로 추가되던 문제. 화면의 ☑ = 실제 처리 대상)
         """
         t_tree = getattr(self, "_t_tree", None)
         if t_tree is None or _ctx._bl_mgr is None:
             return
 
-        # ☑ 체크된 심볼 수집 (없으면 포커스 행 단일 추가)
+        # ☑ 체크된 데이터 행의 심볼·status 수집 (rank|check|symbol|change|status) — 안내 행(순번 칸 빈 문자열) 제외 (B-1)
         targets: list = []   # [(symbol, status), ...]
-
-        if self._checked_settling:
-            # 트리에서 체크된 심볼의 status 값 조회 (rank|check|symbol|change|status)
-            for row_id in t_tree.get_children():
-                vals = t_tree.item(row_id, "values")
-                if vals and len(vals) >= 3 and vals[2] in self._checked_settling:
-                    sym    = vals[2]
-                    status = vals[4] if len(vals) > 4 else "SETTLING"
-                    targets.append((sym, status))
-        else:
-            sel = t_tree.focus()
-            if not sel:
-                return
-            vals = t_tree.item(sel, "values")
-            if not vals or len(vals) < 3:
-                return
-            sym = vals[2]
-            if not sym or sym == "데이터 로드 중...":
-                return
-            targets.append((sym, vals[4] if len(vals) > 4 else "SETTLING"))
+        for row_id in t_tree.get_children():
+            vals = t_tree.item(row_id, "values")
+            if vals and len(vals) >= 3 and vals[0] and vals[2] in self._checked_settling:
+                sym    = vals[2]
+                status = vals[4] if len(vals) > 4 else "SETTLING"
+                targets.append((sym, status))
 
         if not targets:
             return
@@ -353,27 +343,15 @@ class _Col1BlacklistMixin:
         self._rebuild_ranking_rows()   # Ranking에서 즉시 제외
 
     def _release_from_blacklist(self) -> None:
-        """Blacklist에서 ☑ 체크된 심볼 일괄 제거, Ranking에 복귀.
-        체크 없으면 현재 포커스 행 단일 제거.
+        """Blacklist에서 ☑ 체크된 심볼만 일괄 제거, Ranking에 복귀 — 체크가 없으면 아무것도 하지 않는다.
+        (UI-2, 2026-11-18 — 체크 없을 때 포커스 행을 대신 해제하던 동작 삭제: ☑ 후 ☐로 해제한 행이
+        블랙리스트에서 풀려 엔진 진입이 다시 가능해지던 문제)
         """
         b_tree = getattr(self, "_b_tree", None)
         if b_tree is None or _ctx._bl_mgr is None:
             return
 
-        targets: list = []   # 제거할 심볼 목록
-
-        if self._checked_blacklist:
-            targets = list(self._checked_blacklist)
-        else:
-            sel = b_tree.focus()
-            if not sel:
-                return
-            vals = b_tree.item(sel, "values")
-            if not vals or len(vals) < 3:
-                return
-            sym = vals[2]   # rank|check|symbol|added|status
-            if sym:
-                targets.append(sym)
+        targets: list = list(self._checked_blacklist)   # 제거할 심볼 목록 (체크된 것만)
 
         if not targets:
             return
