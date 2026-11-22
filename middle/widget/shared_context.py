@@ -23,7 +23,8 @@ def is_blacklisted(symbol: str) -> bool:
 
 
 def blacklist_problem() -> str:
-    """블랙리스트 보호 이상 사유 ("" = 정상) — 매니저 미생성(import·생성 실패) 또는 파일 로드 실패·일부 손실."""
+    """블랙리스트 보호 이상 사유 ("" = 정상) — 매니저 미생성(import·생성 실패) 또는 파일 로드 실패·일부 손실·
+    손상 백업 남음(Blacklist_Backup 확인 필요)·저장 실패 (BlacklistManager.load_error)."""
     if _bl_mgr is None:
         return "블랙리스트 미로드"
     return _bl_mgr.load_error

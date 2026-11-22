@@ -248,7 +248,7 @@ class _Col1BlacklistMixin:
 
     def _apply_exchange_info(self, info: dict) -> None:
         """메인 스레드: exchangeInfo로 Settling 목록 갱신 + 거래 재개 종목 자동 해제.
-        목록이 바뀐 경우에만 다시 그리고, 다시 그려도 사용자가 ☑ 체크해 둔 심볼(목록에 남은 것)은 유지."""
+        목록이 바뀌었거나 트리를 아직 그리지 않은 경우에만 그리고, 다시 그려도 사용자가 ☑ 체크해 둔 심볼(목록에 남은 것)은 유지."""
         entries = _SettlingDetector.detect(info)
         changed = (getattr(self, "_settling_status", "") != "ok"
                    or [(e.symbol, e.status) for e in entries]
@@ -256,7 +256,10 @@ class _Col1BlacklistMixin:
         self._settling_cache, self._settling_status = entries, "ok"
         released = self._release_resumed_symbols(info)
         t_tree = getattr(self, "_t_tree", None)
-        if t_tree is not None and (changed or released):
+        # not get_children() = 아직 한 번도 그리지 않은 트리 (_render_settling_tree는 항목이 없어도 안내 행 1줄을 넣으므로
+        # 0행은 '미렌더'와 같음). 탭을 열기 전에 5분 자동 감지가 먼저 돌면 상태 "ok"·캐시 동일로 changed=False가 되어
+        # 탭 첫 표시가 빈 화면이던 문제 (N-1, 2026-11-22)
+        if t_tree is not None and (changed or released or not t_tree.get_children()):
             keep = set(self._checked_settling)
             self._render_settling_tree(t_tree)          # 체크 집합 초기화 후 다시 그림
             for row_id in t_tree.get_children():
@@ -392,7 +395,7 @@ class _Col1BlacklistMixin:
             count_lbl.configure(text=f"Blacklist  ({n}개)" if n else "Blacklist")
 
     def _add_to_blacklist(self) -> None:
-        """Settling Update에서 ☑ 체크된 심볼만 일괄 Blacklist 추가 — 체크가 없으면 아무것도 하지 않는다.
+        """Settling Update에서 ☑ 체크된 심볼만 일괄 Blacklist 추가 — 체크가 없으면 등록 없이 안내만 표시(N-2).
         (UI-2, 2026-11-18 — 체크 없을 때 포커스 행을 대신 추가하던 동작 삭제: 체크 칸 클릭도 포커스를 남겨
         ☑ 후 ☐로 해제한 행이 그대로 추가되던 문제. 화면의 ☑ = 실제 처리 대상)
         엔진 배정 종목은 제외하고 안내 표시 (②, 2026-11-22).
@@ -409,6 +412,10 @@ class _Col1BlacklistMixin:
                 sym    = vals[2]
                 status = vals[4] if len(vals) > 4 else "SETTLING"
                 targets.append((sym, status))
+
+        if not targets:   # 체크 없음 — 무반응 대신 안내 (N-2, 2026-11-22)
+            self._set_header_message("⛔ 체크한 심볼이 없습니다 — Settling Update 목록의 ☐ 칸을 클릭해 선택한 뒤 Add")
+            return
 
         # 엔진 배정 종목은 등록하지 않는다 (2026-11-22 ② — 블랙리스트 종목은 랭킹 제외·Assign 차단이라
         # 엔진이 블랙리스트 종목을 갖는 유일한 경로가 '배정 후 등록'이었음. 이 경로를 막아 엔진 블랙리스트
@@ -430,7 +437,7 @@ class _Col1BlacklistMixin:
         self._refresh_ranking_if_affected([sym for sym, _ in targets], added=True)   # 1열에 있던 심볼이면 즉시 제외
 
     def _release_from_blacklist(self) -> None:
-        """Blacklist에서 ☑ 체크된 심볼만 일괄 제거, Ranking에 복귀 — 체크가 없으면 아무것도 하지 않는다.
+        """Blacklist에서 ☑ 체크된 심볼만 일괄 제거, Ranking에 복귀 — 체크가 없으면 해제 없이 안내만 표시(N-2).
         (UI-2, 2026-11-18 — 체크 없을 때 포커스 행을 대신 해제하던 동작 삭제: ☑ 후 ☐로 해제한 행이
         블랙리스트에서 풀려 엔진 진입이 다시 가능해지던 문제)
         """
@@ -440,7 +447,8 @@ class _Col1BlacklistMixin:
 
         targets: list = list(self._checked_blacklist)   # 제거할 심볼 목록 (체크된 것만)
 
-        if not targets:
+        if not targets:   # 체크 없음 — 무반응 대신 안내 (N-2, 2026-11-22)
+            self._set_header_message("⛔ 체크한 심볼이 없습니다 — Blacklist 목록의 ☐ 칸을 클릭해 선택한 뒤 Release")
             return
 
         for sym in targets:

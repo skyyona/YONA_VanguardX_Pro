@@ -38,7 +38,11 @@ class BlacklistManager:
         self._backup_dir = _BACKUP_DIR if path == _BLACKLIST_PATH else path.parent / _BACKUP_DIR.name
         self._entries: dict[str, BlacklistEntry] = {}
         self._load_problem = ""   # 최근 load()가 남긴 사유 — 저장 성공 시 load_error 를 이 값으로 되돌림
-        self.load_error = ""   # 로드 실패·일부 손실·손상 백업 남음·저장 실패 사유 — 비어 있지 않으면 차단 목록이 불완전
+        # 블랙리스트 보호 이상 사유 ("" = 정상) — 사유별 의미:
+        #   파일 없음·파싱 실패·형식 오류·손상 항목 제외 → 차단 목록이 불완전할 수 있음
+        #   손상 백업 남음 → 현재 목록은 온전할 수 있으나 백업(손상 원본) 확인 필요 (사용자가 백업 삭제 시 해제)
+        #   저장 실패 → 메모리 목록은 맞지만 파일 미반영 (재시작 시 변경 사항 사라짐)
+        self.load_error = ""
         self.load()
 
     # ── CRUD ──────────────────────────────────────────────────

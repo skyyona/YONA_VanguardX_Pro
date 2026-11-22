@@ -8,6 +8,7 @@ tests/middle/test_blacklist_tab_fixes.py
  1번 3열 분석 중 종목 직접 등록 — 확인 창 → MANUAL 등록 → 분석 자동 종료('가') (2026-11-22)
  2·3번 5분 캐시 exchangeInfo로 Settling 자동 감지(새 조회 없음)·거래 재개 자동 해제(MANUAL 제외) (2026-11-22)
  ⑤   1열 목록이 바뀔 때만 Time Fix 해제·재생성 · ① 0.00% 표시 · ② Settling 조회 실패 로그 (2026-11-22)
+ N-1 5분 자동 감지가 탭보다 먼저 돌아도 탭 첫 표시에 목록이 그려짐 · N-2 체크 없이 Add·Release 시 안내 (2026-11-22)
 블랙리스트 파일은 tmp_path 임시 경로만 사용 (실제 middle/data/_blacklist.json 미사용).
 체크 칸 클릭은 Treeview 위치 판별(identify_region·identify_column·identify_row)을 대역으로 바꿔 시험한다
 (숨긴 테스트 창은 셀 좌표가 없음 — 실제 클릭 확인은 별도 실행으로 수행).
@@ -57,6 +58,8 @@ def _panel(root, cache, status="ok"):
     p._checked_settling, p._checked_blacklist = set(), set()
     p._settling_cache, p._settling_status = list(cache), status
     p._row_frames = []                       # 1열 표시 행 (MiddlePanel.__init__ 기본값)
+    p.msgs = []
+    p._set_header_message = p.msgs.append    # 3열 헤더 안내 (실앱: MiddlePanel._set_header_message)
     p.calls = []
     p._release_time_fix_for_rebuild = lambda: p.calls.append("timefix")
     p._rebuild_ranking_rows = lambda: p.calls.append("rebuild")
@@ -366,3 +369,32 @@ def test_settling_fetch_failure_logged(root, bl, monkeypatch, caplog):
         p._load_settling_data()
         assert done.wait(5)
     assert "Blacklist Settling 조회 실패: 연결 실패" in caplog.text
+
+
+# ── N-1 · N-2 ─────────────────────────────────────────────────
+def test_tab_open_after_auto_refresh_renders(root, bl, monkeypatch):
+    """N-1 — 탭을 열기 전에 5분 자동 감지가 먼저 돌아도 탭 첫 표시에 목록이 그려진다 (실앱 순서 그대로, 상태 되돌림 없음)."""
+    dm = _CacheDM(_ei(XXXUSDT="SETTLING", YYYUSDT="BREAK"))
+    monkeypatch.setattr(_ctx, "_data_mgr", dm)
+    p = MiddlePanel.__new__(MiddlePanel)
+    p._checked_settling, p._checked_blacklist, p._row_frames = set(), set(), []
+    p._settling_cache, p._settling_status = [], "loading"          # MiddlePanel.__init__ 기본값
+    p._release_time_fix_for_rebuild = p._rebuild_ranking_rows = lambda: None
+    p.after = lambda ms, fn: None
+    p._auto_settling_refresh()                                       # 1) 탭 미생성(_t_tree 없음) 상태로 +5분 자동 감지
+    assert getattr(p, "_t_tree", None) is None and p._settling_status == "ok"
+    p._t_tree = ttk.Treeview(root, columns=("rank", "check", "symbol", "change", "status"), show="headings")   # 2) 탭 첫 생성
+    p._load_settling_data()
+    assert [p._t_tree.item(r, "values")[2] for r in p._t_tree.get_children()] == ["XXXUSDT", "YYYUSDT"]   # 3) 그려짐
+    assert dm.fetches == 0
+
+
+def test_no_check_add_release_show_guide(root, bl):
+    """N-2 — 체크 없이 Add·Release → 등록·해제 없이 안내 문구 (기존: 무반응)."""
+    bl.add("ZZZUSDT", status="HALT")
+    p = _panel(root, _ENTRIES)
+    p._add_to_blacklist()
+    p._release_from_blacklist()
+    assert [e.symbol for e in bl.get_all()] == ["ZZZUSDT"] and p.calls == []
+    assert p.msgs == ["⛔ 체크한 심볼이 없습니다 — Settling Update 목록의 ☐ 칸을 클릭해 선택한 뒤 Add",
+                      "⛔ 체크한 심볼이 없습니다 — Blacklist 목록의 ☐ 칸을 클릭해 선택한 뒤 Release"]
