@@ -136,6 +136,9 @@ class _SlowDM:
         time.sleep(0.4)
         return self.info
 
+    def cached_exchange_info(self):   # 5분 캐시 아직 없음(앱 시작 직후) → 작업 스레드 조회 경로 (2026-11-22)
+        return None
+
     def get_ticker(self, sym):
         return None
 

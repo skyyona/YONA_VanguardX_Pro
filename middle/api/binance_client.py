@@ -57,6 +57,9 @@ class MiddleBinanceClient:
         self._trading_symbols:    set[str] = set()
         self._trading_cache_ts:   float    = 0.0
         self._trading_fail_ts:    float    = 0.0   # 마지막 exchangeInfo 조회 실패 시각
+        # 위 5분 캐시가 마지막으로 성공한 exchangeInfo 원본 — 1열 Blacklist 탭 Settling 자동 감지·거래 재개 자동 해제가
+        # 추가 요청 없이 재사용 (2026-11-22 사용자 결정 2·3번). 통째로 교체만 하므로 다른 스레드에서 읽어도 안전.
+        self._exchange_info:      dict | None = None
         # 최근 응답의 X-MBX-USED-WEIGHT-1M — 레이트리밋 실측 확인용
         self._last_used_weight:   str      = ""
 
@@ -113,9 +116,14 @@ class MiddleBinanceClient:
             if syms:
                 self._trading_symbols  = syms
                 self._trading_cache_ts = now
+                self._exchange_info    = ei
                 return self._trading_symbols
         self._trading_fail_ts = now
         return self._trading_symbols
+
+    def cached_exchange_info(self) -> dict | None:
+        """5분 캐시(_get_trading_symbols)가 마지막으로 성공한 exchangeInfo 원본 — 새로 조회하지 않음. 없으면 None."""
+        return self._exchange_info
 
     # ── 24h Ticker ────────────────────────────────────────────
     def fetch_all_tickers(self) -> list[dict]:

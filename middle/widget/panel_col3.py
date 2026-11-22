@@ -61,6 +61,19 @@ class _Col3Mixin:
             )
             assign_btn._is_assign_btn = True
             assign_btn.pack(side="right", padx=4)
+            # 블랙리스트 직접 등록 (2026-11-22 사용자 결정 1번) — Assign 버튼과 같은 표식으로 함께 생성·제거
+            bl_btn = tk.Button(
+                action_bar,
+                text="⛔  Blacklist",
+                bg="#252525", fg=NEGATIVE,
+                activebackground="#303030", activeforeground=NEGATIVE,
+                font=("Segoe UI", 8, "bold"),
+                relief="flat", padx=10, pady=4,
+                cursor="hand2",
+                command=lambda s=sym: self._blacklist_selected_symbol(s),
+            )
+            bl_btn._is_assign_btn = True
+            bl_btn.pack(side="right", padx=4)
 
         if not data:
             # 시세 없는 심볼(거래 목록에 없음): 심볼명 + —— (M4 준비/추세 단계) + 등락률 + 순위 뱃지

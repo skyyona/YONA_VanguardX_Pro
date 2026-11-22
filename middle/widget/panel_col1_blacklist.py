@@ -4,9 +4,11 @@ middle/widget/panel_col1_blacklist.py
 블랙리스트 저장소는 middle/data/blacklist.py(_ctx._bl_mgr) — 하단 엔진 신규 진입 차단과 같은 원본.
 """
 from __future__ import annotations
+import logging
 import threading
 import tkinter as tk
 import tkinter.ttk as ttk
+from tkinter import messagebox
 from middle.widget.constants import *
 
 import middle.widget.shared_context as _ctx
@@ -15,6 +17,9 @@ from middle.data.settling import SettlingDetector as _SettlingDetector
 
 class _Col1BlacklistMixin:
     """1열 2탭 Blacklist 믹스인."""
+
+    # Settling 자동 감지·거래 재개 자동 해제 주기 — TRADING 심볼 캐시(binance_client, 5분)와 같은 주기 (2026-11-22 사용자 결정)
+    _SETTLING_REFRESH_MS = 300_000
 
     # ══════════════════════════════════════════════════════════
     # 2탭 — Blacklist
@@ -158,7 +163,7 @@ class _Col1BlacklistMixin:
                            tree: "ttk.Treeview",
                            checked: set, sym_col: int) -> None:
         """체크박스 컬럼(#2) 클릭 시 ☐↔☑ 토글.
-        컬럼 구조: 1=#(순번) | 2=☐/☑(체크) | 3~5=데이터
+        컬럼 구조: 1=#(순번) | 2=☐/☑(체크) | 3~=데이터 (Settling 3~5 · Blacklist 3~6)
         checked: 현재 ☑ 된 심볼 집합
         sym_col: values 내 심볼 인덱스 (2 = 세 번째 값)
         """
@@ -191,10 +196,16 @@ class _Col1BlacklistMixin:
     # ─── Blacklist 데이터 로드/갱신 헬퍼 ──────────────────────
 
     def _load_settling_data(self) -> None:
-        """Settling Update: Binance exchangeInfo 기반 비정상 심볼 — 백그라운드 조회, 메인 스레드에서 표시
-        (exchangeInfo 약 1.2MB 동기 조회로 화면이 멈추던 문제 방지)."""
+        """Settling Update: Binance exchangeInfo 기반 비정상 심볼 — Blacklist 탭 첫 표시 때 호출.
+        5분 캐시(cached_exchange_info)가 있으면 그것으로 즉시 표시(추가 요청 없음), 아직 없으면(앱 시작 직후)
+        백그라운드 조회 후 메인 스레드에서 표시 (exchangeInfo 약 1.2MB 동기 조회로 화면이 멈추던 문제 방지).
+        이후 갱신은 _auto_settling_refresh (5분 주기)."""
         t_tree = getattr(self, "_t_tree", None)
         if t_tree is None:
+            return
+        info = _ctx._data_mgr.cached_exchange_info() if _ctx._data_mgr is not None else None
+        if info:
+            self._apply_exchange_info(info)   # 5분 캐시 재사용 — 추가 요청 없음 (2026-11-22 3번)
             return
         self._settling_cache  = []
         self._settling_status = "loading"
@@ -207,7 +218,8 @@ class _Col1BlacklistMixin:
                     info = _ctx._data_mgr.fetch_exchange_info()
                     if info:
                         entries = _SettlingDetector.detect(info)
-                except Exception:
+                except Exception as e:
+                    logging.warning("Blacklist Settling 조회 실패: %s", e)   # 원인 기록 (2026-11-22)
                     entries = None
             self._post(self._apply_settling_data, entries)   # 작업 스레드는 Tk 미호출 (MiddlePanel._post)
         threading.Thread(target=_load, daemon=True).start()
@@ -219,6 +231,71 @@ class _Col1BlacklistMixin:
         t_tree = getattr(self, "_t_tree", None)
         if t_tree is not None:
             self._render_settling_tree(t_tree)
+
+    def _auto_settling_refresh(self) -> None:
+        """5분마다(앱 시작부터 — Blacklist 탭을 열지 않아도) TRADING 심볼 캐시의 exchangeInfo로
+        Settling 목록 갱신(3번 '● 자동 감지') + 거래 재개 종목 자동 해제(2번). 새 조회 요청은 하지 않는다 (2026-11-22)."""
+        try:
+            info = _ctx._data_mgr.cached_exchange_info() if _ctx._data_mgr is not None else None
+            if info:
+                self._apply_exchange_info(info)
+        except Exception as e:
+            logging.warning("Blacklist Settling 자동 감지 실패: %s", e)
+        try:
+            self.after(self._SETTLING_REFRESH_MS, self._auto_settling_refresh)
+        except tk.TclError:
+            pass   # 앱 종료 중
+
+    def _apply_exchange_info(self, info: dict) -> None:
+        """메인 스레드: exchangeInfo로 Settling 목록 갱신 + 거래 재개 종목 자동 해제.
+        목록이 바뀐 경우에만 다시 그리고, 다시 그려도 사용자가 ☑ 체크해 둔 심볼(목록에 남은 것)은 유지."""
+        entries = _SettlingDetector.detect(info)
+        changed = (getattr(self, "_settling_status", "") != "ok"
+                   or [(e.symbol, e.status) for e in entries]
+                   != [(e.symbol, e.status) for e in self._settling_cache])
+        self._settling_cache, self._settling_status = entries, "ok"
+        released = self._release_resumed_symbols(info)
+        t_tree = getattr(self, "_t_tree", None)
+        if t_tree is not None and (changed or released):
+            keep = set(self._checked_settling)
+            self._render_settling_tree(t_tree)          # 체크 집합 초기화 후 다시 그림
+            for row_id in t_tree.get_children():
+                vals = list(t_tree.item(row_id, "values"))
+                if vals and vals[0] and vals[2] in keep:
+                    self._checked_settling.add(vals[2])
+                    vals[1] = "☑"
+                    t_tree.item(row_id, values=vals)
+        if released:
+            self._refresh_blacklist_ui()
+            self._refresh_ranking_if_affected(released, added=False)   # 해제된 심볼 Ranking 복귀 (수동 Release와 같음)
+
+    def _refresh_ranking_if_affected(self, symbols: list, added: bool) -> None:
+        """블랙리스트 변경이 1열 목록을 바꿀 때만 Time Fix 해제·1열 재생성 (2026-11-22 — Settling 종목은 거래 중이
+        아니라 1열에 없어 등록·해제해도 목록이 그대로인데 Time Fix가 풀리고 재생성되던 문제).
+        등록(added): 지금 1열에 표시된 심볼이 있을 때 · 해제: 시세가 있는(거래 중) 심볼이 있을 때 — 1열은 거래 중 심볼만 표시."""
+        if added:
+            shown = {s for _, s in self._row_frames}
+            hit = any(s in shown for s in symbols)
+        else:
+            hit = _ctx._data_mgr is not None and any(_ctx._data_mgr.get_ticker(s) is not None for s in symbols)
+        if hit:
+            self._release_time_fix_for_rebuild()   # 재생성이 고정 순위를 깨므로 Time Fix 자동 해제
+            self._rebuild_ranking_rows()
+
+    def _release_resumed_symbols(self, info: dict) -> list:
+        """거래 재개(exchangeInfo status TRADING) 심볼을 블랙리스트에서 자동 해제 — 반환: 해제한 심볼 목록.
+        사용자가 직접 등록한 MANUAL 항목은 자동 해제하지 않는다 (2026-11-22 사용자 결정 2번).
+        exchangeInfo에 없는 심볼(상장폐지 완료)은 TRADING이 아니므로 그대로 유지."""
+        if _ctx._bl_mgr is None:
+            return []
+        status = {s.get("symbol"): s.get("status") for s in info.get("symbols", [])}
+        released = [e.symbol for e in _ctx._bl_mgr.get_all()
+                    if e.status != "MANUAL" and status.get(e.symbol) == "TRADING"]
+        for sym in released:
+            _ctx._bl_mgr.remove(sym)
+        if released:
+            logging.warning("Blacklist 자동 해제 (거래 재개): %s", ", ".join(released))
+        return released
 
     def _open_settling_symbol(self, t_tree: "ttk.Treeview") -> None:
         """Settling 행 더블클릭 → 바이낸스 선물 페이지. 값 (번호, 체크, 심볼, 등락, 상태) 중 심볼 칸,
@@ -232,11 +309,12 @@ class _Col1BlacklistMixin:
 
     def _get_change_str(self, symbol: str) -> tuple:
         """심볼의 현재 Change% 문자열과 색상 반환.
-        DataManager tkr_map에서 실시간 조회. 없으면 '—' 반환.
+        DataManager tkr_map에서 실시간 조회. 시세 없으면 '—' 반환
+        (실제 0.00%는 '+0.00%' — 2026-11-22: 0.00%를 시세 없음 '—'로 표시하던 문제).
         """
         if _ctx._data_mgr is not None:
             tkr = _ctx._data_mgr.get_ticker(symbol)
-            if tkr and tkr.price_change_pct != 0.0:
+            if tkr:
                 pct = tkr.price_change_pct
                 txt = f"{pct:+.2f}%"
                 col = POSITIVE if pct > 0 else (NEGATIVE if pct < 0 else DIM_TEXT)
@@ -317,6 +395,7 @@ class _Col1BlacklistMixin:
         """Settling Update에서 ☑ 체크된 심볼만 일괄 Blacklist 추가 — 체크가 없으면 아무것도 하지 않는다.
         (UI-2, 2026-11-18 — 체크 없을 때 포커스 행을 대신 추가하던 동작 삭제: 체크 칸 클릭도 포커스를 남겨
         ☑ 후 ☐로 해제한 행이 그대로 추가되던 문제. 화면의 ☑ = 실제 처리 대상)
+        엔진 배정 종목은 제외하고 안내 표시 (②, 2026-11-22).
         """
         t_tree = getattr(self, "_t_tree", None)
         if t_tree is None or _ctx._bl_mgr is None:
@@ -331,6 +410,15 @@ class _Col1BlacklistMixin:
                 status = vals[4] if len(vals) > 4 else "SETTLING"
                 targets.append((sym, status))
 
+        # 엔진 배정 종목은 등록하지 않는다 (2026-11-22 ② — 블랙리스트 종목은 랭킹 제외·Assign 차단이라
+        # 엔진이 블랙리스트 종목을 갖는 유일한 경로가 '배정 후 등록'이었음. 이 경로를 막아 엔진 블랙리스트
+        # 분기는 안전망으로만 남김). 거래 정지 → 배정 해제 후 등록.
+        assigned = getattr(self, "_assigned_sym", None)
+        if assigned and any(sym == assigned for sym, _ in targets):
+            targets = [(sym, status) for sym, status in targets if sym != assigned]
+            self._set_header_message(
+                f"⛔ {assigned} — 엔진 배정 종목은 블랙리스트에 등록할 수 없습니다 (배정 해제 후 등록)")
+
         if not targets:
             return
 
@@ -339,8 +427,7 @@ class _Col1BlacklistMixin:
 
         self._refresh_settling_ui()    # Settling에서 추가된 심볼 즉시 제거
         self._refresh_blacklist_ui()   # Blacklist에 추가된 심볼 표시
-        self._release_time_fix_for_rebuild()   # 재생성이 고정 순위를 깨므로 Time Fix 자동 해제
-        self._rebuild_ranking_rows()   # Ranking에서 즉시 제외
+        self._refresh_ranking_if_affected([sym for sym, _ in targets], added=True)   # 1열에 있던 심볼이면 즉시 제외
 
     def _release_from_blacklist(self) -> None:
         """Blacklist에서 ☑ 체크된 심볼만 일괄 제거, Ranking에 복귀 — 체크가 없으면 아무것도 하지 않는다.
@@ -361,5 +448,33 @@ class _Col1BlacklistMixin:
 
         self._refresh_settling_ui()    # Settling에 해제된 심볼 복귀 표시
         self._refresh_blacklist_ui()   # Blacklist에서 제거된 심볼 삭제
-        self._release_time_fix_for_rebuild()   # 재생성이 고정 순위를 깨므로 Time Fix 자동 해제
-        self._rebuild_ranking_rows()   # Ranking에 즉시 복귀
+        self._refresh_ranking_if_affected(targets, added=False)   # 거래 중 심볼이면 Ranking에 즉시 복귀
+
+    def _blacklist_selected_symbol(self, symbol: str) -> None:
+        """3열 분석 중인 종목을 블랙리스트에 직접 등록 (2026-11-22 사용자 결정 1번 — 기존 등록 경로는 Settling 감지 종목뿐).
+        확인 창 → MANUAL 등록(거래 재개 자동 해제 대상 아님) → Blacklist 탭 갱신 → 분석 자동 종료('가')·1열에서 즉시 제외.
+        엔진 배정 종목은 등록하지 않는다 (②)."""
+        if _ctx._bl_mgr is None:
+            self._set_header_message(f"⛔ {symbol} — 블랙리스트 미로드 상태라 등록할 수 없습니다")
+            return
+        if self._assigned_sym == symbol:
+            self._set_header_message(
+                f"⛔ {symbol} — 엔진 배정 종목은 블랙리스트에 등록할 수 없습니다 (배정 해제 후 등록)")
+            return
+        if _ctx._bl_mgr.is_blacklisted(symbol):   # 기존 항목의 상태·등록 시각을 MANUAL로 덮어쓰지 않음
+            self._set_header_message(f"⛔ {symbol} — 이미 블랙리스트에 등록된 심볼입니다")
+            return
+        if not messagebox.askyesno(
+                "블랙리스트 등록",
+                f"{symbol} 을(를) 블랙리스트에 등록할까요?\n\n"
+                f"1열 랭킹에서 제외되고 엔진 신규 진입이 차단됩니다.\n"
+                f"(해제: 1열 Blacklist 탭에서 ☑ 체크 후 Release)",
+                parent=self):
+            return
+        _ctx._bl_mgr.add(symbol, status="MANUAL", reason="사용자 직접 등록")
+        self._refresh_settling_ui()    # Settling 목록에 있던 심볼이면 제거
+        self._refresh_blacklist_ui()   # Blacklist 목록·개수 갱신
+        if self._app_state == "ANALYSIS":
+            self.on_clear_analysis()   # '가': 분석 자동 종료 — Time Fix 해제·1열 재생성 포함 (3열에 블랙리스트 종목이 남지 않음)
+        else:
+            self._refresh_ranking_if_affected([symbol], added=True)

@@ -597,6 +597,11 @@ class MiddleDataManager:
         """exchangeInfo 1회 조회 (동기) — 1열 Blacklist 탭 Settling 감지용."""
         return self._client.fetch_exchange_info()
 
+    def cached_exchange_info(self) -> dict | None:
+        """TRADING 심볼 5분 캐시가 마지막으로 받은 exchangeInfo — 새로 조회하지 않음 (화면 스레드에서 호출해도 안전).
+        1열 Blacklist 탭 Settling 자동 감지·거래 재개 자동 해제용 (2026-11-22 사용자 결정 2·3번). 아직 없으면 None."""
+        return self._client.cached_exchange_info()
+
     def fetch_pending_listings(self) -> list[tuple[dict, dict | None]] | None:
         """PENDING_TRADING 상장 예정 USDT 심볼 원본 조회 (동기) — exchangeInfo 1회 + 심볼당 markPrice 1회. 주식·ETF 제외.
         반환: [(exchangeInfo 심볼 dict, premiumIndex 응답 또는 None), ...] onboardDate 오름차순.

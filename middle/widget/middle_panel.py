@@ -230,6 +230,8 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         # 초기 선택 — 정렬 결과에서 동적으로 인덱스 탐색
         self.after(80,  self._initial_select)
         self.after(150, self._apply_ratio)
+        # Blacklist 탭 Settling 자동 감지·거래 재개 자동 해제 — 5분 주기 (탭을 열지 않아도, 2026-11-22 사용자 결정 2·3번)
+        self.after(self._SETTLING_REFRESH_MS, self._auto_settling_refresh)
 
         # bottom module [Clear] 클릭 감지 — shared_sym 이 "" 로 바뀌면 Assign 초기화
         if self._shared_sym is not None:

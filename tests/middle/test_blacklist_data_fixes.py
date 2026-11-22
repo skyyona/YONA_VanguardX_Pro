@@ -102,3 +102,11 @@ def test_d5_save_failure_warns_and_cleans_tmp(tmp_path, monkeypatch):
     monkeypatch.undo()
     m.remove("BUSDT")                                                                       # 다음 저장 성공
     assert m.load_error == ""
+
+
+def test_missing_file_warning_cleared_after_first_save(tmp_path):
+    """경미 ④ 파일이 없던 상태에서 첫 저장 성공 → '파일 없음' 경고 해제 (기존: 재시작 전까지 유지)."""
+    m = BlacklistManager(tmp_path / "_blacklist.json")
+    assert m.load_error.startswith("블랙리스트 파일 없음")
+    m.add("AUSDT", status="HALT")
+    assert m.load_error == "" and (tmp_path / "_blacklist.json").exists()

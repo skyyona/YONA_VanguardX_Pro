@@ -142,6 +142,8 @@ class BlacklistManager:
                 encoding="utf-8",
             )
             os.replace(tmp, self._path)
+            if self._load_problem.startswith("블랙리스트 파일 없음"):
+                self._load_problem = ""            # 파일이 생김 — 재시작 전까지 '파일 없음' 경고가 남던 문제 (2026-11-22)
             self.load_error = self._load_problem   # 저장 성공 — 직전 저장 실패 경고 해제
         except Exception as e:
             # D-5: 메모리(화면·엔진)는 바뀌었지만 파일은 그대로 — 엔진 경고(blacklist_problem)로 알리고 임시 파일 정리
