@@ -163,6 +163,19 @@ def generate_ohlcv(symbol: str, n: int = 60, interval: str = "5m") -> list:
     return []
 
 
+def get_chart_bars(symbol: str, interval: str) -> list:
+    """2열 Coin Chart용 봉 (마감 봉 + 진행 중 봉, 화면 스레드 조회 없음) — data_manager.get_chart_bars 단일 정의. 매니저 없으면 []."""
+    if _data_mgr is not None:
+        return _data_mgr.get_chart_bars(symbol, interval)
+    return []
+
+
+def set_chart_symbol(symbol: str) -> None:
+    """2열 Coin Chart 실시간 WS가 따라갈 종목 = 2열이 그리는 화면 선택 종목 — data_manager.set_chart_symbol 단일 정의."""
+    if _data_mgr is not None:
+        _data_mgr.set_chart_symbol(symbol)
+
+
 def _live_ranking() -> list:
     """실데이터 DataManager에서 랭킹 반환. DataManager 없으면 빈 리스트."""
     return _data_mgr.get_ranking_rows() if _data_mgr is not None else []

@@ -5,6 +5,7 @@ middle/data/websocket_klines.py
 스트림: wss://fstream.binance.com/market/stream?streams={sym}@kline_1m/.../@kline_1d
         (구 /stream 경로는 Binance가 2026-04-23 폐지 — 연결은 되나 데이터 없음, 2026-10-26 실측)
 주기:   봉 마감(x=True) 시 콜백 호출 — 마감 봉 최종 OHLCV 함께 전달
+        on_live 지정 시 진행 중 봉(x=False, 약 0.33초마다 — 2026-11-23 실측)도 전달 (2열 Coin Chart 실시간 표시 전용)
         (2026-10-26 실측: 마감 후 0.01~3초 도착, 64/64 REST 최종값과 일치.
          REST klines는 마감 봉 최종값을 마감 후 4.75~7.5초부터 안정 제공)
 비용:   Rate Limit 0 weight (완전 무료)
@@ -17,6 +18,7 @@ middle/data/websocket_klines.py
 from __future__ import annotations
 
 import json
+import logging
 import threading
 import time
 
@@ -33,19 +35,24 @@ class WebSocketKlines:
     """선택 심볼 kline 스트림 WebSocket 클라이언트.
 
     봉 마감(x=True) 감지 시 on_closed(symbol, tf, bar) 콜백 호출 (bar = 마감 봉 최종 OHLCVBar).
+    on_live 지정 시 진행 중 봉(x=False)은 on_live(symbol, tf, bar)로 전달 (2열 Coin Chart 전용 WS).
     set_symbol()로 심볼 교체 가능.
     """
 
-    def __init__(self, on_closed: "callable") -> None:
+    def __init__(self, on_closed: "callable", on_live: "callable | None" = None) -> None:
         """
-        on_closed: (symbol: str, tf: str, bar: OHLCVBar) -> None
+        on_closed: (symbol: str, tf: str, bar: OHLCVBar) -> None — 봉 마감(x=True)
+        on_live:   (symbol: str, tf: str, bar: OHLCVBar) -> None — 진행 중 봉(x=False, 약 0.3초마다).
+                   2열 Coin Chart 실시간 표시 전용 (2026-11-23). None이면 진행 중 봉은 무시(기존 동작).
         """
         self._on_closed             = on_closed
+        self._on_live               = on_live
         self._ws: websocket.WebSocketApp | None = None
         self._running               = False
         self._connected             = False
         self._last_data_time        = 0.0    # 마지막 마감 봉 수신 시각
         self._symbol                = ""
+        self._conn_symbol           = ""     # 현재 연결(주소)의 심볼 — 연결 직후 _symbol과 다르면 닫고 다시 연결
         self._intentional_close     = False
         self._last_error: str       = ""
         self._last_error_time: float = 0.0
@@ -98,8 +105,8 @@ class WebSocketKlines:
 
     # ── 내부 루프 ─────────────────────────────────────────────
 
-    def _build_url(self) -> str:
-        sym     = self._symbol.lower()
+    def _build_url(self, symbol: str = "") -> str:
+        sym     = (symbol or self._symbol).lower()
         streams = "/".join(f"{sym}@kline_{tf}" for tf in _TFS)
         return f"wss://fstream.binance.com/market/stream?streams={streams}"
 
@@ -110,8 +117,10 @@ class WebSocketKlines:
                 time.sleep(1)
                 continue
             try:
+                conn_sym = self._symbol
+                self._conn_symbol = conn_sym
                 self._ws = websocket.WebSocketApp(
-                    self._build_url(),
+                    self._build_url(conn_sym),
                     on_open    = self._on_open,
                     on_message = self._on_message,
                     on_error   = self._on_error,
@@ -130,6 +139,13 @@ class WebSocketKlines:
     # ── WebSocket 이벤트 핸들러 ───────────────────────────────
 
     def _on_open(self, ws) -> None:
+        # 연결 준비 중(WebSocketApp 생성 ~ run_forever 시작) 들어온 set_symbol()·stop()의 close()는 무시될 수 있다
+        # (websocket-client run_forever가 시작할 때 keep_running=True로 되돌림) → 옛 심볼 연결이 남아 모든 메시지가
+        # 버려지거나 종료 후에도 연결 유지. 연결 직후 다시 확인해 닫는다 (2026-11-25)
+        if not self._running or self._conn_symbol != self._symbol:
+            self._intentional_close = True   # 심볼 교체 — _loop가 대기 없이 새 심볼로 재연결
+            ws.close()
+            return
         self._connected = True
 
     def _on_close(self, ws, code, msg) -> None:
@@ -145,7 +161,8 @@ class WebSocketKlines:
             payload = json.loads(message)
             data    = payload.get("data", {})
             kline   = data.get("k", {})
-            if not kline.get("x", False):   # 봉 마감 아니면 무시
+            closed  = bool(kline.get("x", False))
+            if not closed and self._on_live is None:   # 진행 중 봉 — 실시간 표시 콜백 없으면 무시 (기존 동작)
                 return
             sym = data.get("s", "")
             tf  = kline.get("i", "")
@@ -161,8 +178,14 @@ class WebSocketKlines:
                     close_time=int(kline["T"]),
                     taker_buy_volume=float(kline["V"]),
                 )
+                if not closed:
+                    self._on_live(sym, tf, bar)   # 진행 중 봉 — 마감 기록(_last_data_time)·on_closed와 무관
+                    return
                 self._last_data_time = time.time()
                 self._on_closed(sym, tf, bar)
         except Exception as e:
-            self._last_error      = f"[klines:{self._symbol}] msg: {e}"
+            err = f"[klines:{self._symbol}] msg: {e}"
+            if err != self._last_error:   # 같은 오류 반복(진행 중 봉 약 0.3초마다)은 1번만 기록
+                logging.warning("middle %s", err)
+            self._last_error      = err
             self._last_error_time = time.time()

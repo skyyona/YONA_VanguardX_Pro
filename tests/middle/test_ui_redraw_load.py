@@ -63,11 +63,11 @@ def _canvas_text(p):
     return [cv.itemcget(i, "text") for i in cv.find_all() if cv.type(i) == "text"]
 
 
-def test_chart_fallback_uses_frame_size_without_forcing_layout(root, monkeypatch):
+def test_chart_uses_frame_size_without_forcing_layout(root, monkeypatch):
     p = _chart_panel(root, monkeypatch)
     p._chart_f.pack(fill="both", expand=True)
     _run_until(root, lambda: p._chart_f.winfo_ismapped() and p._chart_f.winfo_width() > 1)   # 프레임 배치 완료
-    p._draw_canvas_fallback()
+    p._draw_chart()
     assert p.idle_calls == 0                          # 기존: 매번 update_idletasks()
     assert _canvas_text(p) == ["XUSDT\n데이터 로드 중..."]
     cv = p._chart_f.winfo_children()[0]
@@ -75,11 +75,11 @@ def test_chart_fallback_uses_frame_size_without_forcing_layout(root, monkeypatch
     assert cv.coords(t) == [p._chart_f.winfo_width() // 2, p._chart_f.winfo_height() // 2]
 
 
-def test_chart_fallback_before_layout_redraws_on_configure(root, monkeypatch):
+def test_chart_before_layout_redraws_on_configure(root, monkeypatch):
     p = _chart_panel(root, monkeypatch)
     redraws = []
     p._refresh_chart = lambda: redraws.append(1)
-    p._draw_canvas_fallback()                         # 프레임 배치 전 (크기 1)
+    p._draw_chart()                                   # 프레임 배치 전 (크기 1)
     assert p._chart_f.winfo_children()[0].find_all() == ()
     p._chart_f.pack(fill="both", expand=True)
     _run_until(root, lambda: bool(redraws))

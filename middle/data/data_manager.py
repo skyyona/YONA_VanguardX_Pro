@@ -8,6 +8,7 @@ middle/data/data_manager.py
   · get_ind(symbol) → SYMBOL_IND 포맷 dict  (middle_panel.py 하위 호환)
   · get_ranking_rows() → 실데이터 랭킹 행 목록 (11-tuple 리스트)
   · get_ohlcv(symbol, interval, n) → generate_ohlcv() 호환 dict 리스트
+  · get_chart_bars(symbol, interval) → 2열 Coin Chart 실시간 봉 (마감 봉 + 진행 중 봉, 캐시 불변)
 """
 from __future__ import annotations
 
@@ -57,6 +58,12 @@ _KLINES_LIMITS: dict[str, int] = {
 # VWAP·5m ATR%는 5m 봉 전체를 쓰므로 5m 199봉 확대 전 창 유지 (VWAP 표시·5m ATR% 손절 제안 값 불변)
 _VWAP_ATR5M_BARS_TOPN   = 59   # STAGE3
 _VWAP_ATR5M_BARS_DETAIL = 79   # _refresh_detail
+_CHART_CLOSED_KEEP      = 250  # 2열 차트 WS 마감 봉 보관 수 (분봉별) — 캐시 200봉 + 여유
+# 2열 차트 전용 봉 수 (2026-11-25 사용자 결정) — 4h·1d 공용 캐시 80봉(1열 일일 추세·엔진 G7.5 기준, 변경 불가)으로는
+# EMA50 시작값 영향이 남음 → 차트용으로 251봉(마감 250) 따로 받음. 150종목 4h 실측 표시 60봉 EMA50 오차
+# 95% 기준 최대 9.57% → 0.008% (r3_ema_measure_20261125.log). 가중치 2 — 차트 종목·분봉당 1회.
+_CHART_HIST_LIMITS: dict[str, int] = {"4h": 251, "1d": 251}
+_CHART_LIVE_GRACE_MS    = 10_000  # 진행 중 봉 기간이 끝난 뒤 마감 봉(WS 0.01~3초 도착) 대기 한도 — 넘으면 낡은 봉으로 버림
 # 가격 예고 — 별도 조회 (위 _KLINES_LIMITS 5m 200은 엔진 지표·백테스트 일치 값이라 변경하지 않음)
 _FORECAST_CYCLE_MS   = 900_000     # 15분 봉 마감마다
 _FORECAST_DELAY_MS   = 240_000     # 마감 후 240초 — 해당 시각 OI(limit 290 조회) 게시: 90초 63~74%·180초 72~82%·240초 100% (2026-11-11 실측 3회, 24h 상위 100)
@@ -314,6 +321,16 @@ class MiddleDataManager:
         self._ws_ticker: WebSocketTicker | None = None
         # WebSocket klines — 선택 심볼 봉 마감 즉시 감지
         self._ws_klines: WebSocketKlines | None = None
+        # 2열 Coin Chart 실시간 표시 전용 WS — 엔진 고정과 무관하게 2열이 그리는 화면 선택 종목만 따라감
+        # (set_chart_symbol — 엔진의 1분 갱신 요청 request_selected로는 바뀌지 않음, 2026-11-25 F1).
+        # 받은 봉은 _chart_bars 에만 저장 — 엔진·지표·백테스트가 쓰는 마감 봉 캐시(_ohlcv_cache)에는 넣지 않는다.
+        self._chart_ws:   WebSocketKlines | None = None
+        self._chart_sym:  str = ""
+        # tf → {"hist": {open_time: OHLCVBar} 차트 전용 조회(4h·1d 251봉·빈칸 채움), "closed": {...} WS 마감 봉,
+        #       "live": OHLCVBar | None 진행 중 봉}
+        self._chart_bars:     dict[str, dict] = {}
+        self._chart_fetching: set[str]         = set()   # 차트 전용 조회 중인 tf
+        self._chart_fail:     dict[str, float] = {}      # tf → 차트 전용 조회 실패 시각 (_OHLCV_RETRY_SEC 안 재조회 안 함)
         self._ws_update_count: int = 0   # rebuild_ranking_rows 주기 카운터
         self._running: bool = False      # auto_refresh_loop 실행 여부
         self._last_refresh_error:      str   = ""
@@ -330,6 +347,8 @@ class MiddleDataManager:
         self._ws_ticker.start()
         self._ws_klines = WebSocketKlines(on_closed=self._on_kline_closed)
         self._ws_klines.start(self._engine_sym or self._last_detail_sym)
+        self._chart_ws = WebSocketKlines(on_closed=self._on_chart_closed, on_live=self._on_chart_live)
+        self._chart_ws.start(self._chart_sym)   # "" 이면 2열이 종목을 그릴 때(set_chart_symbol) 연결
         threading.Thread(target=self._auto_refresh_loop, daemon=True).start()
 
     def stop_auto_refresh(self) -> None:
@@ -347,8 +366,18 @@ class MiddleDataManager:
             except Exception:
                 pass
             self._ws_klines = None
+        if self._chart_ws is not None:
+            try:
+                self._chart_ws.stop()
+            except Exception:
+                pass
+            self._chart_ws = None
         # 캐시 초기화 — STOP 후 재START 시 신선한 데이터
         with self._lock:
+            self._chart_sym = ""   # 재START 후 같은 종목을 다시 그려도 4h·1d 차트 전용 봉을 새로 받게
+            self._chart_bars = {}
+            self._chart_fetching = set()
+            self._chart_fail = {}
             self._tickers.clear()
             self._sorted_tickers.clear()
             self._tkr_map.clear()
@@ -457,6 +486,111 @@ class MiddleDataManager:
                 self._ohlcv_fail[key] = time.time()
         return [{"o": b.open, "h": b.high, "l": b.low,
                  "c": b.close, "v": b.quote_volume} for b in bars[-n:]]
+
+    # ── 2열 Coin Chart 실시간 표시 (2026-11-23 사용자 결정 — 엔진·백테스트는 마감 봉 기준 그대로) ──
+    def set_chart_symbol(self, symbol: str) -> None:
+        """차트 WS가 따라갈 종목 교체 — 2열이 그리는 화면 선택 종목 (화면 스레드에서만 호출).
+        엔진의 1분 갱신 요청(request_selected)으로는 바뀌지 않는다 — 엔진 고정 중 다른 종목을 볼 때 1분마다
+        차트 WS가 엔진 종목으로 넘어가 실시간 봉이 끊기던 문제 (2026-11-25 F1). 이전 종목의 차트 봉은 버린다."""
+        with self._lock:
+            if symbol == self._chart_sym:
+                return
+            self._chart_sym      = symbol
+            self._chart_bars     = {}
+            self._chart_fetching = set()
+            self._chart_fail     = {}
+            ws = self._chart_ws
+        if ws is not None:
+            ws.set_symbol(symbol)
+
+    def _chart_slot(self, tf: str) -> dict:
+        """(self._lock 안에서 호출) 차트 봉 보관 칸."""
+        return self._chart_bars.setdefault(tf, {"hist": {}, "closed": {}, "live": None})
+
+    def _start_chart_hist(self, symbol: str, tf: str) -> None:
+        """(self._lock 안에서 호출) 차트 전용 봉 조회를 백그라운드로 시작 — 자동 갱신 중이 아니거나, 같은 tf 조회 중이거나,
+        최근 실패 후 _OHLCV_RETRY_SEC 안이면 생략 (화면 스레드는 조회하지 않음)."""
+        if (not self._running or tf in self._chart_fetching
+                or time.time() - self._chart_fail.get(tf, 0.0) < _OHLCV_RETRY_SEC):
+            return
+        self._chart_fetching.add(tf)
+        threading.Thread(target=self._fetch_chart_hist, args=(symbol, tf), daemon=True).start()
+
+    def _fetch_chart_hist(self, symbol: str, tf: str) -> None:
+        """차트 전용 봉 조회 (백그라운드) — 4h·1d 251봉(R-3) 또는 빈칸 채움(그 밖 tf는 _KLINES_LIMITS 봉 수).
+        마감 봉만 보관 (진행 중 봉은 차트 WS). 엔진·지표 캐시(_ohlcv_cache)에는 넣지 않는다."""
+        bars: list[OHLCVBar] = []
+        if rate_gate.remaining() <= 0:   # 차단 중이면 조회하지 않음 (실패로 기록 → 재조회 대기)
+            try:
+                bars = self._ohlcv_svc.fetch(symbol, tf, _CHART_HIST_LIMITS.get(tf, _KLINES_LIMITS[tf]))
+            except Exception:
+                bars = []
+        now_ms = int(time.time() * 1000)
+        with self._lock:
+            if symbol != self._chart_sym:
+                return   # 조회 중 종목 전환 — 버림 (전환 시 조회 중 표시도 초기화됨)
+            self._chart_fetching.discard(tf)
+            closed = {b.open_time: b for b in bars if b.close_time < now_ms}
+            if closed:
+                self._chart_slot(tf)["hist"] = closed
+                self._chart_fail.pop(tf, None)
+            else:
+                self._chart_fail[tf] = time.time()
+
+    def _on_chart_live(self, symbol: str, tf: str, bar: OHLCVBar) -> None:
+        """차트 WS 진행 중 봉 (약 0.3초마다) — 표시 전용 보관."""
+        with self._lock:
+            if symbol == self._chart_sym:
+                self._chart_slot(tf)["live"] = bar
+
+    def _on_chart_closed(self, symbol: str, tf: str, bar: OHLCVBar) -> None:
+        """차트 WS 마감 봉 — 표시 전용 보관 (엔진 고정 중 선택 종목은 메인 WS가 마감 봉을 캐시에 넣지 않으므로).
+        직전에 알던 마지막 마감 봉과 사이가 비면(WS 재연결 중 마감 등) 차트용으로 다시 받아 채운다 (R-5)."""
+        cached = self._ohlcv_cache.get(symbol, {}).get(tf, [])
+        with self._lock:
+            if symbol != self._chart_sym:
+                return
+            slot = self._chart_slot(tf)
+            known = [k for k in (max(slot["closed"], default=0), max(slot["hist"], default=0),
+                                 cached[-1].open_time if cached else 0) if k]
+            if known and bar.open_time - max(known) > _TF_MS[tf]:
+                self._start_chart_hist(symbol, tf)
+            slot["closed"][bar.open_time] = bar
+            if len(slot["closed"]) > _CHART_CLOSED_KEEP:
+                del slot["closed"][min(slot["closed"])]
+            # 마감된 봉의 진행 중 값은 버림 — 다음 봉 첫 실시간 값 전까지 최종값 대신 보이던 문제 (R-2)
+            if slot["live"] is not None and slot["live"].open_time <= bar.open_time:
+                slot["live"] = None
+
+    def get_chart_bars(self, symbol: str, interval: str) -> list[dict]:
+        """2열 Coin Chart용 봉 — 마감 봉 캐시 + 차트 전용 조회 봉 + 차트 WS 마감 봉 + 진행 중 봉(맨 끝), 시간 순.
+        화면 스레드에서 거래소를 조회하지 않는다 (4h·1d 차트 전용 봉은 백그라운드 조회 — 받기 전에는 캐시 봉으로 그림).
+        캐시·차트 전용 봉이 모두 없으면 빈 목록 (상세 갱신이 채운 뒤 다시 그림).
+        진행 중 봉은 차트 WS 연결 중이고, 마지막 마감 봉보다 새 봉이며, 그 봉 기간이 끝난 지
+        _CHART_LIVE_GRACE_MS 안일 때만 붙인다 — 끊김·낡은 값이 현재가처럼 보이거나 마감 봉을 덮지 않게 (R-2).
+        반환 dict: {"t" 봉 시작 ms, "o","h","l","c","v"}. 캐시를 바꾸지 않는다 (엔진·지표 입력 불변)."""
+        cached = self._ohlcv_cache.get(symbol, {}).get(interval, [])
+        hist: dict = {}
+        closed: dict = {}
+        live = None
+        with self._lock:
+            if symbol == self._chart_sym:
+                slot = self._chart_bars.get(interval)
+                if slot:
+                    hist, closed, live = dict(slot["hist"]), dict(slot["closed"]), slot["live"]
+                if interval in _CHART_HIST_LIMITS and not hist:
+                    self._start_chart_hist(symbol, interval)   # 4h·1d 251봉 — 백그라운드, 1회 (실패 시 30초 뒤)
+            connected = self._chart_ws is not None and self._chart_ws.is_connected
+        if not cached and not hist:
+            return []
+        merged = {b.open_time: b for b in cached}
+        merged.update(hist)
+        merged.update(closed)
+        if (live is not None and connected and live.open_time > max(merged, default=0)
+                and int(time.time() * 1000) <= live.close_time + _CHART_LIVE_GRACE_MS):
+            merged[live.open_time] = live
+        return [{"t": b.open_time, "o": b.open, "h": b.high, "l": b.low, "c": b.close, "v": b.quote_volume}
+                for b in (merged[k] for k in sorted(merged))]
 
     def get_listing_days(self, symbol: str) -> int:
         """상장 경과일 — 랭킹 행 [1]·신규 배지·Newly Listed 기준과 같은 정의 (onboardDate 미상 → 0)."""

@@ -3,36 +3,16 @@ middle/widget/panel_col2.py
 2열 차트 (Coin Chart / MTF Stoch RSI / Macro & 4TF Entry) 믹스인
 """
 from __future__ import annotations
+import logging
+import math
 import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import font as tkfont
 from middle.widget.constants import *
 
 # ── shared_context에서 헬퍼 함수 import (단일 정의, 중복 없음) ──
-from middle.widget.shared_context import get_ind, generate_ohlcv
+from middle.widget.shared_context import get_ind, get_chart_bars, set_chart_symbol
 import middle.widget.shared_context as _ctx
-
-
-try:
-    import matplotlib
-    matplotlib.use("TkAgg")
-    import matplotlib.font_manager as _fm
-    _KR_FONTS = ["Malgun Gothic", "NanumGothic", "AppleGothic", "Noto Sans CJK KR"]
-    _available = {f.name for f in _fm.fontManager.ttflist}
-    for _kf in _KR_FONTS:
-        if _kf in _available:
-            matplotlib.rcParams["font.family"] = _kf
-            break
-    matplotlib.rcParams["axes.unicode_minus"] = False
-    from matplotlib.figure import Figure
-    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-    import matplotlib.patches as mptch
-    HAS_MPL = True
-except ImportError:
-    HAS_MPL = False
-    Figure = None
-    FigureCanvasTkAgg = None
-    mptch = None
 
 
 # 2열 계산 전담 모듈
@@ -43,9 +23,8 @@ from middle.col2_chart_indicators.macro_4tf_entry import MacroFourTFEntry
 class _Col2Mixin:
     """2열 차트 믹스인."""
 
-    # matplotlib Figure 재사용용 인스턴스 변수 (초기화)
-    _mpl_fig = None   # Figure 객체 (재사용)
-    _mpl_ax  = None   # Axes 객체 (재사용)
+    # Coin Chart 실시간 갱신 주기 (진행 중 봉 반영) — 사용자 결정 1초 (2026-11-23)
+    _CHART_LIVE_MS = 1000
 
     # ─── 분봉 버튼 갱신 (Trend 방향 + 색상 통합) ─────────────
     _TF_MAP = [
@@ -58,7 +37,7 @@ class _Col2Mixin:
         ("1일봉",   "tf1d"),
     ]
 
-    # TF 레이블 → Binance interval 변환 (generate_ohlcv interval 파라미터용)
+    # TF 레이블 → Binance interval 변환 (get_chart_bars interval 파라미터용)
     _TF_LABEL_TO_INTERVAL = {
         "1분봉":   "1m",
         "3분봉":   "3m",
@@ -556,153 +535,102 @@ class _Col2Mixin:
         # ── (end of _build_macro_panel) ─────────────────────────
 
     # ─── 차트 갱신 ────────────────────────────────────────────
+    # Coin Chart = tk Canvas 정식 차트 (2026-11-23 사용자 결정 — 실행되지 않던 matplotlib 경로 삭제:
+    # 앱 환경·requirements.txt에 matplotlib 없음 → 항상 이 Canvas 차트가 표시되고 있었음)
     def _refresh_chart(self) -> None:
-        for w in self._chart_f.winfo_children():
-            w.destroy()
-        self._mpl_canvas = None
-        if HAS_MPL:
-            self._draw_mpl_chart()
-        else:
-            self._draw_canvas_fallback()
+        """Coin Chart 다시 그리기 (분봉 버튼·탭 전환·데이터 갱신·1초 실시간 갱신 공통)."""
+        self._draw_chart()
 
-    def _draw_mpl_chart(self) -> None:
-        sym      = self._sel_var.get()
-        tf_label = self._tf_var.get()
-        interval = self._TF_LABEL_TO_INTERVAL.get(tf_label, "5m")
-        candles  = generate_ohlcv(sym, n=60, interval=interval)
+    def _chart_live_tick(self) -> None:
+        """1초마다 — 분석 중이고 Coin Chart 탭이 보일 때만 다시 그려 진행 중 봉을 실시간 반영 (2026-11-23).
+        차트 1회 그리기 약 3 ms (실측)."""
+        try:
+            if (getattr(self, "_app_state", "IDLE") == "ANALYSIS"
+                    and getattr(self, "_cur_chart_tab", "chart") == "chart"
+                    and self._sel_var.get()
+                    and self._chart_f.winfo_ismapped()):
+                self._refresh_chart()
+        except tk.TclError:
+            pass
+        except Exception:
+            # 그리기 오류 1번에 다음 예약까지 건너뛰어 1초 갱신이 앱 재시작 전까지 멈추던 문제 (2026-11-25 R-1)
+            logging.exception("2열 Coin Chart 1초 갱신 오류")
+        try:
+            self.after(self._CHART_LIVE_MS, self._chart_live_tick)
+        except tk.TclError:
+            pass   # 앱 종료 중
 
-        # 빈 캔들 처리 — 로딩 메시지 표시
-        if not candles:
-            if self._mpl_canvas is None:
-                # 최초: Figure 생성
-                fig = Figure(figsize=(7, 4.2), dpi=96, facecolor="#0D0D0D")
-                ax  = fig.add_subplot(111)
-                ax.set_facecolor("#0D0D0D")
-                ax.set_axis_off()
-                ax.text(0.5, 0.5, f"{sym}\n데이터 로드 중...",
-                        ha="center", va="center", fontsize=12,
-                        color="#555555", transform=ax.transAxes)
-                cv = FigureCanvasTkAgg(fig, master=self._chart_f)
-                cv.draw()
-                cv.get_tk_widget().pack(fill="both", expand=True)
-                self._mpl_canvas = cv
-                self._mpl_fig = fig
-                self._mpl_ax  = ax
-            else:
-                # 재사용: 기존 축만 업데이트
-                self._mpl_ax.clear()
-                self._mpl_ax.set_axis_off()
-                self._mpl_ax.text(0.5, 0.5, f"{sym}\n데이터 로드 중...",
-                                  ha="center", va="center", fontsize=12,
-                                  color="#555555", transform=self._mpl_ax.transAxes)
-                self._mpl_fig.canvas.draw_idle()
-            return
+    def _chart_canvas(self) -> tk.Canvas:
+        """차트 캔버스 — 있으면 재사용 (1초 갱신마다 위젯을 새로 만들지 않음), 없으면(초기·분석 패널 초기화 후) 생성."""
+        cv = getattr(self, "_chart_cv", None)
+        if cv is None or not cv.winfo_exists():
+            for w in self._chart_f.winfo_children():
+                w.destroy()
+            cv = tk.Canvas(self._chart_f, bg="#0D0D0D", highlightthickness=0)
+            cv.pack(fill="both", expand=True)
+            # 프레임 배치 전(크기 1)·창 크기 변경 시 실제 크기로 다시 그림
+            cv.bind("<Configure>", lambda e: self._refresh_chart())
+            self._chart_cv = cv
+        return cv
 
-        chart_data = CoinChart.prepare(candles, sym)   # EMA20·EMA50·VWAP 계산 위임
-
-        # ── Figure/Axes 재사용 여부 결정 ─────────────────────────
-        reuse = (self._mpl_canvas is not None
-                 and self._mpl_fig is not None
-                 and self._mpl_ax is not None)
-
-        if reuse:
-            fig = self._mpl_fig
-            ax  = self._mpl_ax
-            ax.clear()   # 이전 데이터만 지움 (Figure/Canvas 유지)
-        else:
-            # 최초 렌더링: 새 Figure + Canvas 생성
-            for w_old in self._chart_f.winfo_children():
-                w_old.destroy()
-            fig = Figure(figsize=(7, 4.2), dpi=96, facecolor="#0D0D0D")
-            ax  = fig.add_subplot(111)
-            self._mpl_fig = fig
-            self._mpl_ax  = ax
-
-        # ── 축 스타일 설정 ────────────────────────────────────────
-        ax.set_facecolor("#0D0D0D")
-        fig.subplots_adjust(left=0.03, right=0.88, top=0.91, bottom=0.06)
-        for spine in ax.spines.values():
-            spine.set_color("#2A2A2A")
-        ax.tick_params(colors="#555555", labelsize=7)
-        ax.yaxis.tick_right()
-        ax.grid(True, color="#1C1C1C", linewidth=0.5, linestyle="--", alpha=0.7)
-
-        # ── 캔들 그리기 ─────────────────────────────────────────────
-        bw = 0.55
-        for i, c in enumerate(chart_data.candles):
-            col = POSITIVE if c.is_bullish else NEGATIVE
-            ax.plot([i, i], [c.l, c.h], color=col, linewidth=0.8, alpha=0.6)
-            body_h = abs(c.c - c.o) or abs(c.h - c.l) * 0.05
-            rect = mptch.FancyBboxPatch(
-                (i - bw / 2, min(c.o, c.c)),
-                bw, body_h,
-                boxstyle="square,pad=0",
-                linewidth=0, facecolor=col, alpha=0.88,
-            )
-            ax.add_patch(rect)
-
-        xs = list(range(len(chart_data.candles)))
-        ax.plot(xs, chart_data.ema20_line, color=ACCENT_BLUE, linewidth=1.3, label="EMA 20", alpha=0.9)
-        ax.plot(xs, chart_data.ema50_line, color=YELLOW,     linewidth=1.3, label="EMA 50", alpha=0.9)
-        ax.plot(xs, chart_data.vwap_line,  color="#BBBBBB", linewidth=1.2, label="VWAP",   alpha=0.85,
-                linestyle="--")
-        if chart_data.support_level is not None:
-            ax.axhline(chart_data.support_level, color=POSITIVE, linewidth=0.8,
-                       linestyle=":", alpha=0.55, label="Support")
-        if chart_data.resist_level is not None:
-            ax.axhline(chart_data.resist_level,  color=NEGATIVE, linewidth=0.8,
-                       linestyle=":", alpha=0.55, label="Resist")
-        ax.legend(loc="upper left", fontsize=7, framealpha=0.25,
-                  facecolor="#1E1E1E", edgecolor="#333333", labelcolor=DARK_TEXT)
-        ax.set_title(f"{sym}  —  {tf_label}",
-                     color=DARK_TEXT, fontsize=9, pad=7, loc="center")
-        ax.set_xlim(-1, len(chart_data.candles))
-
-        if reuse:
-            # Figure 재사용: 비동기 렌더링 (깜빡임 없음)
-            fig.canvas.draw_idle()
-        else:
-            # 최초 렌더링: Canvas 생성 후 pack
-            cv = FigureCanvasTkAgg(fig, master=self._chart_f)
-            cv.draw()
-            cv.get_tk_widget().pack(fill="both", expand=True)
-            self._mpl_canvas = cv
-
-    def _draw_canvas_fallback(self) -> None:
-        cv = tk.Canvas(self._chart_f, bg="#0D0D0D", highlightthickness=0)
-        cv.pack(fill="both", expand=True)
+    def _draw_chart(self) -> None:
+        cv = self._chart_canvas()
         # 캔버스 = 차트 프레임 전체 → 프레임의 현재 크기 사용
         # (update_idletasks()는 앱 전체 화면 배치를 즉시 강제 처리 — 실측 메인 스레드 12%)
         W = self._chart_f.winfo_width()
         H = self._chart_f.winfo_height()
         if W <= 1 or H <= 1:
-            # 프레임이 아직 화면 배치 전 — 배치되면(Configure) 실제 크기로 다시 그림
-            cv.bind("<Configure>", lambda e: self._refresh_chart())
-            return
+            return   # 프레임이 아직 화면 배치 전 — 배치되면(Configure) 실제 크기로 다시 그림
+        cv.delete("all")
 
         sym      = self._sel_var.get()
         tf_label = self._tf_var.get()
         interval = self._TF_LABEL_TO_INTERVAL.get(tf_label, "5m")
-        candles  = generate_ohlcv(sym, n=60, interval=interval)
+        if sym:
+            set_chart_symbol(sym)   # 차트 실시간 WS = 그리는 종목 (엔진 갱신 요청으로는 바뀌지 않음, 2026-11-25 F1)
+        # 마감 봉 캐시 + 진행 중 봉(차트 WS) — 화면 스레드 조회 없음 (거래소 조회로 멈추던 문제, 2026-11-23)
+        candles  = get_chart_bars(sym, interval)
 
-        # 빈 캔들 처리 — ValueError 방지
+        # 빈 캔들 처리 — ValueError 방지 (상세 갱신이 봉을 받으면 데이터 갱신·1초 갱신으로 다시 그림)
         if not candles:
             cv.create_text(W // 2, H // 2, text=f"{sym}\n데이터 로드 중...",
                            fill="#555555", font=("Segoe UI", 11), justify="center")
             return
 
-        chart_data = CoinChart.prepare(candles, sym)   # EMA20·EMA50·VWAP·지지저항 계산 위임
+        chart_data = CoinChart.prepare(candles, sym)   # EMA20·EMA50(전체 봉)·VWAP·지지저항 — 마지막 60봉 (진행 중 봉 포함)
 
         lo  = min(c.l for c in chart_data.candles)
         hi  = max(c.h for c in chart_data.candles)
-        rng = hi - lo or 1
-        pl, pr, pt, pb = 10, 58, 24, 18
+        if hi <= lo:
+            # 표시 구간 가격이 모두 같음(봉 1개·거래 없음) — 가격 위아래로 0.05% 범위를 잡아 가운데 그림
+            # (기존: 범위 1.0 고정 → 가짜 0~1 눈금, 봉이 바닥에 붙음, 2026-11-25)
+            pad = abs(hi) * 0.0005 or 1e-8
+            lo, hi = lo - pad, hi + pad
+        rng = hi - lo
+        # 눈금 소수 자릿수 — fmt_price 자릿수로 눈금 간격이 구분되지 않으면(0.001대 코인 등 같은 숫자 반복) 늘림 (2026-11-25)
+        step = rng / 4
+        dec  = max(0, math.ceil(-math.log10(step)))
+
+        def plabel(p: float, extra: int = 0) -> str:
+            s = fmt_price(p)
+            cur = len(s.split(".")[1]) if "." in s else 0
+            need = min(dec + extra, 10)
+            return s if need <= cur else f"{p:,.{need}f}"
+        pl, pr, pt, pb = 10, 70, 24, 18   # 오른쪽 여백 = 가격 눈금·현재가 표시
         cw = W - pl - pr
         ch = H - pt - pb
         bw = cw / len(chart_data.candles)
 
         def py(p: float) -> float:
             return pt + ch * (1 - (p - lo) / rng)
+
+        # ── 가격 눈금 (오른쪽 5단계) ──────────────────────────────
+        for i in range(5):
+            gp = lo + rng * i / 4
+            gy = py(gp)
+            cv.create_line(pl, gy, W - pr, gy, fill="#1C1C1C", width=1)
+            cv.create_text(W - pr + 6, gy, text=plabel(gp), fill=DIM_TEXT,
+                           font=("Consolas", 7), anchor="w")
 
         for i, c in enumerate(chart_data.candles):
             x   = pl + (i + 0.5) * bw
@@ -729,18 +657,29 @@ class _Col2Mixin:
             vflat = [coord for p in vpts for coord in p]
             cv.create_line(*vflat, fill="#BBBBBB", width=1, smooth=True, dash=(4, 3))
 
+        # 지지·저항 — 표식은 왼쪽 (오른쪽은 가격 눈금)
         if chart_data.support_level is not None:
             sy = py(chart_data.support_level)
             cv.create_line(pl, sy, W - pr, sy, fill=POSITIVE, width=1, dash=(3, 4))
-            cv.create_text(W - pr + 3, sy, text="S", fill=POSITIVE,
+            cv.create_text(pl + 2, sy - 6, text="S", fill=POSITIVE,
                            font=("Consolas", 6), anchor="w")
 
         if chart_data.resist_level is not None:
             ry = py(chart_data.resist_level)
             cv.create_line(pl, ry, W - pr, ry, fill=NEGATIVE, width=1, dash=(3, 4))
-            cv.create_text(W - pr + 3, ry, text="R", fill=NEGATIVE,
+            cv.create_text(pl + 2, ry + 6, text="R", fill=NEGATIVE,
                            font=("Consolas", 6), anchor="w")
 
+        # ── 현재가 (마지막 봉 = 진행 중 봉 종가) — 선 + 오른쪽 가격 상자 ─────────
+        last = chart_data.candles[-1]
+        lcol = POSITIVE if last.is_bullish else NEGATIVE
+        ly   = py(last.c)
+        cv.create_line(pl, ly, W - pr, ly, fill=lcol, width=1, dash=(2, 2))
+        cv.create_rectangle(W - pr + 2, ly - 7, W - 2, ly + 7, fill=lcol, outline="")
+        # 현재가 — 눈금보다 1자리 더 (봉 사이 가격 변화가 보이게)
+        cv.create_text(W - pr + 6, ly, text=plabel(last.c, 1), fill="#000000",
+                       font=("Consolas", 7, "bold"), anchor="w")
+
         cv.create_text(W // 2, 12,
-                       text=f"{sym}  {self._tf_var.get()}  — Fallback Mode",
+                       text=f"{sym}  {tf_label}",
                        fill=DIM_TEXT, font=("Segoe UI", 8))

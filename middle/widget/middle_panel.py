@@ -31,24 +31,6 @@ except ImportError:
 _data_mgr: "MiddleDataManager | None" = None  # type: ignore[name-defined]
 _bl_mgr:   "_BlacklistManager | None"  = None  # type: ignore[name-defined]
 
-try:
-    import matplotlib
-    matplotlib.use("TkAgg")
-    # ── 한글 폰트 설정 (DejaVu Sans 한글 누락 경고 해소) ───────
-    import matplotlib.font_manager as _fm
-    _KR_FONTS = ["Malgun Gothic", "NanumGothic", "AppleGothic", "Noto Sans CJK KR"]
-    _available = {f.name for f in _fm.fontManager.ttflist}
-    for _kf in _KR_FONTS:
-        if _kf in _available:
-            matplotlib.rcParams["font.family"] = _kf
-            break
-    matplotlib.rcParams["axes.unicode_minus"] = False   # 마이너스 기호 깨짐 방지
-    from matplotlib.figure import Figure
-    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-    import matplotlib.patches as mptch
-    HAS_MPL = True
-except ImportError:
-    HAS_MPL = False
 
 # ── 레이아웃(비율/창 크기) 설정 저장 — sash 드래그/창 크기 조정이 재실행 후에도 유지되도록 영속화
 from middle.widget.constants import (
@@ -173,7 +155,7 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         self._pending_cache     : list     = []       # dict 목록
         self._pending_status    : str      = "loading"  # "loading" | "ok" | "failed" (로딩 중/결과 없음/조회 실패 구분)
         self._pending_after_id             = None       # 예약된 다음 60초 남은시간 갱신 (after id)
-        self._mpl_canvas = None
+        self._chart_cv = None   # 2열 Coin Chart 캔버스 (재사용 — panel_col2._chart_canvas)
 
         # Gold Ranking — 종합 1위 심볼 (_rebuild_ranking_rows 갱신)
         self._gold_sym        : str  = ""
@@ -232,6 +214,8 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         self.after(150, self._apply_ratio)
         # Blacklist 탭 Settling 자동 감지·거래 재개 자동 해제 — 5분 주기 (탭을 열지 않아도, 2026-11-22 사용자 결정 2·3번)
         self.after(self._SETTLING_REFRESH_MS, self._auto_settling_refresh)
+        # 2열 Coin Chart 실시간 갱신 — 1초 주기 (분석 중·Coin Chart 탭일 때만 그림, 2026-11-23 사용자 결정)
+        self.after(self._CHART_LIVE_MS, self._chart_live_tick)
 
         # bottom module [Clear] 클릭 감지 — shared_sym 이 "" 로 바뀌면 Assign 초기화
         if self._shared_sym is not None:
@@ -711,10 +695,8 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         헤더는 호출자(on_clear_analysis/on_app_stop)에서 별도 설정.
         """
         # ── 2열: Coin Chart / MTF / Macro 3개 모두 초기화 ───────
-        # Figure 재사용 참조 초기화 — 다음 심볼 선택 시 새로 생성
-        self._mpl_canvas = None
-        self._mpl_fig    = None
-        self._mpl_ax     = None
+        # 차트 캔버스 참조 초기화 — 아래에서 프레임 내용이 지워지므로 다음 그리기 때 새로 생성
+        self._chart_cv = None
         for panel_name in ["_chart_f", "_mtf_f", "_macro_f"]:
             panel = getattr(self, panel_name, None)
             if panel is not None:
@@ -813,14 +795,8 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         self._refresh_energy()
         self._refresh_verdict()
         self._refresh_tf_buttons()
-        if self._cur_chart_tab == "chart":
-            self.after(10, self._refresh_chart)
-        elif self._cur_chart_tab == "mtf":
-            self.after(10, self._refresh_mtf)
-        elif self._cur_chart_tab == "macro":
-            self.after(10, self._refresh_macro)
-        else:
-            self.after(10, self._refresh_chart)
+        # 2열(현재 탭)은 호출부 _on_data_ready._check_and_refresh 가 1번만 예약한다
+        # (2026-11-23: 이 함수도 2열을 예약해 데이터 갱신마다 2번 다시 그리던 중복 삭제)
 
     # ── _do_refresh() — 하위 호환 (30초 타이머 등 기존 호출부 유지) ──────────
     def _do_refresh(self) -> None:
@@ -886,7 +862,7 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
         """STAGE3 klines 완료 콜백 — 상태에 따라 역할 분리.
 
         RANKING 상태 → 1열 랭킹 재빌드 (_on_klines_ready_col1)
-        ANALYSIS 상태 → 2열 차트 부드럽게 갱신 (matplotlib 재사용)
+        ANALYSIS 상태 → 2열 현재 탭 갱신 (Coin Chart는 캔버스 재사용)
         MRO: _Col1Mixin보다 MiddlePanel이 우선이므로 이 메서드가 실행됨.
         """
         def _dispatch():
@@ -896,13 +872,10 @@ class MiddlePanel(_Col1Mixin, _Col1BlacklistMixin, _Col2Mixin, _Col3Mixin, tk.Fr
                     # 1열 랭킹 재빌드 (TF합의·ATR%·EMA 즉시 반영)
                     self._on_klines_ready_col1()
                 elif state == "ANALYSIS":
-                    # 2열 차트 부드럽게 갱신 (Figure 재사용)
+                    # 2열 현재 탭 갱신 (Coin Chart는 캔버스 재사용)
                     tab = getattr(self, "_cur_chart_tab", "chart")
                     if tab == "chart":
-                        if self._mpl_canvas is not None:
-                            self._draw_mpl_chart()
-                        else:
-                            self._refresh_chart()
+                        self._refresh_chart()
                     elif tab == "mtf":
                         self._refresh_mtf()
                     elif tab == "macro":

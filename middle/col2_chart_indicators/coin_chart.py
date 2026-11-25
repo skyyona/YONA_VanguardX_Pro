@@ -1,10 +1,10 @@
 """
 middle/col2_chart_indicators/coin_chart.py
 Coin Chart 데이터 준비 전담 — Col2 캔들 차트 렌더링용 전처리
-panel_col2._draw_mpl_chart() / _draw_canvas_fallback() 에서 호출.
+panel_col2._draw_chart() 에서 호출.
 
-입력: generate_ohlcv() 호환 dict 리스트 [{"o","h","l","c","v"}, ...]
-출력: ChartData (candles / ema20 / ema50 / vwap / support / resist)
+입력: shared_context.get_chart_bars() dict 리스트 [{"o","h","l","c","v"}, ...] — 마감 봉 + 진행 중 봉(맨 끝), 시간 순
+출력: ChartData (표시할 마지막 show 봉의 candles / ema20 / ema50 / vwap / support / resist)
 """
 from __future__ import annotations
 
@@ -37,39 +37,41 @@ class ChartData:
 class CoinChart:
     """Coin Chart 데이터 준비기.
 
-    panel_col2 가 generate_ohlcv() 로 받은 dict 리스트를 받아
-    렌더링에 필요한 EMA20·EMA50·VWAP·지지저항 수준을 계산하여 반환.
+    panel_col2 가 받은 봉 dict 리스트로 EMA20·EMA50·VWAP·지지저항 수준을 계산해 표시 구간만 반환.
     """
 
     @classmethod
     def prepare(
         cls,
-        candles: list[dict],   # [{"o","h","l","c","v"}, ...] — generate_ohlcv() 호환
+        candles: list[dict],   # [{"o","h","l","c","v"}, ...] — 시간 순 (마지막 = 진행 중 봉일 수 있음)
         symbol: str = "",
+        show: int = 60,        # 화면에 그릴 봉 수
     ) -> ChartData:
-        """OHLCV dict 리스트 → ChartData 변환.
+        """OHLCV dict 리스트 → ChartData 변환 (표시 구간 = 마지막 show 봉).
 
-        Args:
-            candles: generate_ohlcv() 반환 dict 리스트 (시간 순, 호출자가 봉 수 지정)
-            symbol:  표시 심볼명
+        EMA는 받은 전체 봉(1m~1h 캐시 약 200봉, 4h·1d 차트 전용 약 250봉)으로 계산한 뒤 표시 구간만 자른다 —
+        표시 봉 수(60)로만 계산하면 첫 봉에서 시작한 EMA50이 실제 값과 어긋나던 문제(1시간봉 표시 구간 최대 차이
+        중앙 2.0%, 2026-11-23 실측). 4h·1d는 캐시 80봉으로는 부족해 차트 전용 251봉 조회 (2026-11-25).
+        VWAP·지지저항은 표시 구간 기준 (기존과 같은 의미).
         """
         if not candles:
             return ChartData([], [], [], [], None, None, symbol=symbol)
+
+        closes = [c["c"] for c in candles]
+        ema20  = cls._ema(closes, 20)[-show:]
+        ema50  = cls._ema(closes, 50)[-show:]
+        shown  = candles[-show:]
+        vwap   = cls._vwap(shown)
 
         chart_candles = [
             ChartCandle(
                 o=c["o"], h=c["h"], l=c["l"], c=c["c"], v=c.get("v", 0.0),
                 is_bullish=(c["c"] >= c["o"]),
             )
-            for c in candles
+            for c in shown
         ]
 
-        closes = [c["c"] for c in candles]
-        ema20  = cls._ema(closes, 20)
-        ema50  = cls._ema(closes, 50)
-        vwap   = cls._vwap(candles)
-
-        lookback      = candles[-20:]
+        lookback      = shown[-20:]
         support_level = min(c["l"] for c in lookback) if lookback else None
         resist_level  = max(c["h"] for c in lookback) if lookback else None
 
