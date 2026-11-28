@@ -29,7 +29,7 @@ from middle.col2_chart_indicators.coin_chart import CoinChart
 from middle.data.data_manager import MiddleDataManager
 from middle.data.websocket_klines import WebSocketKlines
 from middle.models import OHLCVBar
-from middle.widget.constants import DIM_TEXT, fmt_price
+from middle.widget.constants import ACCENT_BLUE, DIM_TEXT, YELLOW, fmt_price
 from middle.widget.middle_panel import MiddlePanel
 
 M = 60_000          # 1분 (ms)
@@ -355,6 +355,7 @@ def _chart_panel(root, monkeypatch, bars):
     p._chart_f = tk.Frame(p, width=500, height=300)
     p._chart_f.pack(fill="both", expand=True)
     p._sel_var, p._tf_var = tk.StringVar(root, "ABCUSDT"), tk.StringVar(root, "1분봉")
+    p._app_state = "ANALYSIS"                                            # 2열은 분석 중에만 그림
     root.update()
     return p
 
@@ -399,7 +400,7 @@ def test_draw_chart_flat_prices_centered(root, monkeypatch):
     p = _chart_panel(root, monkeypatch, [{"t": 0, "o": 0.5, "h": 0.5, "l": 0.5, "c": 0.5, "v": 0.0}])
     p._refresh_chart()
     labels = _axis_labels(p)
-    assert len(labels) == 5 and len(set(labels)) == 5
+    assert len(labels) == 4 and len(set(labels)) == 4                    # 가운데 눈금 = 현재가 상자 위치 → 글자 생략
     assert all(0.4997 <= float(x) <= 0.5003 for x in labels)
     cv = p._chart_f.winfo_children()[0]
     cur = [i for i in cv.find_all() if cv.type(i) == "text" and cv.itemcget(i, "fill") == "#000000"]
@@ -419,6 +420,96 @@ def test_draw_chart_tiny_price_axis_distinct(root, monkeypatch):
     cv = p._chart_f.winfo_children()[0]
     W = p._chart_f.winfo_width()
     assert all(cv.bbox(i)[2] <= W for i in cv.find_all() if cv.type(i) == "text")
+
+
+@pytest.mark.parametrize("before, after", [(200.0, 100.0), (50.0, 100.0)])   # 하락 후(EMA 위로 이탈) · 상승 후(아래로 이탈)
+def test_draw_chart_ema_outside_range_hidden_in_margins(root, monkeypatch, before, after):
+    """EMA(전체 봉 계산)가 표시 60봉 범위를 벗어난 부분은 위·아래 여백에서 가려짐 — 제목 위로 선이 보이지 않음 ·
+    봉 크기(세로 범위)·오른쪽 가격 눈금·현재가는 그대로 (2026-11-26)."""
+    bars = [{"t": i, "o": before, "h": before + 1, "l": before - 1, "c": before, "v": 1.0} for i in range(140)]
+    bars += [{"t": 140 + i, "o": after, "h": after + 1, "l": after - 1, "c": after + (i % 3) * 0.2, "v": 1.0} for i in range(60)]
+    p = _chart_panel(root, monkeypatch, bars)
+    p._refresh_chart()
+    cv = p._chart_f.winfo_children()[0]
+    W, H = p._chart_f.winfo_width(), p._chart_f.winfo_height()
+    pt, pb, pr = 24, 18, 70
+    bg = cv.cget("bg")
+    ema = [i for i in cv.find_all() if cv.type(i) == "line" and cv.itemcget(i, "fill") in (ACCENT_BLUE, YELLOW)]
+    outside = [(x, y) for i in ema for x, y in zip(cv.coords(i)[0::2], cv.coords(i)[1::2])
+               if 0 <= y < pt - 1 or H - pb + 1 < y <= H]
+    assert outside                                                       # 실제로 범위 밖으로 나간 EMA 점이 있는 경우
+    title = [i for i in cv.find_all() if cv.type(i) == "text" and cv.itemcget(i, "text") == "ABCUSDT  1분봉"][0]
+    for x, y in outside:
+        top = cv.find_overlapping(x, y, x, y)[-1]                        # 그 점에서 맨 위에 보이는 것
+        assert top == title or (cv.type(top) == "rectangle" and cv.itemcget(top, "fill") == bg), (x, y)
+    labels = _axis_labels(p)                                             # 가격 눈금 = 봉 범위 그대로 (EMA로 넓히지 않음)
+    assert labels[0] == fmt_price(after - 1) and labels[-1] == fmt_price(after + 1)
+    masks = [i for i in cv.find_all() if cv.type(i) == "rectangle" and cv.itemcget(i, "fill") == bg]
+    assert len(masks) == 2 and all(cv.coords(m)[2] == W - pr for m in masks)   # 오른쪽 눈금·현재가 영역은 덮지 않음
+    assert cv.coords(masks[0])[3] < pt and cv.coords(masks[1])[1] > H - pb      # 맨 위·아래 눈금선은 남김
+
+
+@pytest.mark.parametrize("last_c, hidden", [(104.0, [4]), (99.0, [0]), (101.5, [2]), (100.4, [1]), (102.1, [])])
+def test_draw_chart_price_box_hides_overlapping_axis_label(root, monkeypatch, last_c, hidden):
+    """현재가 상자와 겹치는 눈금 글자만 생략 (잘린 글자 없음) · 눈금선 5개 유지 · 겹치지 않으면 5개 모두 (2026-11-27).
+    봉 범위 99~104 → 눈금 99·100.25·101.5·102.75·104 (아래 0 → 위 4)."""
+    bars = [{"t": i, "o": 100.0, "h": 104.0 if i == 10 else 101.0, "l": 99.0 if i == 20 else 100.0, "c": 100.5, "v": 1.0}
+            for i in range(59)]
+    bars.append({"t": 59, "o": 100.5, "h": max(100.5, last_c), "l": min(100.5, last_c), "c": last_c, "v": 1.0})
+    p = _chart_panel(root, monkeypatch, bars)
+    p._refresh_chart()
+    cv = p._chart_f.winfo_children()[0]
+    W = p._chart_f.winfo_width()
+    grid = [fmt_price(99.0 + 1.25 * k) for k in range(5)]
+    assert _axis_labels(p) == [g for k, g in enumerate(grid) if k not in hidden]
+    box = [cv.coords(i) for i in cv.find_all() if cv.type(i) == "rectangle" and cv.coords(i)[0] > W - 70][0]
+    for i in cv.find_all():                                              # 남은 눈금 글자는 상자와 겹치지 않음
+        if cv.type(i) == "text" and cv.itemcget(i, "fill") == DIM_TEXT and cv.itemcget(i, "anchor") == "w":
+            b = cv.bbox(i)
+            assert b[3] <= box[1] or b[1] >= box[3]
+    assert len([i for i in cv.find_all() if cv.type(i) == "line" and cv.itemcget(i, "fill") == "#1C1C1C"]) == 5
+    assert fmt_price(last_c) in _texts(p)                                # 현재가는 상자에 표시
+
+
+def _bars_100():
+    return [{"t": i, "o": 100.0, "h": 101.0, "l": 99.0, "c": 100.5, "v": 1.0} for i in range(60)]
+
+
+@pytest.mark.parametrize("state", ["IDLE", "RANKING"])
+def test_col2_not_drawn_unless_analysis(root, monkeypatch, state):
+    """대기·RANKING에서는 Coin Chart·MTF·Macro를 그리지 않음 — 분봉 버튼·탭 클릭·Sort by 탭 전환·창 크기 변경 공통 (2026-11-28).
+    기존: 대기 분봉 버튼 → 'BTCUSDT 데이터 로드 중' 고착 · RANKING → 옛 종목 차트·차트 WS 종목 변경·4h·1d 전용 조회."""
+    p = _chart_panel(root, monkeypatch, _bars_100())
+    p._app_state = state
+    guide = tk.Label(p._chart_f, text="← 1열에서 코인 심볼을 클릭하세요")
+    guide.pack()
+    p._mtf_f, p._macro_f = tk.Frame(p), tk.Frame(p)
+    built = []
+    p._build_mtf_panel = lambda s: built.append(("mtf", s))
+    p._build_macro_panel = lambda s: built.append(("macro", s))
+    p._refresh_chart()
+    p._refresh_mtf()
+    p._refresh_macro()
+    assert p._chart_f.winfo_children() == [guide]                        # 안내 문구 그대로 (캔버스 없음)
+    assert _ctx._data_mgr.chart_syms == []                               # 차트 WS 종목·차트 전용 조회 없음
+    assert built == []
+    p._app_state = "ANALYSIS"                                            # 분석 중이면 그대로 그림
+    p._refresh_mtf()
+    p._refresh_macro()
+    assert built == [("mtf", "ABCUSDT"), ("macro", "ABCUSDT")]
+
+
+@pytest.mark.parametrize("new_state", ["RANKING", "IDLE"])   # Clear · STOP
+def test_draw_scheduled_before_clear_or_stop_does_nothing(root, monkeypatch, new_state):
+    """데이터 갱신 뒤 예약된 2열 그리기(300ms 묶음 + 30ms)가 Clear·STOP 뒤에 실행돼도 옛 종목을 그리지 않음 (2026-11-28)."""
+    p = _chart_panel(root, monkeypatch, _bars_100())
+    p.after(30, p._refresh_chart)                                        # _on_data_ready._check_and_refresh 와 같은 예약
+    p._app_state = new_state                                             # 예약 실행 전에 Clear·STOP
+    guide = tk.Label(p._chart_f, text="← 1열에서 코인 심볼을 클릭하세요")
+    guide.pack()
+    root.after(200, root.quit)
+    root.mainloop()
+    assert p._chart_f.winfo_children() == [guide]
 
 
 # ── ⑦ 1초 실시간 갱신 ────────────────────────────────────────

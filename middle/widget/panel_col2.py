@@ -100,6 +100,8 @@ class _Col2Mixin:
 
     # ─── MTF StochRSI 패널 갱신 ─────────────────────────────
     def _refresh_mtf(self) -> None:
+        if getattr(self, "_app_state", "IDLE") != "ANALYSIS":
+            return   # 분석 중(종목 선택)일 때만 — 대기·Clear 후 탭 전환·Sort by 변경·늦은 예약이 옛 종목을 그리던 문제 (2026-11-28)
         for w in self._mtf_f.winfo_children():
             w.destroy()
         sym = self._sel_var.get()
@@ -274,6 +276,8 @@ class _Col2Mixin:
 
     # ─── Macro & 4TF Entry 패널 갱신 ─────────────────────────
     def _refresh_macro(self) -> None:
+        if getattr(self, "_app_state", "IDLE") != "ANALYSIS":
+            return   # 분석 중(종목 선택)일 때만 — 대기·Clear 후 탭 전환·Sort by 변경·늦은 예약이 옛 종목을 그리던 문제 (2026-11-28)
         for w in self._macro_f.winfo_children():
             w.destroy()
         sym = self._sel_var.get()
@@ -538,7 +542,11 @@ class _Col2Mixin:
     # Coin Chart = tk Canvas 정식 차트 (2026-11-23 사용자 결정 — 실행되지 않던 matplotlib 경로 삭제:
     # 앱 환경·requirements.txt에 matplotlib 없음 → 항상 이 Canvas 차트가 표시되고 있었음)
     def _refresh_chart(self) -> None:
-        """Coin Chart 다시 그리기 (분봉 버튼·탭 전환·데이터 갱신·1초 실시간 갱신 공통)."""
+        """Coin Chart 다시 그리기 (분봉 버튼·탭 전환·데이터 갱신·1초 실시간 갱신·창 크기 변경 공통).
+        분석 중(종목 선택)일 때만 그린다 — 그리는 순간에 확인하므로 대기 상태 분봉 버튼('데이터 로드 중' 고착),
+        Clear·STOP 직전에 예약된 그리기(옛 종목 차트 남음), RANKING 분봉 버튼(옛 종목 차트·차트 전용 조회)을 모두 막는다 (2026-11-28)."""
+        if getattr(self, "_app_state", "IDLE") != "ANALYSIS":
+            return
         self._draw_chart()
 
     def _chart_live_tick(self) -> None:
@@ -624,13 +632,21 @@ class _Col2Mixin:
         def py(p: float) -> float:
             return pt + ch * (1 - (p - lo) / rng)
 
+        last = chart_data.candles[-1]   # 마지막 봉 = 진행 중 봉 — 현재가
+        ly   = py(last.c)
+
         # ── 가격 눈금 (오른쪽 5단계) ──────────────────────────────
+        # 현재가 상자(ly ± 7)와 겹치는 눈금 글자는 생략, 눈금선은 유지 — 상자에 일부 가려 잘린 글자가 보이던 문제
+        # (실측 5m 창 25.4%, 2026-11-27). 생략되는 눈금 값은 현재가와 거의 같아 현재가 상자가 대신 보여 줌
         for i in range(5):
             gp = lo + rng * i / 4
             gy = py(gp)
             cv.create_line(pl, gy, W - pr, gy, fill="#1C1C1C", width=1)
-            cv.create_text(W - pr + 6, gy, text=plabel(gp), fill=DIM_TEXT,
-                           font=("Consolas", 7), anchor="w")
+            tid = cv.create_text(W - pr + 6, gy, text=plabel(gp), fill=DIM_TEXT,
+                                 font=("Consolas", 7), anchor="w")
+            tb = cv.bbox(tid)   # 실제 글꼴 크기로 판정
+            if tb[1] < ly + 7 and tb[3] > ly - 7:
+                cv.delete(tid)
 
         for i, c in enumerate(chart_data.candles):
             x   = pl + (i + 0.5) * bw
@@ -671,14 +687,19 @@ class _Col2Mixin:
                            font=("Consolas", 6), anchor="w")
 
         # ── 현재가 (마지막 봉 = 진행 중 봉 종가) — 선 + 오른쪽 가격 상자 ─────────
-        last = chart_data.candles[-1]
         lcol = POSITIVE if last.is_bullish else NEGATIVE
-        ly   = py(last.c)
         cv.create_line(pl, ly, W - pr, ly, fill=lcol, width=1, dash=(2, 2))
         cv.create_rectangle(W - pr + 2, ly - 7, W - 2, ly + 7, fill=lcol, outline="")
         # 현재가 — 눈금보다 1자리 더 (봉 사이 가격 변화가 보이게)
         cv.create_text(W - pr + 6, ly, text=plabel(last.c, 1), fill="#000000",
                        font=("Consolas", 7, "bold"), anchor="w")
+
+        # ── 그림 영역 밖 가리기 — 세로 범위는 봉 고가·저가 기준이라, 전체 봉으로 계산한 EMA가 왼쪽 첫 봉들에서
+        #    범위를 벗어나면 제목과 겹치거나 캔버스 밖으로 그려짐 (실측 5m 창 27.9%, 오른쪽 끝 10봉 0%).
+        #    봉 크기는 그대로 두고 위·아래 여백을 배경색으로 덮는다 — 오른쪽 가격 눈금·현재가 영역(x ≥ W-pr)은 제외 (2026-11-26)
+        bg = cv.cget("bg")
+        cv.create_rectangle(0, 0, W - pr, pt - 1, fill=bg, outline="")   # 맨 위 눈금선(y=pt)·봉 고가는 남김
+        cv.create_rectangle(0, H - pb + 1, W - pr, H + 1, fill=bg, outline="")   # 맨 아래 눈금선(y=H-pb)·봉 저가는 남김
 
         cv.create_text(W // 2, 12,
                        text=f"{sym}  {tf_label}",
